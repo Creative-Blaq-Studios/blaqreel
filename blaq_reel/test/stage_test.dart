@@ -360,4 +360,23 @@ void main() {
     expect(layer.device?.frame, isFalse);
     await r.close();
   });
+
+  test('Given a spec part with its own move, when read, then every setting '
+      'comes through and the rest is left to the beat\'s move', () {
+    final own = PartMove.fromJson({
+      'type': 'AppCard',
+      'to': [-90, -250],
+      'z': 200,
+      'turn': 12,
+      'delay': 400,
+      'scan': true,
+    })!;
+    expect(own.to, const Offset(-90, -250));
+    expect(own.z, 200);
+    expect(own.turn, 12);
+    expect(own.delay, const Duration(milliseconds: 400));
+    expect(own.scan, isTrue);
+    expect(own.scale, isNull);
+    expect(PartMove.fromJson({'type': 'AppCard', 'text': 'Total'}), isNull);
+  });
 }

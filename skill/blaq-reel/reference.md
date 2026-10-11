@@ -90,6 +90,10 @@ Pick.key(ValueKey('x'))
 ## Packs
 
 ```dart
+// GlassBeat(partMoves: [PartMove(to: Offset(-90, -250), z: 200, scale:,
+//   tilt:, turn: 12, roll:, delay: 400.ms, scan: true), null, ...]): each
+//   part over the move. Specs: on each part, "to": [x, y] (from the screen's
+//   centre), "z", "scale", "tilt", "turn", "roll", "delay" (ms), "scan".
 // GlassBeat(move: GlassMove.spread): lift, scan, spread, fan, zoom, tap,
 // pop, orbit. Specs: "move": "spread" ("sweep" is scan).
 // Lift(to: Offset(-120, -230), travel: Track…) sends a part to a place on

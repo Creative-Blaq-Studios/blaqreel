@@ -456,6 +456,7 @@ function done(id) {
     story: spec.beats.length > 0 && spec.beats.every((b) => (b.word || b.line)), ground: !!spec.look, preview: false }[id];
 }
 function draw() {
+  stopAnimator();
   $('steps').innerHTML = '';
   STEPS.forEach((s, i) => {
     const b = B(`<button class="step${s.id === step ? ' on' : ''}${done(s.id) ? ' done' : ''}"><span class="k">${done(s.id) ? '✓' : i + 1}</span>${s.name}<small>${s.sub}</small></button>`);
@@ -767,15 +768,21 @@ function drawParts(c, side) {
   c.appendChild(wrap);
   // How the chosen parts leave the screen, each move drawn as it plays.
   const moving = spec.pack === 'glass' || spec.pack === 'story';
-  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Move${moving ? '' : ` · ${escB(PACKS.find((p) => p.id === spec.pack).name)} has its own motion; these apply to Glass Layers and Story Ad`}</span></div>`));
+  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Start from a move · resets each part's own settings${moving ? '' : ` · ${escB(PACKS.find((p) => p.id === spec.pack).name)} has its own motion; these apply to Glass Layers and Story Ad`}</span></div>`));
   const moves = B('<div class="moves" role="radiogroup" aria-label="Move"></div>');
   MOVES.forEach(([id, name, blurb]) => {
     const on = (beat.move || 'lift') === id;
     const b = B(`<button class="mv mv-${id}${on ? ' on' : ''}" role="radio" aria-checked="${on}"><div class="mvst"><div class="mvph"><div class="mvbar"></div><div class="mvbar"></div><div class="mvbar"></div></div></div><b>${name}</b><span>${blurb}</span></button>`);
-    b.onclick = () => change(() => (beat.move = id));
+    // A move is where every part starts from: choosing one clears what
+    // each part was given of its own.
+    b.onclick = () => change(() => { beat.move = id; beat.parts.forEach((p) => ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'scan'].forEach((k) => delete p[k])); });
     moves.appendChild(b);
   });
   c.appendChild(moves);
+  // Each part's own landing place, height, size, turn, timing and scan,
+  // played live.
+  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Animate · the beat plays here as you set it; drag a part to where it should land</span></div>`));
+  c.appendChild(animator(beat, s, beatIndex));
   const nb = B('<div class="row2" style="margin-top:22px"></div>');
   if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }
   else { nb.appendChild(next('On to the story')); }

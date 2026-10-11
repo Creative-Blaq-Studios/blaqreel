@@ -518,6 +518,7 @@ class ReelStageState extends State<ReelStage> {
                 name: part.name,
                 text: part.text,
                 rect: shows,
+                full: part.rect,
                 pick: part.pick,
               );
             }
@@ -1299,8 +1300,12 @@ class ScreenPart {
   /// The first text inside it.
   final String? text;
 
-  /// Where it is in its screen, in the screen's own units.
+  /// Where it shows in its screen, in the screen's own units: cut by
+  /// any list or page edge it runs on under.
   final Rect rect;
+
+  /// All of it, as laid out, where it runs on past what shows.
+  final Rect? full;
 
   /// Dart that picks it: paste into a `lift:` or `Tap(where:)`.
   final String pick;
@@ -1311,6 +1316,7 @@ class ScreenPart {
     required this.text,
     required this.rect,
     required this.pick,
+    this.full,
   });
 
   /// As JSON.
@@ -1318,6 +1324,8 @@ class ScreenPart {
     'name': name,
     'text': text,
     'rect': [rect.left, rect.top, rect.width, rect.height],
+    if (full != null && full != rect)
+      'full': [full!.left, full!.top, full!.width, full!.height],
     'pick': pick,
   };
 }

@@ -1,3 +1,4 @@
+import 'animator_page.dart';
 import 'builder_page.dart';
 import 'pages.dart' show scrollbarCss;
 
@@ -5,9 +6,9 @@ import 'pages.dart' show scrollbarCss;
 /// markup and script are spliced in where the markers are.
 final studioPage = _studioBase
     .replaceFirst('/*SCROLLBARS*/', scrollbarCss)
-    .replaceFirst('/*BUILD_CSS*/', builderCss)
+    .replaceFirst('/*BUILD_CSS*/', builderCss + animatorCss)
     .replaceFirst('<!--BUILD_HTML-->', builderHtml)
-    .replaceFirst('/*BUILD_JS*/', builderJs);
+    .replaceFirst('/*BUILD_JS*/', builderJs + animatorJs);
 
 const _studioBase = r'''<!doctype html>
 <html lang="en">

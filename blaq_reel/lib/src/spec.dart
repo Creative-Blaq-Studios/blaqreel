@@ -216,6 +216,11 @@ class ReelSpec {
         scrolls: s.scrolls,
         piece: s.size,
         taps: s.taps,
+        // Each part's own landing place, height, size, turn, timing, scan.
+        partMoves: [
+          for (final p in (b['parts'] as List?) ?? const [])
+            PartMove.fromJson((p as Map).cast<String, Object?>()),
+        ],
         typing: [
           if (b['type'] is String && '${b['type']}'.isNotEmpty)
             TypeText(

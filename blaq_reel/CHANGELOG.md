@@ -13,6 +13,16 @@
   wherever it was found. Specs take `"move"`; the builder shows each move
   as a small animation to choose from, and the AI picks moves when it
   drafts.
+- Each part its own move: `PartMove` (where it lands, height, size, tilt,
+  turn, roll, when it starts, whether a scan line reads it), over the
+  beat's `GlassMove`, which is now where every part starts from. Specs set
+  them on each part (`"to": [x, y]`, `"z"`, `"scale"`, `"tilt"`, `"turn"`,
+  `"roll"`, `"delay"`, `"scan"`). Up to six parts lift.
+- The builder's animator: the beat plays live in the Parts step with the
+  renderer's own camera, tracks and eases ported to the page, so what is
+  set is what renders. Drag a part to where it lands; set the rest per
+  part with sliders, and see it as you go.
+- The map lists each part's full size beside what shows of it.
 - The builder's Parts step lists every beat along the top.
 - "The AI, all of it" keeps the screens the person chose, in order, and
   fills in only the parts, moves and words they left; it chooses screens

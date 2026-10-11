@@ -41,8 +41,12 @@ widget tests already has this.
    you pick.
 3. **Parts**: every beat in a strip along the top; each beat's screen with
    its cards, rows and photos numbered. Click what it features, in order,
-   and choose how they leave the screen: Lift, Lift + scan, Spread, Fan,
-   Zoom in, Tap, Pop or Orbit, each drawn playing on its card.
+   and choose a move to start from: Lift, Lift + scan, Spread, Fan, Zoom
+   in, Tap, Pop or Orbit, each drawn playing on its card. Then the
+   **animator** plays the beat live: drag each part to where it lands and
+   give it its own height, size, tilt, turn, roll, start time and scan
+   line. It runs the renderer's own camera and timing in the page, so what
+   you set is what renders.
 4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).

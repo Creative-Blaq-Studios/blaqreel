@@ -33,8 +33,11 @@ class GlassBeat {
   final Size? piece;
 
   /// Picks the widgets that lift off, the first the furthest. Up to three
-  /// read well.
+  /// read best; [maxParts] lift.
   final List<Pick> lift;
+
+  /// The most parts a beat lifts.
+  static const maxParts = 6;
 
   /// The lifted widgets' corner radius.
   final double liftRadius;
@@ -83,6 +86,11 @@ class GlassBeat {
   /// How the lifted parts leave the screen.
   final GlassMove move;
 
+  /// Each lifted part's own move, in [lift]'s order, over [move]: where it
+  /// lands, how high, how large, turned how, when, and whether it is
+  /// scanned. A null (or a missing one) leaves that part to [move].
+  final List<PartMove?> partMoves;
+
   /// A beat.
   const GlassBeat(
     this.word, {
@@ -102,6 +110,7 @@ class GlassBeat {
     this.ground,
     this.sweep = false,
     this.move = GlassMove.lift,
+    this.partMoves = const [],
     this.piece,
   });
 }
@@ -465,12 +474,17 @@ class GlassLayers {
     // Close enough together that one sharp band holds every lifted card:
     // lifted means in focus. Only the screen behind softens.
     final heights = switch (move) {
-      GlassMove.spread => [190.0, 170.0, 150.0],
-      GlassMove.fan => [160.0, 185.0, 210.0],
-      GlassMove.zoom => [240.0, 150.0, 130.0],
-      _ => [220.0, 180.0, 145.0],
+      GlassMove.spread => [190.0, 170.0, 150.0, 160.0, 180.0, 140.0],
+      GlassMove.fan => [150.0, 170.0, 190.0, 210.0, 230.0, 250.0],
+      GlassMove.zoom => [240.0, 150.0, 130.0, 120.0, 110.0, 100.0],
+      _ => [220.0, 180.0, 145.0, 125.0, 110.0, 100.0],
     };
-    final count = beat.lift.take(3).length;
+    final count = beat.lift.take(GlassBeat.maxParts).length;
+    // A part's own height wins over the move's.
+    for (var k = 0; k < count && k < beat.partMoves.length; k++) {
+      final z = beat.partMoves[k]?.z;
+      if (z != null) heights[k] = z;
+    }
     final used = heights.take(math.max(count, 1));
     final top = used.reduce(math.max) - fallBack;
     final bottom = used.reduce(math.min) - fallBack;
@@ -546,7 +560,7 @@ class GlassLayers {
                 )
               : null,
           lifts: [
-            for (final (k, where) in beat.lift.take(3).indexed)
+            for (final (k, where) in beat.lift.take(GlassBeat.maxParts).indexed)
               _lift(beat, move, where, k, count, heights[k], dir, settle, rise),
           ],
         ),
@@ -579,7 +593,8 @@ class GlassLayers {
     );
   }
 
-  /// The [k]th of [count] parts lifting off in [move], to [height].
+  /// The [k]th of [count] parts lifting off in [move], to [height]: the
+  /// move decides, and the part's own [PartMove] overrides what it sets.
   Lift _lift(
     GlassBeat beat,
     GlassMove move,
@@ -591,71 +606,70 @@ class GlassLayers {
     Duration settle,
     Duration rise,
   ) {
+    final own = k < beat.partMoves.length ? beat.partMoves[k] : null;
     final start =
         settle +
-        (move == GlassMove.pop ? 320.ms : 250.ms) * k +
+        (own?.delay ?? (move == GlassMove.pop ? 320.ms : 250.ms) * k) +
         (move == GlassMove.tap ? 450.ms : Duration.zero);
     final end = start + rise;
-    Track up(double to, [Curve ease = Curves.easeInOutCubic]) =>
-        Track.from(0).hold(start).to(end, to, ease);
-    Track grow(double to) => Track.from(1).hold(start).to(end, to);
+    final ease = move == GlassMove.pop ? Ease.pop : Curves.easeInOutCubic;
+    final arrive = move == GlassMove.pop ? start + 650.ms : end;
+    Track up(double to) => Track.from(0).hold(start).to(arrive, to, ease);
     // Where it sits in a fan or a spread, from the middle one.
     final side = k - (count - 1) / 2;
-    final travel = Track.from(0).hold(start).to(end, 1, Ease.inOut);
-    final (motion, to) = switch (move) {
+    final scanned = own?.scan ?? (move == GlassMove.scan && k == 0);
+    const spreadAt = [
+      Offset(-118, -230),
+      Offset(128, 20),
+      Offset(-104, 260),
+      Offset(120, -210),
+      Offset(-125, 40),
+      Offset(110, 250),
+    ];
+    final (Offset? to, double scale, double turn, double roll) = switch (move) {
       // Pulled apart round the phone, each turned toward the middle.
       GlassMove.spread => (
-        Motion(
-          z: up(height),
-          turn: up([14.0, -14.0, 12.0][k] * dir),
-          scale: grow(1.02),
-        ),
-        Offset([-118.0, 128.0, -104.0][k] * dir, [-230.0, 20.0, 260.0][k]),
+        Offset(spreadAt[k].dx * dir, spreadAt[k].dy),
+        1.02,
+        (k.isEven ? 14.0 : -14.0) * dir,
+        0.0,
       ),
       // Gathered in the middle, overlapping, fanned like a hand of cards.
       GlassMove.fan => (
-        Motion(z: up(height), roll: up(8 * side * dir), scale: grow(1.04)),
         Offset(78 * side * dir, 40.0 + 30 * side.abs()),
+        1.04,
+        0.0,
+        8 * side * dir,
       ),
       // The first part comes forward to the middle of the screen, large.
-      GlassMove.zoom when k == 0 => (
-        Motion(z: up(height), scale: grow(1.38)),
-        const Offset(0, -30),
-      ),
-      // Up with a spring: past its place and back.
-      GlassMove.pop => (
-        Motion(
-          z: Track.from(0).hold(start).to(start + 650.ms, height, Ease.pop),
-          scale: Track.from(
-            1,
-          ).hold(start).to(start + 650.ms, k == 0 ? 1.08 : 1.04, Ease.pop),
-        ),
-        null,
-      ),
-      _ => (
-        Motion(
-          z: up(height),
-          x: up(k == 0 ? 0 : 10.0 * dir * k),
-          scale: grow(
-            // Something being read rises larger, so the scan line over it
-            // reads at a glance.
-            k == 0 ? (move == GlassMove.scan ? 1.45 : 1.06) : 1.03,
-          ),
-        ),
-        null,
-      ),
+      GlassMove.zoom when k == 0 => (const Offset(0, -30), 1.38, 0.0, 0.0),
+      GlassMove.pop => (null, k == 0 ? 1.08 : 1.04, 0.0, 0.0),
+      // Something being read rises larger, so the scan line over it reads
+      // at a glance.
+      _ => (null, scanned ? 1.45 : (k == 0 ? 1.06 : 1.03), 0.0, 0.0),
     };
+    final lands = own?.to ?? to;
     return Lift(
       where: where,
       radius: beat.liftRadius,
       hole: hole?.call(beat.liftRadius),
       glass: const Glass(depth: 6, color: Color(0x30FFFFFF)),
-      sweep: move == GlassMove.scan && k == 0
-          ? Sweep(at: settle + 600.ms, color: brand.accent)
-          : null,
-      motion: motion,
-      to: to,
-      travel: to == null ? null : travel,
+      sweep: scanned ? Sweep(at: start + 600.ms, color: brand.accent) : null,
+      motion: Motion(
+        z: up(height),
+        // Off to one side a little, unless it is going somewhere.
+        x: lands == null && move != GlassMove.pop && k > 0
+            ? up(10.0 * dir * k)
+            : null,
+        scale: Track.from(1).hold(start).to(arrive, own?.scale ?? scale, ease),
+        tilt: own?.tilt == null ? null : up(own!.tilt!),
+        turn: (own?.turn ?? turn) == 0 ? null : up(own?.turn ?? turn),
+        roll: (own?.roll ?? roll) == 0 ? null : up(own?.roll ?? roll),
+      ),
+      to: lands,
+      travel: lands == null
+          ? null
+          : Track.from(0).hold(start).to(end, 1, Ease.inOut),
     );
   }
 
@@ -957,6 +971,78 @@ extension GlassLookTone on GlassLook {
       this == GlassLook.mesh ||
       this == GlassLook.butter ||
       this == GlassLook.studio;
+}
+
+/// One lifted part's own way off the screen, over its beat's [GlassMove]:
+/// whatever is set here wins, whatever is null the move decides.
+class PartMove {
+  /// Where its centre lands, from the screen's centre, in screen units;
+  /// null rises where it sat.
+  final Offset? to;
+
+  /// How high it rises off the screen.
+  final double? z;
+
+  /// How large it grows.
+  final double? scale;
+
+  /// Leaning back or forward, degrees.
+  final double? tilt;
+
+  /// Turning left or right, degrees.
+  final double? turn;
+
+  /// Rolling in the screen's plane, degrees.
+  final double? roll;
+
+  /// When it starts, after the screen settles.
+  final Duration? delay;
+
+  /// A scan line passes over it as it rises.
+  final bool? scan;
+
+  /// A part's move.
+  const PartMove({
+    this.to,
+    this.z,
+    this.scale,
+    this.tilt,
+    this.turn,
+    this.roll,
+    this.delay,
+    this.scan,
+  });
+
+  /// From a spec's part: `{"to": [x, y], "z", "scale", "tilt", "turn",
+  /// "roll", "delay" (ms), "scan"}`; null if it sets none of them.
+  static PartMove? fromJson(Map<String, Object?> j) {
+    double? n(String k) => j[k] is num ? (j[k]! as num).toDouble() : null;
+    final to = j['to'];
+    final m = PartMove(
+      to: to is List && to.length == 2 && to[0] is num && to[1] is num
+          ? Offset((to[0] as num).toDouble(), (to[1] as num).toDouble())
+          : null,
+      z: n('z'),
+      scale: n('scale'),
+      tilt: n('tilt'),
+      turn: n('turn'),
+      roll: n('roll'),
+      delay: n('delay') == null
+          ? null
+          : Duration(milliseconds: n('delay')!.round()),
+      scan: j['scan'] is bool ? j['scan']! as bool : null,
+    );
+    final any =
+        m.to != null ||
+        m.z != null ||
+        m.scale != null ||
+        m.tilt != null ||
+        m.turn != null ||
+        m.roll != null ||
+        m.delay != null ||
+        m.scan != null;
+    return any ? m : null;
+  }
 }
 
 /// How a [GlassBeat]'s parts leave its screen.
