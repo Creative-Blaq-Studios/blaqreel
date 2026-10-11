@@ -42,6 +42,9 @@ class Studio {
   var _version = 0;
   var _library = 0;
   String? _job;
+
+  /// How far the render under way is, 0 to 1, from its frame count.
+  double? _progress;
   String _status = 'Starting';
   final List<String> _log = [];
   DateTime? _renderedAt;
@@ -228,10 +231,12 @@ class Studio {
   Future<void> _serial(String name, Future<void> Function() job) {
     final next = _queue.then((_) async {
       _job = name;
+      _progress = null;
       try {
         await job();
       } finally {
         _job = null;
+        _progress = null;
       }
     });
     _queue = next.catchError((Object _) {});
@@ -242,16 +247,20 @@ class Studio {
       project.renderTest(
         defines,
         quiet: true,
-        onLine: !log
-            ? null
-            : (line) {
-                if (line.contains('blaq_reel:') ||
-                    line.contains('EXCEPTION') ||
-                    line.contains('Error')) {
-                  _log.add(line.trim());
-                  if (_log.length > 40) _log.removeAt(0);
-                }
-              },
+        onLine: (line) {
+          // `blaq_reel: promo frame 120/309`: how far the render is.
+          final m = RegExp(r'frame (\d+)/(\d+)').firstMatch(line);
+          if (m != null) {
+            _progress = int.parse(m[1]!) / int.parse(m[2]!);
+          }
+          if (!log) return;
+          if (line.contains('blaq_reel:') ||
+              line.contains('EXCEPTION') ||
+              line.contains('Error')) {
+            _log.add(line.trim());
+            if (_log.length > 40) _log.removeAt(0);
+          }
+        },
       );
 
   /// Reads every reel's timeline in every format, for the library.
@@ -444,6 +453,7 @@ class Studio {
             'version': _version,
             'library': _library,
             'job': _job,
+            'progress': _progress,
             'status': _status,
             'renderedAt': _renderedAt?.toIso8601String(),
             'log': _log,

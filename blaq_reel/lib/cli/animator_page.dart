@@ -14,14 +14,18 @@ library;
 /// The editor's styles.
 const animatorCss = r'''
 .tled { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(78vh, 900px); min-height: 520px; border: 1px solid var(--line2); background: var(--deep); }
-.tl-bar { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
+.tl-bar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
 .tl-bar > button { padding: 6px 10px; font-size: 11px; }
 .tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
 .tl-movel { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 6px; }
 .tl-bar > * { flex: none; }
-.tl-bar .tl-move { width: 130px; padding: 5px 8px; }
+.tl-bar .tl-move { width: 140px; padding: 5px 8px; }
+.tl-bar .tl-frame-pick { width: 84px; padding: 5px 8px; }
+.tl-bar .bnav { padding: 5px 8px !important; font-size: 10.5px !important; }
+.tl-own { display: flex; gap: 4px; align-items: center; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text2); white-space: nowrap; }
+.tl-own input { accent-color: var(--accent); margin: 0; }
 .tl-bar .bnav { padding: 5px 10px; font-size: 14px; line-height: 1; }
-.tl-bar .beatSel { width: 180px !important; padding: 5px 8px; }
+.tl-bar .beatSel { width: 136px !important; padding: 5px 8px; }
 .tl-bar .seg button { padding: 6px 9px; font-size: 10.5px; }
 .tl-stagebox { position: relative; min-height: 0; overflow: hidden; background: #050505; display: grid; place-items: center; }
 .tl-frame { position: relative; overflow: hidden; outline: 1px solid rgba(255,107,0,.5); box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.6); }
@@ -339,6 +343,25 @@ function scrubbable(input, step = 1, label = null) {
   }
 }
 
+// A look's ground as the renderer builds it (backdropOf in
+// glass_layers.dart), in the brand's colours: its gradient, its glows
+// (still, where the renderer lets them drift) and its vignette.
+function groundCss(look, w, h) {
+  const { ink, accent, paper } = BRAND, W = '#FFFFFF', K = '#000000';
+  const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+  const glow = (c, a, x, y, r) => `radial-gradient(circle ${Math.round(r * Math.max(w, h))}px at ${(x + 1) * 50}% ${(y + 1) * 50}%, ${rgba(c, a)}, ${rgba(c, 0)})`;
+  const vig = (v) => `radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,${(v * 0.75).toFixed(2)}))`;
+  const lin = (t, b) => `linear-gradient(180deg, ${t}, ${b})`;
+  switch (look) {
+    case 'mesh': return [vig(0.06), glow(W, 0.7, 0.2, 0.1, 0.35), glow('#C9BCFF', 0.55, -0.35, 0.85, 0.55), glow(hexMix(accent, '#FF8A65', 0.55), 0.55, 0.85, 0.05, 0.5), glow(accent, 0.9, -0.75, -0.55, 0.62), lin(hexMix(paper, W, 0.5), hexMix(paper, accent, 0.18))].join(',');
+    case 'butter': return [vig(0.1), glow(W, 0.45, 0, -0.75, 0.55), lin(hexMix(accent, W, 0.12), hexMix(accent, '#E0A800', 0.35))].join(',');
+    case 'studio': return [vig(0.14), glow(accent, 0.18, 0.6, 0.6, 0.45), glow(W, 0.9, 0, -0.7, 0.55), `linear-gradient(180deg, rgba(0,0,0,0) 62%, ${hexMix(paper, K, 0.09)} 62%)`, lin(hexMix(paper, W, 0.6), hexMix(paper, K, 0.04))].join(',');
+    case 'grid': return [vig(0.5), glow(accent, 0.16, 0, 0.35, 0.55), lin(hexMix(ink, K, 0.45), hexMix(ink, K, 0.2))].join(',');
+    case 'echo': return [vig(0.55), lin(hexMix(ink, W, 0.03), hexMix(ink, K, 0.55))].join(',');
+    default: return [vig(0.4), glow(accent, 0.1, -0.7, 0.75, 0.45), glow(accent, 0.28, 0.4, -0.35, 0.55), lin(hexMix(ink, W, 0.03), hexMix(ink, K, 0.55))].join(',');
+  }
+}
+
 function timelineEditor(beat, s, index, side, lead) {
   stopAnimator();
   if (ed.beat !== index) { ed.beat = index; ed.sel = beat.parts.length ? 0 : 'words'; ed.t = SETTLE + RISE + 600; ed.playing = true; }
@@ -348,7 +371,6 @@ function timelineEditor(beat, s, index, side, lead) {
   const TL = Math.ceil((Math.max(l, 4000) + 2000) / 1000) * 1000;
   const f = layoutOf(ed.frame);
   const look = beat.look || spec.look;
-  const ground = { mesh: 'linear-gradient(160deg,#FFF4D6,#FFD9A8 45%,#E9DDF5)', butter: 'linear-gradient(180deg,#FFE29A,#F2C34E)', studio: 'linear-gradient(180deg,#FAF8F3,#E9E6DF)', grid: 'linear-gradient(180deg,#0B0B0B,#151515)', ink: 'radial-gradient(circle at 70% 30%,#3A2E14,#0E0E0E 60%)', echo: 'linear-gradient(180deg,#111,#050505)' }[look] || '#111';
   const partOf = (p) => s.parts.find((x) => x.name === p.type && (x.text || null) === (p.text || null));
   const parts = beat.parts.slice(0, 6);
   if (typeof ed.sel === 'number' && ed.sel >= parts.length) ed.sel = parts.length ? 0 : 'words';
@@ -357,10 +379,11 @@ function timelineEditor(beat, s, index, side, lead) {
 
   const root = B(`<div class="tled">
     <div class="tl-bar">
-      <label class="tl-movel" for="tlMove">Move</label><select class="input tl-move" id="tlMove" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
+      <select class="input tl-move" id="tlGround" aria-label="Ground" title="What the screens sit on">${LOOKS.map((g) => `<option value="${g.id}" ${look === g.id ? 'selected' : ''}>Ground · ${escB(g.name)}</option>`).join('')}</select>
+      <label class="tl-own" title="Give this beat its own ground; the others keep the reel's"><input type="checkbox" id="tlGroundOwn" ${beat.look ? 'checked' : ''}> Beat</label><select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>Move · ${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
-      <div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r, where]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}" title="${r} · ${where}${id === spec.format ? ' · the reel’s frame' : ' · preview: each frame keeps its own placement'}">${r}</button>`).join('')}</div>
-      <button data-safe class="${ed.safe ? 'on' : ''}" title="Show what the platform's buttons and captions cover">Safe zone</button>
+      <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
+      <button data-safe class="${ed.safe ? 'on' : ''}" title="Show the safe zone: what the platform's buttons and captions cover">Safe</button>
     </div>
     <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div></div>
     <div class="tl-time">
@@ -369,7 +392,7 @@ function timelineEditor(beat, s, index, side, lead) {
     </div>
   </div>`);
   const stage = root.querySelector('.tl-stage'), frameEl = root.querySelector('.tl-frame'), box = root.querySelector('.tl-stagebox');
-  stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px'; stage.style.background = ground;
+  stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px'; stage.style.background = groundCss(look, f.w, f.h);
 
   // The screen, the holes its parts leave, the parts, the words, guides.
   const img = `/catalogue/${s.image}`;
@@ -717,10 +740,14 @@ function timelineEditor(beat, s, index, side, lead) {
   }
 
   // Wiring.
+  // The ground: the reel's, or with "this beat" ticked, this beat's own.
+  const groundPick = root.querySelector('#tlGround'), groundOwn = root.querySelector('#tlGroundOwn');
+  groundPick.onchange = () => { if (groundOwn.checked) beat.look = groundPick.value; else { spec.look = groundPick.value; delete beat.look; } save(); draw(); };
+  groundOwn.onchange = () => { if (groundOwn.checked) beat.look = groundPick.value; else delete beat.look; save(); draw(); };
   root.querySelector('#tlMove').onchange = (e) => { beat.move = e.target.value; beat.parts.forEach((p) => PART_KEYS.forEach((key) => delete p[key])); save(); ed.t = 0; ed.playing = true; rows(); inspector(); };
   // The beat picker and Pick/Animate lead the toolbar, so they take no row.
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
-  root.querySelectorAll('[data-frame]').forEach((b) => (b.onclick = () => { ed.frame = b.dataset.frame; draw(); }));
+  root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
   root.querySelector('[data-safe]').onclick = (e) => { ed.safe = !ed.safe; e.target.classList.toggle('on', ed.safe); };
   root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); };
 

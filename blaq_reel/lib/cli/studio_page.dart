@@ -40,6 +40,11 @@ const _studioBase = r'''<!doctype html>
   header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; min-height: 52px;
     border-bottom: 1px solid var(--line2); background: var(--deep); flex-wrap: nowrap; overflow: hidden; }
   header > * { flex: none; }
+  /* A render under way: a thin bar under the header, filling as it goes. */
+  #jobBar { position: fixed; left: 0; right: 0; top: 52px; height: 3px; background: rgba(255,107,0,.15); z-index: 40; }
+  #jobBar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+  #jobBar.waiting i { animation: jobwait 1.2s ease-in-out infinite alternate; }
+  @keyframes jobwait { from { opacity: .35; } to { opacity: 1; } }
   header button { padding: 6px 10px; font-size: 11px; }
   header .now { flex: 0 1 auto; min-width: 0; }
   header .tag { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -167,6 +172,7 @@ const _studioBase = r'''<!doctype html>
   <button class="primary" id="finalBtn" title="Render the finished video of this reel and format">Render final</button>
   <button id="stillBtn" title="S — save a still of this frame">Still</button>
 </header>
+<div id="jobBar" hidden><i></i></div>
 <main>
   <nav>
     <section>
@@ -492,7 +498,13 @@ async function poll() {
     if (window.onStudioState) window.onStudioState(state);
     const dot = $('dot');
     dot.className = 'dot' + (state.job ? ' busy' : state.status.includes('failed') ? ' bad' : '');
-    $('status').textContent = state.job ? state.job + '…' : state.status;
+    // How far the render is: a figure in the status, a bar under the header.
+    const pct = state.job && state.progress != null ? Math.round(state.progress * 100) : null;
+    $('status').textContent = state.job ? state.job + '…' + (pct != null ? ' ' + pct + '%' : '') : state.status;
+    const bar = $('jobBar');
+    bar.hidden = !state.job; bar.firstElementChild.style.width = (pct ?? 4) + '%';
+    bar.classList.toggle('waiting', pct == null);
+    bar.title = state.job ? state.job + (pct != null ? ' · ' + pct + '%' : '') : '';
     $('log').textContent = state.log.length ? state.log.join('\n') : '—';
     $('finalBtn').title = `Render the finished ${state.reel} · ${state.format}`;
     if (state.library !== seenLibrary) { seenLibrary = state.library; await refreshLibrary(); }
