@@ -913,34 +913,40 @@ class ReelStageState extends State<ReelStage> {
   );
 
   /// A device screen: its shadow, the app clipped to its corners, the status
-  /// bar, what its lifted widgets leave, fingers, and a glass edge.
+  /// bar, what its lifted widgets leave, fingers, and a glass edge. A bare
+  /// device ([Device.bare]) draws only the app, the lifts' traces and the
+  /// fingers: a piece of the app on the ground as it is.
   Widget _screen(LayerKey key, Layer layer, Duration t) {
     final device = layer.device!;
     final radius = BorderRadius.circular(device.radius);
     final shape = RoundedSuperellipseBorder(borderRadius: radius);
     final (i, j) = key;
 
+    final frame = device.frame;
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: ShapeDecoration(
-              shape: shape,
-              shadows: const [
-                BoxShadow(
-                  color: Color(0x73000000),
-                  blurRadius: 70,
-                  offset: Offset(0, 36),
-                ),
-              ],
+        if (frame)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: shape,
+                shadows: const [
+                  BoxShadow(
+                    color: Color(0x73000000),
+                    blurRadius: 70,
+                    offset: Offset(0, 36),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         Positioned.fill(
           child: ClipRSuperellipse(
             borderRadius: radius,
+            clipBehavior: frame ? Clip.antiAlias : Clip.none,
             child: Stack(
+              clipBehavior: frame ? Clip.hardEdge : Clip.none,
               children: [
                 Positioned.fill(
                   child: RepaintBoundary(
@@ -951,7 +957,7 @@ class ReelStageState extends State<ReelStage> {
                     ),
                   ),
                 ),
-                if (layer.statusBar != null)
+                if (frame && layer.statusBar != null)
                   Positioned(
                     top: 0,
                     left: 0,
@@ -979,18 +985,22 @@ class ReelStageState extends State<ReelStage> {
             ),
           ),
         ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                shape: RoundedSuperellipseBorder(
-                  borderRadius: radius,
-                  side: const BorderSide(color: Color(0x47FFFFFF), width: 1.5),
+        if (frame)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: ShapeDecoration(
+                  shape: RoundedSuperellipseBorder(
+                    borderRadius: radius,
+                    side: const BorderSide(
+                      color: Color(0x47FFFFFF),
+                      width: 1.5,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

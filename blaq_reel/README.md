@@ -34,8 +34,11 @@ widget tests already has this.
 
 1. **Brief**: name, style pack, frame, what it should get across, sound,
    and who writes the story: the AI, you then the AI, or you.
-2. **Screens**: every screen the app's kit offers, drawn for real; each one
-   you add is a beat.
+2. **Screens**: every screen the app's kit offers, drawn for real, and
+   below them its components (a button, a loading placeholder) shown on
+   their own; each one you add is a beat. **Add from the app** lists every
+   screen, sheet, dialog and component the AI found, and stages the ones
+   you pick.
 3. **Parts**: each beat's screen with its cards, rows and photos numbered;
    click what it features, in order, and choose the move (lift, or lift
    with a scan line).
@@ -56,7 +59,12 @@ reopens it in a terminal (`claude --resume <id>`).
 
 Every change is saved to `app_reels/specs/<name>.json`, which renders like
 any reel. The app offers its screens to the builder with a `ReelKit`
-passed to `blaqReelMain` (see Khumio's `app_reels/kit.dart`).
+passed to `blaqReelMain` (see Khumio's `app_reels/kit.dart`): screens as
+`ReelScreen(widget, label:)`, and components as
+`ReelScreen.component(widget, label:, size:, taps:)`, which a Glass Layers
+or Story Ad beat shows large on the ground, doing what it does (a `Tap` with
+`press: true` puts a button into its loading state). Kinetic Launch keeps a
+component's line only; Dark Glow leaves components out.
 
 ## A guided reel, in five steps
 
@@ -127,7 +135,7 @@ transitions and layout for whichever format it is built for.
 | Block | What it is |
 | --- | --- |
 | `Reel`, `Scene`, `Transition` | A run of scenes, each on its own clock, overlapping through cut, fade, swing, zoom-through, wipe or rise. A layer marked `carry` stays on its course through the transition out. |
-| `Layer`, `Layer.screen`, `Layer.timed`, `Motion`, `Glass` | Any widget in 3D; an app screen through the host, on a `Device`; a widget rebuilt from the clock each frame. Each moves on its own tracks; `Glass` gives it a slab edge. |
+| `Layer`, `Layer.screen`, `Layer.component`, `Layer.timed`, `Motion`, `Glass` | Any widget in 3D; an app screen through the host, on a `Device`; a piece of the app through the host with no phone around it (`Device.bare`), which can be tapped and typed into like a screen; a widget rebuilt from the clock each frame. Each moves on its own tracks; `Glass` gives it a slab edge. |
 | `Lift` | Part of a screen that comes off toward the camera: the real widget, found as drawn, cloned over where it was, leaving a hole and a shadow that spreads as it rises. |
 | `Pick` | Finds widgets in a screen: by type, by type name (private ones too), by text, the nth, the innermost one containing another. |
 | `Tap`, `Scroll`, `TypeText` | A fingertip with a ripple (and, with `press`, a real tap); the real scrollable scrolled; text typed into the real field. |

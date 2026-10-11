@@ -63,6 +63,11 @@ tall part lifted low on the screen runs into the word.
 If a feature lives on a screen the reel doesn't have yet, stage that screen
 the way the app's store screenshots or widget tests do, and map again.
 
+A beat can also be about one piece of the app on its own (a button and its
+loading spinner, a loading placeholder, a progress ring): register it with
+`ReelScreen.component` and it shows large on the ground with no phone,
+pressed for real by its `taps`. Glass Layers and Story Ad show components.
+
 ### 3. The ground
 
 `dart run blaq_reel looks <reel> --at <a telling second>` renders that

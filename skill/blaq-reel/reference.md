@@ -68,6 +68,8 @@ Layer.screen(HomeScreen(),            // drawn through host.wrap, on a Device
   taps: [Tap(where: Pick.text('Done'), at: 3.s, press: false)],
   scrolls: [Scroll(offset: Track.from(0).to(2.s, 600))],
   typing: [TypeText(text: '…', at: 1.s, perCharacter: 45.ms, sound: 'tick')])
+Layer.component(AppButton(...), size: Size(320, 80),   // through host.wrap, no phone
+  taps: [Tap(where: Pick.type<AppButton>(), at: 2.s, press: true)])
 ```
 
 `Lift` z is height above its screen. Lifts are found once, at the start, in
@@ -88,6 +90,8 @@ Pick.key(ValueKey('x'))
 ## Packs
 
 ```dart
+// GlassBeat(piece: Size(320, 80)) makes a beat about one component: `screen`
+// is then the component, shown large on the ground, pressed by `taps`.
 GlassLayers(brand:, format:, beats: [GlassBeat('Share.', screen:, lift: [Pick…],
     liftRadius:, zoom:, framing:, taps:, scrolls:, typing:, slowLift: .5,
     look: GlassLook.butter, ground: Backdrop(...))],     // per-beat ground
@@ -119,6 +123,18 @@ void main() {
   final config = ReelConfig.load('app_reels/reel.yaml');
   blaqReelMain(config: config, host: host, reels: {'promo': (f) => promo(config, f)});
 }
+```
+
+```dart
+// app_reels/kit.dart: what the studio's builder and specs can use
+final kit = ReelKit(screens: {
+  'home': const ReelScreen(HomeScreen(), label: 'Home'),
+  // A component: centred, on no background, in a box a little larger than it.
+  'button': ReelScreen.component(
+    Center(child: AppButton(title: 'Save', onTap: () => Future.delayed(1800.ms))),
+    label: 'Button · loading', size: const Size(320, 80),
+    taps: [Tap(where: Pick.type<AppButton>(), at: 2.s, press: true)]),
+}, logos: {...}, statusBar:, hole:, url:);
 ```
 
 reel.yaml: `name`, `fps`, `format`, `out`, `ffmpeg`, `music` (`pad` or a

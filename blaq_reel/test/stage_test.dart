@@ -319,4 +319,45 @@ void main() {
     expect(total.rect.width, greaterThan(0));
     expect(total.pick, contains('Total'));
   });
+
+  testWidgets('Given a component pressed in a Glass Layers beat, when the '
+      'clock passes the press, then the real widget was tapped and it took '
+      'its pending work with it when closed', (tester) async {
+    var presses = 0;
+    final button = GestureDetector(
+      onTap: () {
+        presses++;
+        // Work a button waits on: it must not outlive the render.
+        Future<void>.delayed(const Duration(seconds: 2));
+      },
+      child: const _Card('Go'),
+    );
+    final reel = GlassLayers(
+      brand: const Brand(
+        ink: Color(0xFF111111),
+        paper: Color(0xFFFFFFFF),
+        accent: Color(0xFFFFD97A),
+        display: 'Display',
+        text: 'Text',
+      ),
+      format: const Format('small', Size(360, 640), pixelRatio: 1),
+      beats: [
+        GlassBeat(
+          'Press.',
+          screen: Center(child: button),
+          piece: const Size(200, 80),
+          taps: [Tap(where: Pick.type<_Card>(), at: 1.s, press: true)],
+        ),
+      ],
+    ).build('piece');
+    final r = ReelRenderer(tester, reel, host: host);
+    await r.mount();
+    for (var t = 0; t <= 1500; t += 100) {
+      await r.seek(Duration(milliseconds: t));
+    }
+    expect(presses, 1);
+    final layer = reel.scenes.single.layers.last;
+    expect(layer.device?.frame, isFalse);
+    await r.close();
+  });
 }

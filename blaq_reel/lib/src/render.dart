@@ -63,6 +63,13 @@ class ReelRenderer {
   ReelStageState get _stage =>
       tester.state<ReelStageState>(find.byType(ReelStage));
 
+  /// Takes the stage down and lets the app's pending timers run out — the
+  /// work a pressed button is waiting on, say — so the test ends clean.
+  Future<void> close() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(minutes: 1));
+  }
+
   /// Sizes the test view to the format, pumps the stage, lets the host get
   /// ready, and waits until every lifted widget has been found.
   Future<void> mount() async {

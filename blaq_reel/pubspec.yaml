@@ -1,6 +1,6 @@
 name: blaq_reel
 description: "Promo videos made from a Flutter app's real screens: layers in 3D, a keyframed camera, moving type, rendered frame by frame in flutter test and encoded by FFmpeg."
-version: 0.4.0
+version: 0.5.0
 publish_to: none
 executables:
   blaq_reel:

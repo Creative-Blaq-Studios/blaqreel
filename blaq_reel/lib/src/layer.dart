@@ -76,8 +76,22 @@ class Device {
   /// What the status bar and home indicator cover.
   final EdgeInsets padding;
 
+  /// Whether it is drawn as a phone: a shadow, corners, an edge. A piece of
+  /// the app shown on its own has none ([Device.bare]).
+  final bool frame;
+
   /// A device.
-  const Device(this.size, {required this.radius, required this.padding});
+  const Device(
+    this.size, {
+    required this.radius,
+    required this.padding,
+    this.frame = true,
+  });
+
+  /// No phone at all: a box of [size] that a piece of the app — a button, a
+  /// card, a spinner — is laid out in, drawn on the ground as it is.
+  const Device.bare(Size size)
+    : this(size, radius: 0, padding: EdgeInsets.zero, frame: false);
 
   /// A 6.1-inch iPhone with a Dynamic Island: 393×852.
   static const iphone = Device(
@@ -230,7 +244,31 @@ class Layer {
        ignoreFocus = false,
        motion = motion ?? Motion();
 
-  /// Whether this is an app screen.
+  /// A piece of the app on its own — a button, a card, a spinner — at
+  /// [size], with no phone around it. The host draws it as it draws a
+  /// screen (the app's theme, fonts and demo data), so it can be tapped,
+  /// typed into and lifted like one.
+  Layer.component(
+    Widget child, {
+    required Size size,
+    Offset position = Offset.zero,
+    Motion? motion,
+    List<Lift> lifts = const [],
+    List<Tap> taps = const [],
+    List<TypeText> typing = const [],
+    bool carry = false,
+  }) : this.screen(
+         child,
+         device: Device.bare(size),
+         position: position,
+         motion: motion,
+         lifts: lifts,
+         taps: taps,
+         typing: typing,
+         carry: carry,
+       );
+
+  /// Whether this is an app screen, or a piece of the app on its own.
   bool get isScreen => device != null;
 }
 

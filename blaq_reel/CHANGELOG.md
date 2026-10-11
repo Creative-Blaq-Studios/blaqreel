@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 — 2026-10-11
+
+### Added
+
+- Components: one piece of the app shown on its own, large on the ground
+  with no phone around it. `Layer.component` and `Device.bare` draw it
+  through the host like a screen, so a `Tap` with `press` really presses it
+  (a button goes into its loading state) and anything that animates by
+  itself plays on the reel's clock. `GlassBeat(piece: size)` makes a Glass
+  Layers or Story Ad beat about one, with its own silhouette as a soft
+  shadow; `ReelScreen.component(widget, label:, size:, taps:)` offers one to
+  the builder and to specs.
+- The builder lists components under the screens, shows them whole (no
+  parts to pick), and says which styles show them. The AI's inventory lists
+  components too, from the app's shared UI and its showcase, and staging
+  registers them with `ReelScreen.component`.
+- `ReelRenderer.close`: every task takes the stage down and lets the app's
+  pending timers run out, so a pressed button's work never fails a render.
+- Slim scroll bars on every page; the Claude Code panel as one chat thread
+  behind a floating button that glows while Claude works.
+
 ## 0.4.0 — 2026-10-11
 
 The whole plan: engine, tools, packs and skill. Not yet tried on a second

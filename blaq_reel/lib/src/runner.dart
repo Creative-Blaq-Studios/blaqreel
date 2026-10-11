@@ -107,6 +107,7 @@ void blaqReelMain({
           final r = renderer(tester, reels[n]!(f));
           await r.mount();
           await r.video(file(n, f, 'mp4'), audio: audio != 'off');
+          await r.close();
         }, timeout: long);
       }
       if (task.isEmpty || task == 'stills') {
@@ -117,6 +118,7 @@ void blaqReelMain({
             final stem = f == config.format ? n : '$n-${f.name}';
             await r.still(s.s, '${config.out}/stills/$stem-${s}s.png');
           }
+          await r.close();
         }, timeout: long);
       }
       if (task == 'preview') {
@@ -126,6 +128,7 @@ void blaqReelMain({
           await r.mount();
           final dir = '${config.out}/studio';
           await r.preview('$dir/$n-${f.name}.mp4');
+          await r.close();
           _writeJson('$dir/$n-${f.name}.json', {
             ...describeReel(reel, fps: r.fps),
             'video': '$n-${f.name}.mp4',
@@ -212,6 +215,7 @@ Future<void> _map(
     }
   }
   _writeJson('$dir/map.json', {'reel': reel.name, 'screens': screens});
+  await r.close();
 }
 
 /// Every screen in [kit], drawn flat with its featurable parts listed, for
@@ -233,11 +237,14 @@ Future<void> _catalogue(
           length: const Duration(seconds: 1),
           camera: Camera.still(const CameraPose(zoom: 0.5)),
           layers: [
-            Layer.screen(
-              kit.screens[id]!.widget,
-              statusBar: kit.statusBar,
-              scrolls: kit.screens[id]!.scrolls,
-            ),
+            if (kit.screens[id]!.size case final size?)
+              Layer.component(kit.screens[id]!.widget, size: size)
+            else
+              Layer.screen(
+                kit.screens[id]!.widget,
+                statusBar: kit.statusBar,
+                scrolls: kit.screens[id]!.scrolls,
+              ),
           ],
         ),
     ],
@@ -256,6 +263,7 @@ Future<void> _catalogue(
     final id = '${s['scene']}';
     s['id'] = id;
     s['label'] = kit.screens[id]?.label ?? id;
+    s['kind'] = kit.screens[id]?.isComponent ?? false ? 'component' : 'screen';
   }
   _writeJson(file.path, map);
 }

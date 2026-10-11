@@ -46,6 +46,12 @@ textarea.input { min-height: 80px; resize: vertical; }
 .scr:hover { border-color: var(--accent); }
 .scr img { width: 100%; display: block; border: 1px solid var(--line2); }
 .scr b { font-weight: 600; font-size: 13px; }
+.scr .pic { aspect-ratio: 9 / 16; display: grid; place-items: center; padding: 14px; border: 1px solid var(--line2);
+  background: radial-gradient(circle at 50% 40%, #2A2622, #121212 70%); }
+.scr .pic img { border: 0; max-height: 100%; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+.scr .sub { font: 400 11px var(--mono); color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.sect { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text2); margin: 22px 0 10px; }
+.comp-note { border-left: 2px solid var(--warn); padding: 6px 10px; color: var(--text2); font-size: 13px; margin-top: 10px; }
 .scr .count { position: absolute; top: 12px; right: 12px; background: var(--accent); color: #0A0A0A; font: 600 11px var(--mono); padding: 2px 6px; }
 .beats { display: grid; gap: 6px; }
 .beat { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
@@ -79,6 +85,9 @@ textarea.input { min-height: 80px; resize: vertical; }
 .story { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .sb { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line2); background: var(--surface); align-content: start; }
 .sb img { width: 100%; display: block; border: 1px solid var(--line2); max-height: 260px; object-fit: cover; object-position: top; }
+.sb .pic { height: 260px; display: grid; place-items: center; padding: 18px; border: 1px solid var(--line2);
+  background: radial-gradient(circle at 50% 40%, #2A2622, #121212 70%); }
+.sb .pic img { border: 0; object-fit: contain; max-height: 100%; }
 .sb .h { display: flex; justify-content: space-between; font: 600 11px var(--mono); color: var(--text2); }
 .sb .h b { color: var(--accent); }
 .styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 920px; }
@@ -240,7 +249,14 @@ function blank(name) {
   return { name, pack: 'glass', format: 'vertical', look: 'mesh', music: null, open: 'mark', storyBy: 'words',
     brief: '', beats: [], end: { logo: 'wordmark', line: '' } };
 }
+// A spec written by hand may leave out what the builder always writes.
+function whole(sp) {
+  sp.beats = (sp.beats || []).map((b) => ({ ...b, parts: b.parts || [], word: b.word ?? '', line: b.line ?? '' }));
+  return sp;
+}
 function screenOf(id) { return catalogue && catalogue.screens.find((s) => s.id === id); }
+// A piece of the app on its own (a button, a card), not a whole screen.
+function isComp(id) { const s = screenOf(id); return !!s && s.kind === 'component'; }
 
 // ── Claude Code, live ───────────────────────────────────────────────
 // Every headless Claude Code run the studio starts (drafts, inventory,
@@ -346,7 +362,7 @@ async function openBuilder() {
   const specs = await fetch('/api/specs').then((r) => r.json());
   const pick = $('specPick');
   pick.innerHTML = specs.length ? specs.map((s) => `<option value="${escB(s.name)}">${escB(s.name)}</option>`).join('') : '<option value="">No reels yet</option>';
-  if (!spec && specs.length) { spec = { ...blank(specs[0].name), ...specs[0].spec, name: specs[0].name }; }
+  if (!spec && specs.length) { spec = whole({ ...blank(specs[0].name), ...specs[0].spec, name: specs[0].name }); }
   if (spec) pick.value = spec.name;
   if (!spec) { newSpec(); return; }
   draw();
@@ -354,7 +370,7 @@ async function openBuilder() {
 $('specPick').onchange = async (e) => {
   const name = e.target.value; if (!name) return;
   const s = await fetch('/api/spec?name=' + encodeURIComponent(name)).then((r) => r.json());
-  spec = { ...blank(name), ...s, name }; step = 'screens'; beatIndex = 0; groundShots = null; draw();
+  spec = whole({ ...blank(name), ...s, name }); step = 'screens'; beatIndex = 0; groundShots = null; draw();
 };
 $('newSpec').onclick = () => newSpec();
 function newSpec() {
@@ -379,7 +395,7 @@ function change(fn) { fn(); save(); draw(); }
 // ── Steps ───────────────────────────────────────────────────────────
 function done(id) {
   if (!spec) return false;
-  return { brief: !!spec.pack, screens: spec.beats.length > 0, parts: spec.beats.length > 0 && spec.beats.every((b) => b.parts.length),
+  return { brief: !!spec.pack, screens: spec.beats.length > 0, parts: spec.beats.length > 0 && spec.beats.every((b) => b.parts.length || isComp(b.screen)),
     story: spec.beats.length > 0 && spec.beats.every((b) => (b.word || b.line)), ground: !!spec.look, preview: false }[id];
 }
 function draw() {
@@ -405,7 +421,7 @@ function beatList(side, opts = {}) {
   spec.beats.forEach((b, i) => {
     const s = screenOf(b.screen);
     const el = B(`<div class="beat${opts.select && i === beatIndex ? ' on' : ''}" data-i="${i}"><button class="grip" title="Drag to reorder (or use the arrow keys)" aria-label="Move beat ${i + 1}">⠿</button>
-      <div class="t"><b><span class="n">${i + 1}</span> ${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${b.parts.length} part${b.parts.length === 1 ? '' : 's'}</span></div>
+      <div class="t"><b><span class="n">${i + 1}</span> ${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${isComp(b.screen) ? 'component' : `${b.parts.length} part${b.parts.length === 1 ? '' : 's'}`}</span></div>
       <button class="rm" title="Remove" aria-label="Remove beat ${i + 1}">✕</button></div>`);
     el.querySelector('.rm').onclick = () => change(() => { spec.beats.splice(i, 1); beatIndex = Math.max(0, Math.min(beatIndex, spec.beats.length - 1)); });
     el.querySelector('.t').onclick = () => { beatIndex = i; if (opts.select) draw(); else { step = 'parts'; draw(); } };
@@ -476,6 +492,9 @@ function drawBrief(c, side) {
     packs.querySelector('.styles').appendChild(b);
   });
   const bar = packs.querySelector('.stylebar');
+  if (spec.beats.some((b) => isComp(b.screen)) && (spec.pack === 'kinetic' || spec.pack === 'glow')) {
+    packs.appendChild(B(`<div class="comp-note">${spec.pack === 'glow' ? 'Dark Glow leaves components out: its camera travels past screens.' : 'Kinetic Launch shows a component\'s beat as its line alone.'} Glass Layers and Story Ad show them large, on their own.</div>`));
+  }
   if (!spec.beats.length) {
     const go = B('<button>Choose screens first</button>'); go.onclick = () => { step = 'screens'; draw(); }; bar.appendChild(go);
   } else {
@@ -522,21 +541,28 @@ function drawBrief(c, side) {
 // 2 ─ Screens
 function drawScreens(c, side) {
   c.appendChild(B(`<div><h1>Which screens?</h1><p class="why">Start with what you want to show. Each screen you add becomes a beat, in the order you add them; add one twice to feature two moments of it. Next you'll see every style played on the first two.</p></div>`));
-  const add = B('<div class="row2" style="margin-bottom:16px"><button class="primary">+ Add screens from the app</button><span class="hint">Every screen, sheet and dialog in the app, by name. Pick some and the AI stages them here.</span></div>');
+  const add = B('<div class="row2" style="margin-bottom:16px"><button class="primary">+ Add from the app</button><span class="hint">Every screen, sheet, dialog and component in the app, by name. Pick some and the AI stages them here.</span></div>');
   add.querySelector('button').onclick = () => openPicker();
   c.appendChild(add);
   const lazy = B('<div class="ai" style="margin-bottom:18px"><b>Not sure which?</b><span>Describe the reel and let the AI choose the screens, the parts and the words. You can change all of it after.</span><button>Let the AI choose →</button></div>');
   lazy.querySelector('button').onclick = () => change(() => { spec.storyBy = 'all'; step = 'brief'; });
   c.appendChild(lazy);
   if (!catalogue) { c.appendChild(B('<p class="hint">Drawing the app\'s screens… this takes a minute the first time.</p>')); setTimeout(async () => { catalogue = await fetch('/api/catalogue').then((r) => r.json()); if (step === 'screens') draw(); }, 5000); return; }
-  const grid = B('<div class="screens"></div>');
-  catalogue.screens.forEach((s) => {
-    const used = spec.beats.filter((b) => b.screen === s.id).length;
-    const b = B(`<button class="scr"><img src="/catalogue/${s.image}" alt="${escB(s.label)}" loading="lazy"><b>${escB(s.label)}</b>${used ? `<span class="count">×${used}</span>` : ''}</button>`);
-    b.onclick = () => change(() => spec.beats.push({ screen: s.id, parts: [], word: '', line: '' }));
-    grid.appendChild(b);
+  // Screens first, then the pieces of the app shown on their own.
+  [['screen', 'Screens'], ['component', 'Components · shown on their own, no phone']].forEach(([kind, title]) => {
+    const list = catalogue.screens.filter((s) => (s.kind || 'screen') === kind);
+    if (!list.length) return;
+    c.appendChild(B(`<div class="sect">${title}</div>`));
+    const grid = B('<div class="screens"></div>');
+    list.forEach((s) => {
+      const used = spec.beats.filter((b) => b.screen === s.id).length;
+      const img = `<img src="/catalogue/${s.image}" alt="${escB(s.label)}" loading="lazy">`;
+      const b = B(`<button class="scr">${kind === 'component' ? `<span class="pic">${img}</span>` : img}<b>${escB(s.label)}</b>${used ? `<span class="count">×${used}</span>` : ''}</button>`);
+      b.onclick = () => change(() => spec.beats.push({ screen: s.id, parts: [], word: '', line: '' }));
+      grid.appendChild(b);
+    });
+    c.appendChild(grid);
   });
-  c.appendChild(grid);
   c.appendChild(next());
   beatList(side);
 }
@@ -546,16 +572,16 @@ const picked = new Set();
 
 async function openPicker() {
   document.getElementById('picker')?.remove();
-  const ov = B(`<div id="picker" class="overlay" role="dialog" aria-label="Add screens"><div class="panel">
-    <div class="ph"><h2 style="font-size:24px">Add screens from the app</h2><button class="x" aria-label="Close">✕</button></div>
+  const ov = B(`<div id="picker" class="overlay" role="dialog" aria-label="Add from the app"><div class="panel">
+    <div class="ph"><h2 style="font-size:24px">Add from the app</h2><button class="x" aria-label="Close">✕</button></div>
     <p class="hint" id="pTaken"></p>
-    <div class="row2"><input class="input" id="pSearch" placeholder="Search screens, sheets, dialogs, routes…" style="flex:1;min-width:200px"><div class="seg" id="pKinds"></div></div>
+    <div class="row2"><input class="input" id="pSearch" placeholder="Search screens, sheets, dialogs, components, routes…" style="flex:1;min-width:200px"><div class="seg" id="pKinds"></div></div>
     <div class="plist2" id="pList"><p class="hint">Reading the inventory…</p></div>
     <div class="pfoot">
       <button class="primary" id="pGo" disabled>Generate previews</button>
       <span class="hint" id="pNote"></span>
       <span style="flex:1"></span>
-      <input class="input" id="pFind" placeholder="Not here? Describe it: the sheet that confirms a payment" style="max-width:360px">
+      <input class="input" id="pFind" placeholder="Not here? Describe it: the loading spinner, the sheet that confirms a payment" style="max-width:360px">
       <button id="pFindGo">Ask the AI to find it</button>
       <button id="pRescan" title="Read the whole app again">Read the app again</button>
     </div></div></div>`);
@@ -566,7 +592,7 @@ async function openPicker() {
   document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
   const search = ov.querySelector('#pSearch'); search.value = pickerSearch;
   search.oninput = () => { pickerSearch = search.value; drawPicker(); };
-  [['all', 'All'], ['screen', 'Screens'], ['sheet', 'Sheets'], ['dialog', 'Dialogs']].forEach(([k, label]) => {
+  [['all', 'All'], ['screen', 'Screens'], ['sheet', 'Sheets'], ['dialog', 'Dialogs'], ['component', 'Components']].forEach(([k, label]) => {
     const b = B(`<button class="${pickerKind === k ? 'on' : ''}">${label}</button>`);
     b.onclick = () => { pickerKind = k; ov.querySelectorAll('#pKinds button').forEach((x) => x.classList.toggle('on', x === b)); drawPicker(); };
     ov.querySelector('#pKinds').appendChild(b);
@@ -598,7 +624,7 @@ function drawPicker() {
   const list = ov.querySelector('#pList');
   ov.querySelector('#pTaken').textContent = inventory.taken
     ? `${inventory.items.length} places in the app, read ${new Date(inventory.taken).toLocaleString()}. Ones already in the studio are marked.`
-    : 'No inventory yet: Read the app to list its screens, sheets and dialogs.';
+    : 'No inventory yet: Read the app to list its screens, sheets, dialogs and components.';
   const q = pickerSearch.toLowerCase();
   const rows = inventory.items.filter((i) => (pickerKind === 'all' || i.kind === pickerKind) &&
     (!q || [i.name, i.description, i.route, i.file].some((v) => String(v || '').toLowerCase().includes(q))));
@@ -643,6 +669,11 @@ function drawParts(c, side) {
   const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
   c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: what does it feature?</h1><p class="why">Click the parts of <b>${escB(s ? s.label : beat.screen)}</b> to feature, in order: the first rises highest. One to three reads best. Pick what shows the beat's point.</p></div>`));
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
+  if (s.kind === 'component') {
+    c.querySelector('.why').innerHTML = `<b>${escB(s.label)}</b> is a piece of the app, so this beat shows it whole: large, on the ground, doing what it does. There is nothing to pick.`;
+    c.appendChild(B(`<div class="scr" style="max-width:320px;cursor:default"><span class="pic"><img src="/catalogue/${s.image}" alt="${escB(s.label)}"></span></div>`));
+    return;
+  }
   const wrap = B('<div class="picker"><div class="shot2"></div><div><div class="plist"></div><div class="field" style="margin-top:16px"><span>Move</span><div class="seg"></div></div></div></div>');
   const shot = wrap.querySelector('.shot2'); shot.appendChild(B(`<img src="/catalogue/${s.image}" alt="${escB(s.label)}">`));
   const isOn = (p) => beat.parts.findIndex((x) => x.type === p.name && (x.text || null) === (p.text || null));
@@ -697,8 +728,8 @@ function drawStory(c, side) {
   const grid = B('<div class="story"></div>');
   spec.beats.forEach((b, i) => {
     const s = screenOf(b.screen);
-    const card = B(`<div class="sb"><div class="h"><b>Beat ${i + 1}</b><span>${escB(s ? s.label : b.screen)} · ${b.parts.length} part${b.parts.length === 1 ? '' : 's'}</span></div>
-      ${s ? `<img src="/catalogue/${s.image}" alt="">` : ''}
+    const card = B(`<div class="sb"><div class="h"><b>Beat ${i + 1}</b><span>${escB(s ? s.label : b.screen)} · ${isComp(b.screen) ? 'component' : `${b.parts.length} part${b.parts.length === 1 ? '' : 's'}`}</span></div>
+      ${s ? `${isComp(b.screen) ? `<span class="pic">` : ''}<img src="/catalogue/${s.image}" alt="">${isComp(b.screen) ? '</span>' : ''}` : ''}
       ${p !== 'kinetic' ? `<input class="input" data-k="word" placeholder="${p === 'glow' ? 'Title, e.g. Shared {money}' : 'Word, e.g. Share.'}" value="${escB(b.word)}">` : ''}
       ${p === 'kinetic' || p === 'glow' ? `<input class="input" data-k="line" placeholder="${p === 'kinetic' ? 'Line, e.g. Split the {bill}.' : 'A line under it'}" value="${escB(b.line)}">` : ''}
       <div class="row2"><label class="hint" for="len${i}">Seconds</label><input class="input" style="width:80px" type="number" step="0.2" min="2" max="10" id="len${i}" data-k="length" value="${b.length ?? ''}" placeholder="5.6"></div></div>`);
@@ -778,7 +809,7 @@ function drawGround(c, side) {
 
 // 6 ─ Preview
 function drawPreview(c, side) {
-  const missing = spec.beats.filter((b) => !b.parts.length).length;
+  const missing = spec.beats.filter((b) => !b.parts.length && !isComp(b.screen)).length;
   c.appendChild(B(`<div><h1>Preview it</h1><p class="why">${spec.beats.length} beat${spec.beats.length === 1 ? '' : 's'}, ${escB(PACKS.find((p) => p.id === spec.pack).name)}, ${spec.format}, on ${escB((LOOKS.find((l) => l.id === spec.look) || {}).name || spec.look)}.${missing ? ` ${missing} beat${missing === 1 ? ' has' : 's have'} no parts chosen yet: ${missing === 1 ? 'it' : 'they'} will show the screen alone.` : ''} The preview renders in about a minute and opens in the player; change anything here and preview again.</p></div>`));
   const row = B('<div class="row2"></div>');
   const go = B('<button class="primary">Render the preview →</button>');

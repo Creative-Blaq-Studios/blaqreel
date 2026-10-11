@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/widgets.dart';
 
 import '../audio.dart';
@@ -18,8 +22,15 @@ class GlassBeat {
   /// unless [highlight] names another part.
   final String word;
 
-  /// The screen.
+  /// The screen, or the piece of the app this beat is about if [piece] is
+  /// set.
   final Widget screen;
+
+  /// Makes this beat about one piece of the app rather than a screen: a
+  /// button, a card, a spinner, laid out at this size and shown large on
+  /// the ground on its own, with no phone around it. Fingers in [taps]
+  /// press it for real, so a button goes into its loading state.
+  final Size? piece;
 
   /// Picks the widgets that lift off, the first the furthest. Up to three
   /// read well.
@@ -86,6 +97,7 @@ class GlassBeat {
     this.look,
     this.ground,
     this.sweep = false,
+    this.piece,
   });
 }
 
@@ -331,7 +343,7 @@ class GlassLayers {
   /// Layers the look adds behind a beat's screen.
   List<Layer> _ambient(GlassBeat beat, GlassLook l) => switch (l) {
     // The beat's own screen, huge and out of focus behind it.
-    GlassLook.echo => [
+    GlassLook.echo when beat.piece == null => [
       Layer.screen(
         beat.screen,
         device: beat.device,
@@ -432,6 +444,7 @@ class GlassLayers {
   /// One beat as a scene. [dir] is 1 or -1: which way the camera swings,
   /// alternating so consecutive beats mirror each other.
   Scene beatScene(GlassBeat beat, double dir) {
+    if (beat.piece != null) return _pieceScene(beat, dir);
     final f = _frame.adjusted(beat.zoom, beat.framing);
     final bl = _lookOf(beat);
     final light = _isLight(bl);
@@ -563,12 +576,127 @@ class GlassLayers {
     );
   }
 
+  /// A beat about one piece of the app: it arrives out of the ground on its
+  /// own, large, with no phone around it, and does what it does — a button
+  /// pressed into its loading state, a placeholder pulsing — while the
+  /// camera drifts round it. It sits in the room the word leaves: above it
+  /// on a tall frame, beside it on a wide one.
+  Scene _pieceScene(GlassBeat beat, double dir) {
+    final f = _frame;
+    final stage = f.stage;
+    final tall = stage.height / stage.width > 1.1;
+    final bl = _lookOf(beat);
+    final light = _isLight(bl);
+    final l = beat.length;
+    final size = beat.piece!;
+    const settle = Duration(milliseconds: 1300);
+    final room = tall
+        ? Size(stage.width * 0.84, stage.height * 0.4)
+        : Size(stage.width * 0.44, stage.height * 0.6);
+    final centre =
+        (tall
+            ? Offset(0, -stage.height * 0.1)
+            : Offset(stage.width * 0.22, 0)) +
+        beat.framing;
+    final scale =
+        math.min(room.width / size.width, room.height / size.height) *
+        beat.zoom;
+    final highlight = beat.highlight ?? (beat.word.endsWith('.') ? '.' : null);
+    return Scene(
+      name: beat.word,
+      length: l,
+      camera: Camera.tracks(
+        tilt: Track.from(12).to(settle, 4, Ease.arrive).to(l, 7, Ease.linear),
+        turn: Track.from(
+          -16 * dir,
+        ).to(settle, -6 * dir, Ease.arrive).to(l, -10 * dir, Ease.linear),
+        roll: Track.from(
+          -3 * dir,
+        ).to(settle, -1 * dir, Ease.arrive).to(l, -2 * dir, Ease.linear),
+        zoom: Track.from(0.92).to(settle, 1, Ease.arrive).to(l, 1.04),
+      ),
+      backdrop: _override == null
+          ? (beat.ground ?? (bl != _look ? backdropOf(bl) : null))
+          : null,
+      layers: [
+        ..._ambient(beat, bl),
+        // Its own silhouette, soft and a little below, so it stands off the
+        // ground even when the two share a colour.
+        Layer.component(
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Color(light ? 0x38000000 : 0x80000000),
+                BlendMode.srcIn,
+              ),
+              child: beat.screen,
+            ),
+          ),
+          size: size,
+          position: centre + Offset(0, 10 * scale),
+          motion: Motion(
+            z: Track.from(-340).to(settle, -20, Ease.out),
+            y: Track.from(0).hold(settle).to(l, -6),
+            scale: Track.constant(scale),
+            blur: Track.from(12).to(900.ms, 0, Ease.out),
+            opacity: Track.from(0).hold(300.ms).to(settle, 1, Ease.out),
+          ),
+        ),
+        Layer.component(
+          beat.screen,
+          size: size,
+          position: centre,
+          taps: beat.taps,
+          typing: beat.typing,
+          motion: Motion(
+            z: Track.from(-320).to(settle, 0, Ease.out),
+            y: Track.from(0).hold(settle).to(l, -10),
+            scale: Track.constant(scale),
+            blur: Track.from(12).to(900.ms, 0, Ease.out),
+            opacity: Track.from(0).to(600.ms, 1, Ease.out),
+          ),
+        ),
+      ],
+      words: [
+        Words(
+          beat.word,
+          fit: true,
+          at: 1.1.s,
+          until: l - 1100.ms,
+          highlight: highlight,
+          accent: _wordAccent(bl),
+          align: f.wordAlign,
+          maxWidth: f.wordWidth,
+          style: brand
+              .words(f.wordSize, _wordColor(bl))
+              .copyWith(
+                shadows: [
+                  Shadow(
+                    color: (light ? brand.paper : brand.ink).withValues(
+                      alpha: light ? 0.35 : 0.6,
+                    ),
+                    blurRadius: 24,
+                  ),
+                ],
+              ),
+        ),
+      ],
+      cues: const [Cue(Duration(milliseconds: 150), 'rise')],
+    );
+  }
+
   /// The end card as a scene.
   Scene endScene(GlassEnd end) {
     final f = _frame;
     final l = end.length;
     final stage = f.stage;
-    final n = beats.length;
+    // Pieces of the app are not screens: the fan is of screens only.
+    final screens = [
+      for (final b in beats)
+        if (b.piece == null) b,
+    ];
+    final n = screens.length;
     final wide = !format.isTall;
     return Scene(
       name: 'end',
@@ -580,7 +708,7 @@ class GlassLayers {
       ),
       layers: [
         if (end.fan)
-          for (final (i, beat) in beats.indexed)
+          for (final (i, beat) in screens.indexed)
             Layer.screen(
               beat.screen,
               device: beat.device,

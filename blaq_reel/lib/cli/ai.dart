@@ -61,6 +61,7 @@ class Drafter {
         {
           'id': s['id'],
           'label': s['label'],
+          'kind': s['kind'] ?? 'screen',
           'parts': [
             for (final p in (s['parts']! as List).cast<Map<String, Object?>>())
               {'type': p['name'], 'text': p['text']},
@@ -77,7 +78,7 @@ ${brief.isEmpty ? '(none given: make the strongest case for the app)' : brief}
 What the app really does, in its own words (use only claims found here):
 ${_copy()}
 
-${all ? '''Choose 4 to 6 beats. For each beat pick one screen by "id" from the screens below, and 1 to 3 of that screen's parts to feature, copying "type" and "text" exactly as listed. Each part should show what its beat is about; prefer cards, rows and photos over buttons and bars.
+${all ? '''Choose 4 to 6 beats. For each beat pick one screen by "id" from the screens below, and 1 to 3 of that screen's parts to feature, copying "type" and "text" exactly as listed. Each part should show what its beat is about; prefer cards, rows and photos over buttons and bars. A "component" is one piece of the app shown large on its own (a button going into its loading state, a loading placeholder): its beat has no parts, so leave "parts" empty, and use one only where the brief is about how the app feels.
 
 Screens:
 ${const JsonEncoder.withIndent(' ').convert(screens)}''' : '''The beats are chosen already (screens and parts below). Keep them, in order, and write their words.
@@ -158,7 +159,8 @@ Reply with one JSON object and nothing else:
         """
 Add $wanted to this Flutter app's BlaqReel kit, so the studio can use them in promo reels.
 
-1. Find each widget in lib/. If a description fits several, take the one a person would mean. A sheet or a dialog is staged open, the way the app shows it: over the screen it opens from, or on its own if that reads better.
+1. Find each widget in lib/ (or the app's shared UI package). If a description fits several, take the one a person would mean. A sheet or a dialog is staged open, the way the app shows it: over the screen it opens from, or on its own if that reads better.
+   A component is a piece of the app shown on its own, large, with no phone around it: register it with `ReelScreen.component(widget, label: …, size: Size(w, h), taps: […])`. The widget is used the way the app uses it, centred (`Center(child: …)`), on no background; `size` is the box it is laid out in, a little larger than the widget. If it has a state worth seeing, bring it out: a button that shows a spinner while its onTap's future runs gets an onTap that waits about 1.8 seconds and `taps: [Tap(where: Pick.type<TheButton>(), at: 2.s, press: true)]`; something that animates by itself (a pulsing placeholder) needs nothing. Use the values the app's component showcase (a playground or widgetbook) gives it, if it has one.
 2. Stage it the way the other screens in app_reels/screens.dart and app_reels/kit.dart are staged: the real widget in a good demo moment, using the store-screenshot harnesses' demo data under app_shots/ if there is any (ids, fake data), the test fakes, and no network. If its constructor needs arguments, use the demo data's ids. If it needs a provider overridden to show something worth seeing, wrap it in a ProviderScope with that override, as sayItScreen does.
 3. Register each in the `screens` map in app_reels/kit.dart with a short lowercase id and a label people would recognise.
 4. Run `dart analyze app_reels` from this folder and fix what it reports.
@@ -201,15 +203,20 @@ Reply with one line per screen: the id you used, and what it shows.
         ? 'List every place in this app a person can see that is worth showing in a promo reel: '
               'screens (start from the router, then lib/ for widgets named …Screen or …Page), '
               'bottom sheets and dialogs that do something a person would want to see. '
-              'Leave out pure plumbing: splash, error pages, loading states, settings sub-pages nobody films.'
+              'Then its own reusable widgets worth showing on their own, as kind "component": '
+              'buttons (with their loading state), loading placeholders and spinners, progress rings and bars, '
+              'badges, notices, amount displays — from its shared UI library and component showcase '
+              '(a playground or widgetbook) if it has one. One item per widget class, not per variant. '
+              'Leave out pure plumbing: error pages, settings sub-pages nobody films, layout helpers.'
         : 'Find the place in this app the person describes as: "$lookFor". '
-              'It may be a screen, a sheet or a dialog. List just that (or the few that fit).';
+              'It may be a screen, a sheet, a dialog, or one of its own widgets shown on its own (kind "component": '
+              'a button, a spinner, a loading placeholder). List just that (or the few that fit).';
     final prompt =
         '''
 $ask
 
 Reply with one JSON array and nothing else. Each item:
-{"name": "the widget class", "kind": "screen" | "sheet" | "dialog", "file": "lib/… path",
+{"name": "the widget class", "kind": "screen" | "sheet" | "dialog" | "component", "file": "its path from this folder",
  "route": "its router location, or null", "description": "what a person sees there, in under twelve words"}
 ''';
     final ClaudeRun run;
@@ -252,7 +259,8 @@ Reply with one JSON array and nothing else. Each item:
     return found;
   }
 
-  /// The inventory without the AI: every widget named …Screen in lib/.
+  /// The inventory without the AI: every widget named …Screen, …Sheet or
+  /// …Dialog in lib/.
   List<Map<String, Object?>> _scan() {
     final lib = Directory('${project.root.path}/lib');
     if (!lib.existsSync()) return const [];

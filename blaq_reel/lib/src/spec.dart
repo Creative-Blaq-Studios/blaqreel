@@ -16,7 +16,9 @@ import 'time.dart';
 
 /// One of the app's screens, staged for reels: the widget in its demo
 /// state, a name for people, and anything it always needs (a scroll back
-/// to the top, say).
+/// to the top, say). Or, made with [ReelScreen.component], one piece of the
+/// app on its own — a button, a card, a loading placeholder — that a beat
+/// shows large on the ground with no phone around it.
 class ReelScreen {
   /// The screen, staged.
   final Widget widget;
@@ -27,8 +29,29 @@ class ReelScreen {
   /// Scrolls it always needs.
   final List<Scroll> scrolls;
 
+  /// For a component, the box it is laid out in; null for a screen.
+  final Size? size;
+
+  /// For a component, what a finger does to it in its beat: a press that
+  /// puts a button into its loading state, say. Times are the beat's own.
+  final List<Tap> taps;
+
   /// A screen.
-  const ReelScreen(this.widget, {required this.label, this.scrolls = const []});
+  const ReelScreen(this.widget, {required this.label, this.scrolls = const []})
+    : size = null,
+      taps = const [];
+
+  /// A piece of the app on its own, laid out at [size]: the widget the way
+  /// it appears in the app, on a transparent ground.
+  const ReelScreen.component(
+    this.widget, {
+    required this.label,
+    required Size this.size,
+    this.taps = const [],
+  }) : scrolls = const [];
+
+  /// Whether this is a piece of the app rather than a screen.
+  bool get isComponent => size != null;
 }
 
 /// What an app offers the studio's builder: its staged screens by id, its
@@ -186,6 +209,8 @@ class ReelSpec {
             ? Offset.zero
             : Offset(_num(framing[0], 0), _num(framing[1], 0)),
         scrolls: s.scrolls,
+        piece: s.size,
+        taps: s.taps,
         typing: [
           if (b['type'] is String && '${b['type']}'.isNotEmpty)
             TypeText(
@@ -241,8 +266,14 @@ class ReelSpec {
           for (final b in _beats)
             KineticBeat(
               '${b['line'] ?? b['word'] ?? ''}',
-              screen: b['screen'] == null ? null : screen(b).widget,
-              lift: b['screen'] == null ? const [] : parts(b),
+              // Kinetic Launch's beats are screens; a component's beat
+              // keeps its line and leaves the device out.
+              screen: b['screen'] == null || screen(b).isComponent
+                  ? null
+                  : screen(b).widget,
+              lift: b['screen'] == null || screen(b).isComponent
+                  ? const []
+                  : parts(b),
               liftRadius: kit.liftRadius,
               length: _num(b['length'], 4.2).s,
             ),
@@ -263,15 +294,17 @@ class ReelSpec {
         music: music,
         motionBlur: (json['motionBlur'] as int?) ?? 2,
         stops: [
+          // Dark Glow's camera travels past screens; components sit out.
           for (final b in _beats)
-            GlowStop(
-              screen: screen(b).widget,
-              title: '${b['word'] ?? ''}',
-              line: b['line'] as String?,
-              lift: parts(b),
-              liftRadius: kit.liftRadius,
-              scrolls: screen(b).scrolls,
-            ),
+            if (!screen(b).isComponent)
+              GlowStop(
+                screen: screen(b).widget,
+                title: '${b['word'] ?? ''}',
+                line: b['line'] as String?,
+                lift: parts(b),
+                liftRadius: kit.liftRadius,
+                scrolls: screen(b).scrolls,
+              ),
         ],
         logo: end == null
             ? null
