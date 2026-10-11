@@ -11,22 +11,29 @@ const builderCss = r'''
 .tab:last-child { border-right: 0; }
 .tab.on { background: var(--accent); color: #0A0A0A; }
 body.building main, body.building footer { display: none; }
-#build { display: none; grid-template-columns: 250px minmax(0, 1fr) 300px; min-height: 0; }
+/* The steps, the reel and New reel run across the top, so the canvas has
+   the width. */
+#build { display: none; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 body.building #build { display: grid; }
 #build nav, #build aside { overflow: auto; padding: 16px 14px; background: var(--deep); }
-#build nav { border-right: 1px solid var(--line2); }
+#build nav { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line2); overflow-x: auto; overflow-y: hidden; }
+#build nav .field { display: flex; align-items: center; gap: 8px; margin: 0; flex: none; }
+#build nav #specPick { width: 190px; padding: 6px 8px; }
+#build nav #newSpec { width: auto !important; padding: 7px 12px; white-space: nowrap; flex: none; }
 #build aside { border-left: 1px solid var(--line2); display: flex; flex-direction: column; gap: 14px; }
 .canvas { overflow: auto; padding: 22px 26px 40px; min-width: 0; }
 .canvas h1 { font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; font-size: 30px; margin: 0 0 6px; }
 .canvas .why { color: var(--text2); margin: 0 0 20px; max-width: 70ch; }
-.steps { display: grid; gap: 4px; margin-top: 12px; }
-.step { all: unset; display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; padding: 9px 10px;
-  border: 1px solid var(--line2); background: var(--surface); cursor: pointer; font-weight: 600; }
+.steps { display: flex; gap: 0; margin-left: auto; flex: none; }
+.step { all: unset; display: flex; gap: 7px; align-items: center; padding: 8px 12px; white-space: nowrap;
+  border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; font-size: 13px; }
+.step:hover { background: var(--surface); }
+.step:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .step .k { font: 600 11px var(--mono); color: var(--text2); }
-.step.on { border-color: var(--accent); }
+.step.on { border-bottom-color: var(--accent); }
 .step.on .k { color: var(--accent); }
 .step.done .k { color: var(--ok); }
-.step small { grid-column: 2; font: 400 11px var(--mono); color: var(--text2); font-weight: 400; }
+.step small { display: none; }
 .field { display: grid; gap: 6px; margin-bottom: 18px; }
 .field > label, .field > span { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text2); }
 .input, textarea.input, select.input { font: 400 14px var(--display); background: var(--surface); color: var(--text);
@@ -167,7 +174,7 @@ h2 span { color: var(--muted); }
 #agentFab[hidden] { display: none; }
 /* Room under every scrolling column, so its last item scrolls clear of the
    floating button instead of sitting under it. */
-body.fab-on aside, body.fab-on nav, body.fab-on .canvas, body.fab-on #build aside, body.fab-on #build nav { padding-bottom: 88px; }
+body.fab-on aside, body.fab-on .canvas, body.fab-on #build aside { padding-bottom: 88px; }
 #agentFab .mk { color: var(--accent); font-size: 15px; line-height: 1; }
 #agentFab .badge:empty { display: none; }
 #agentFab .badge { font-size: 12px; }
@@ -232,7 +239,7 @@ body.fab-on aside, body.fab-on nav, body.fab-on .canvas, body.fab-on #build asid
 .busy { opacity: .6; pointer-events: none; }
 .hint { color: var(--text2); font-size: 13px; }
 .row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-@media (max-width: 1100px) { #build { grid-template-columns: 220px minmax(0, 1fr); } #build aside { display: none; } }
+@media (max-width: 1100px) { #build { grid-template-columns: minmax(0, 1fr); } #build aside { display: none; } }
 @media (max-width: 760px) { #build { grid-template-columns: 1fr; } .picker { grid-template-columns: 1fr; } .moves { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 ''';
 
@@ -242,7 +249,7 @@ const builderHtml = r'''
 <aside id="agent" hidden aria-live="polite" aria-label="Claude Code"></aside>
 <div id="build">
   <nav>
-    <div class="field"><span>Reel</span>
+    <div class="field"><label for="specPick">Reel</label>
       <select class="input" id="specPick"></select>
     </div>
     <button id="newSpec" style="width:100%">New reel</button>
@@ -460,7 +467,7 @@ function draw() {
   stopAnimator();
   $('steps').innerHTML = '';
   STEPS.forEach((s, i) => {
-    const b = B(`<button class="step${s.id === step ? ' on' : ''}${done(s.id) ? ' done' : ''}"><span class="k">${done(s.id) ? '✓' : i + 1}</span>${s.name}<small>${s.sub}</small></button>`);
+    const b = B(`<button class="step${s.id === step ? ' on' : ''}${done(s.id) ? ' done' : ''}" title="${escB(s.sub)}"><span class="k">${done(s.id) ? '✓' : i + 1}</span>${s.name}<small>${s.sub}</small></button>`);
     b.onclick = () => { step = s.id; draw(); };
     $('steps').appendChild(b);
   });
