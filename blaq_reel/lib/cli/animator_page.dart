@@ -49,6 +49,8 @@ const animatorCss = r'''
 .tl-part .tl-tag { position: absolute; left: 6px; top: 6px; background: var(--accent); color: #0A0A0A; font: 700 14px var(--mono); padding: 1px 6px; }
 .tl-word { cursor: grab; outline-offset: 4px; }
 .tl-word.sel { outline: 2px solid var(--accent); }
+.tl-safetog { display: flex; gap: 5px; align-items: center; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tl-safetog input { accent-color: var(--accent); margin: 0; }
 .tl-safe { border: 1px dashed rgba(120,120,120,.55); pointer-events: none; z-index: 300; }
 .tl-safe span { position: absolute; right: 4px; bottom: 2px; font: 600 8px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: rgba(120,120,120,.8); }
 .tl-gv, .tl-gh { background: #FF2D9A; display: none; z-index: 310; pointer-events: none; }
@@ -72,7 +74,8 @@ const animatorCss = r'''
 .tl-bar2 { position: absolute; top: 6px; height: 18px; background: #3A2410; border: 1px solid #E06000; cursor: ew-resize; display: flex; align-items: center; padding: 0 6px; font: 600 9.5px var(--mono); color: #FFB37A; white-space: nowrap; overflow: hidden; }
 .tl-row.on .tl-bar2 { background: var(--accent); color: #0A0A0A; }
 .tl-bar2.words { background: #14243A; border-color: #4A7BD0; color: #9DC0FF; }
-.tl-bar2.typing { top: auto; bottom: 1px; height: 12px; font-size: 8.5px; background: #2A2410; border-color: #FBBF24; color: #FCD97A; cursor: grab; z-index: 1; }
+.tl-row.typed .tl-bar2:not(.typing) { top: 2px; height: 14px; }
+.tl-bar2.typing { top: 18px; height: 11px; font-size: 8.5px; background: #2A2410; border-color: #FBBF24; color: #FCD97A; cursor: grab; z-index: 1; }
 .tl-row.on .tl-bar2.typing { background: #FBBF24; color: #0A0A0A; }
 .tl-part .tl-keys { position: absolute; right: 8px; bottom: 8px; background: #0A0A0A; color: #F5F5F5; border: 1px solid #FBBF24; font: 600 22px var(--mono); padding: 4px 12px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
 .tl-part .tl-keys i { font-style: normal; color: #FBBF24; }
@@ -288,7 +291,7 @@ fetch('/api/brand').then((r) => r.json()).then((b) => {
 
 const FRAMES = { vertical: ['9:16', 'Shorts · Reels · TikTok'], portrait: ['4:5', 'Feed'], square: ['1:1', 'Square'], wide: ['16:9', 'YouTube · site'] };
 const STYLE_KEYS = ['color', 'accent', 'size', 'weight', 'reveal', 'plate', 'layer'];
-const ed = { frame: null, safe: true, sel: 0, t: SETTLE + RISE + 600, playing: true, beat: -1 };
+const ed = { frame: null, safe: false, dragging: false, sel: 0, t: SETTLE + RISE + 600, playing: true, beat: -1 };
 let animStop = null;
 function stopAnimator() { if (animStop) animStop(); animStop = null; }
 
@@ -500,7 +503,7 @@ function timelineEditor(beat, s, index, side, lead) {
       <select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
       <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
-      <button data-safe class="${ed.safe ? 'on' : ''}" title="Show the safe zone: what the platform's buttons and captions cover">Safe</button>
+      <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe zone</label>
     </div>
     <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div></div>
     <div class="tl-time">
@@ -653,7 +656,7 @@ function timelineEditor(beat, s, index, side, lead) {
     layoutWords(w); revealWords(w, t);
     gv.style.display = snap.x == null ? 'none' : 'block'; if (snap.x != null) gv.style.left = snap.x + 'px';
     gh.style.display = snap.y == null ? 'none' : 'block'; if (snap.y != null) gh.style.top = snap.y + 'px';
-    root.querySelector('.tl-safe').style.display = ed.safe ? 'block' : 'none';
+    root.querySelector('.tl-safe').style.display = ed.safe || ed.dragging ? 'block' : 'none';
     // Words over a landed part: say so, and leave the call to the person.
     const hits = t > SETTLE + RISE && w.layer !== 'behind' && w.plate === 'none' && t >= w.at * 1000 && t <= w.until * 1000 ? partBoxes().map((pb, i) => (area(wbox, pb) > 150 ? i + 1 : 0)).filter(Boolean) : [];
     ed.overlap = hits;
@@ -680,7 +683,7 @@ function timelineEditor(beat, s, index, side, lead) {
       + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
     root.querySelector('.tl-rows').innerHTML = `<div class="tl-row tl-beatrow"><div class="tl-bar2 beat" data-k="beat" title="Drag the end to make the beat longer or shorter"><span></span><i class="tl-r"></i></div></div>`
       + `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words" title="Drag to move; drag an end to change when they come in or go"><i class="tl-l"></i>${escB(w.reveal)} in<i class="tl-r"></i></div></div>`
-      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div>${plan.typing ? `<div class="tl-bar2 typing" data-k="t${i}" title="Typing “${escB(plan.typing.text)}”: drag to move when it starts">type ${escB(plan.typing.text)}</div>` : ''}</div>`; }).join('');
+      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}${plan.typing ? ' typed' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div>${plan.typing ? `<div class="tl-bar2 typing" data-k="t${i}" title="Typing “${escB(plan.typing.text)}”: drag to move when it starts">type ${escB(plan.typing.text)}</div>` : ''}</div>`; }).join('');
     root.querySelector('.tl-play').onclick = () => (ed.playing = !ed.playing);
     root.querySelectorAll('[data-sel]').forEach((d) => (d.onclick = () => select(d.dataset.sel === 'words' ? 'words' : +d.dataset.sel)));
     root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k, e.target.classList.contains('tl-r') ? 'end' : e.target.classList.contains('tl-l') ? 'start' : 'move')));
@@ -721,7 +724,8 @@ function timelineEditor(beat, s, index, side, lead) {
       for (const [ly, a] of ys) if (Math.abs(ny + a * wbox.h - ly) < 7 / k + 3) { ny = ly - a * wbox.h; snap.y = ly; break; }
       pl.dx = Math.round((d0[0] + ((nx - b0.x) / f.w) * 100) * 10) / 10; pl.dy = Math.round((d0[1] + ((ny - b0.y) / f.h) * 100) * 10) / 10;
     };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); snap = { x: null, y: null }; save(); inspector(); };
+    ed.dragging = true;
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); snap = { x: null, y: null }; ed.dragging = false; save(); inspector(); };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
   // This frame's placement, made from the pack's own if there is none yet.
@@ -989,7 +993,7 @@ function timelineEditor(beat, s, index, side, lead) {
   // The beat picker and Pick/Animate lead the toolbar, so they take no row.
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
-  root.querySelector('[data-safe]').onclick = (e) => { ed.safe = !ed.safe; e.target.classList.toggle('on', ed.safe); };
+  root.querySelector('[data-safe]').onchange = (e) => { ed.safe = e.target.checked; };
   root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); };
 
   let raf = 0, alive = true, last = performance.now();

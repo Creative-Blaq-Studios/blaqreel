@@ -54,6 +54,8 @@
 - Lifted parts are live: a copy is rebuilt from the screen's widget as it
   is now, so what changes after the lift (typed text, a figure) shows on
   the part in the air.
+- The safe zone is off by default, a small tick in the editor's toolbar,
+  and shows by itself while the words are dragged.
 - The editor's toolbar labels the Ground and Move pickers, and says which
   beats a ground is for with Every beat | This beat (was a "Beat" tick).
 - The Preview step is a theatre: the reel centred at its own shape, a
