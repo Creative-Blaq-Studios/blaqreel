@@ -90,6 +90,23 @@ const animatorCss = r'''
 .tl-overlap span { flex: 1; }
 .pmode { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; }
 .pmode h1 { margin: 0; }
+
+/* The inspector fits its column: nothing in it may push it wider. */
+.tl-insp, .tl-insp * { min-width: 0; }
+.tl-insp { width: 100%; overflow: hidden; }
+.tl-insp .tl-sec > *, .tl-insp .tl-ih > * { max-width: 100%; }
+.tl-insp .seg { display: flex; width: 100%; }
+.tl-insp .seg button { flex: 1 1 0; padding: 6px 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-insp .input { width: 100%; }
+.tl-insp .tl-row2 { flex-wrap: wrap; }
+.tl-insp .tl-row2 .tl-num { flex: 1 1 52px; width: auto; }
+.tl-insp .tl-row2 button { flex: none; }
+.tl-insp .tl-knob { grid-template-columns: 48px minmax(0, 1fr) 44px; }
+.tl-insp .lbl2 > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-insp .tl-place { flex-wrap: wrap; }
+.tl-insp .tl-col { flex: 1 1 120px; }
+.tl-insp .tl-col .tl-row2 { flex-wrap: nowrap; }
+.tl-insp .tl-col .tl-num { flex: 1 1 auto; width: 0; }
 ''';
 
 /// The editor's script: `timelineEditor(beat, screen, index, side)` returns
