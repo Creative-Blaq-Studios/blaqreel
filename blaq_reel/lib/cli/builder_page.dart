@@ -133,7 +133,7 @@ h2 span { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { #agentFab.running, #agentFab.running .mk { animation: none; } }
 #agent { position: fixed; right: 16px; bottom: calc(var(--fab-bottom, 16px) + 54px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100vw - 32px));
   z-index: 15; background: var(--deep); border: 1px solid var(--line2); box-shadow: 0 20px 60px rgba(0,0,0,.6);
-  display: flex; flex-direction: column; max-height: min(70vh, 640px); overflow: hidden; }
+  display: flex; flex-direction: column; max-height: min(640px, calc(100vh - var(--fab-bottom, 16px) - 54px - 24px)); overflow: hidden; }
 #agent[hidden] { display: none; }
 #agent.running { border-color: var(--accent); }
 #agent.failed { border-color: var(--bad); }
@@ -142,22 +142,26 @@ h2 span { color: var(--muted); }
 #agent .ah b { font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #agent .ah .t { font: 400 11px var(--mono); color: var(--text2); flex: none; }
 #agent .ah button { padding: 3px 8px; font-size: 11px; flex: none; }
-#agent .asteps { overflow-y: auto; overflow-x: hidden; padding: 8px 12px; display: grid; gap: 4px; align-content: start; min-height: 0; flex: 0 1 auto; }
-#agent .st { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font: 400 12px/1.45 var(--mono); color: var(--text2); }
-#agent .st span { overflow-wrap: anywhere; }
+#agent .chat { overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1 1 auto; overscroll-behavior: contain; }
+#agent .st { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; font: 400 12px/1.45 var(--mono); color: var(--text2); }
+#agent .st span { overflow-wrap: anywhere; min-width: 0; }
 #agent .st i { font-style: normal; color: var(--muted); }
 #agent .st.edit span { color: var(--accent); }
-#agent .st.say span { color: var(--text); font-family: var(--display); font-size: 13px; }
 #agent .st.run span { color: var(--warn); }
 #agent .st.note span { color: var(--ok); }
-#agent .af { border-top: 1px solid var(--line2); padding: 10px 12px; display: grid; gap: 8px; flex: none; }
-#agent .af:empty { display: none; }
-#agent .files { display: flex; flex-wrap: wrap; gap: 4px; }
+#agent .msg { background: var(--surface); border: 1px solid var(--line2); border-left: 2px solid var(--accent); padding: 10px 12px; margin-block: 4px;
+  font-size: 13.5px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+#agent .msg p { margin: 0 0 8px; } #agent .msg p:last-child { margin: 0; }
+#agent .msg ul { margin: 0 0 8px; padding-left: 18px; } #agent .msg li { margin-bottom: 4px; }
+#agent .msg code { font: 400 12px var(--mono); background: var(--deep); border: 1px solid var(--line2); padding: 0 4px; }
+#agent .msg.err { border-left-color: var(--bad); color: var(--bad); white-space: pre-wrap; }
+#agent .msg .when { display: block; font: 400 10px var(--mono); color: var(--muted); margin-bottom: 6px; letter-spacing: .08em; text-transform: uppercase; }
+#agent .files { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
 #agent .files code { font: 400 11px var(--mono); border: 1px solid var(--line2); padding: 2px 6px; color: var(--text); overflow-wrap: anywhere; }
-#agent .res { font-size: 13px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow-y: auto; }
-#agent .err { font-size: 13px; color: var(--bad); white-space: pre-wrap; overflow-wrap: anywhere; }
-#agent .sess { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
-#agent .sess code { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+#agent .af { border-top: 1px solid var(--line2); padding: 8px 12px; flex: none; }
+#agent .sess { display: flex; gap: 8px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
+#agent .sess code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#agent .sess button { padding: 5px 9px; font-size: 10px; flex: none; }
 .pulse { width: 8px; height: 8px; background: var(--accent); animation: pulse 1s infinite; flex: none; }
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
@@ -244,6 +248,15 @@ function screenOf(id) { return catalogue && catalogue.screens.find((s) => s.id =
 // the command that reopens the session in a terminal.
 let agentOpen = false, agentSeen = null, agentLast = null;
 function ago2(iso) { const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? Math.round(s) + 's' : Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's'; }
+// Claude's answer, lightly: paragraphs, "- " lists, `code` and **bold**.
+function mdLite(text) {
+  const inline = (t) => escB(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  return text.trim().split(/\n{2,}/).map((block) => {
+    const lines = block.split('\n');
+    if (lines.every((l) => /^\s*[-*] /.test(l))) return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ''))}</li>`).join('')}</ul>`;
+    return `<p>${lines.map(inline).join('<br>')}</p>`;
+  }).join('');
+}
 // The floating button sits above the Library's transport bar, or at the
 // foot of the page in the builder.
 function placeFab() {
@@ -271,16 +284,40 @@ window.onStudioState = (st) => {
   box.hidden = !agentOpen;
   if (!agentOpen) return;
   box.className = a.done ? (a.ok ? '' : 'failed') : 'running';
-  const old = box.querySelector('.asteps');
-  const keepBottom = !old || old.scrollHeight - old.scrollTop - old.clientHeight < 30;
-  const steps = a.steps.filter((x) => !/^[\[{]/.test(x.text));
+  // Built once per run and then only added to, so a scroll the person made
+  // stays where they left it; it follows new lines only from the bottom.
+  if (box.dataset.run !== a.started) {
+    box.dataset.run = a.started; box.dataset.key = '';
+    box.innerHTML = `<div class="ah"><span class="who">Claude Code</span><b></b><span class="t"></span>
+        <button id="agClose" title="Close (Esc)" aria-label="Close">✕</button></div>
+      <div class="chat"></div><div class="af" hidden></div>`;
+    box.querySelector('#agClose').onclick = () => { agentOpen = false; window.onStudioState({ agent: agentLast }); };
+  }
+  const head = box.querySelector('.ah b');
+  head.textContent = a.task; head.title = a.task;
+  box.querySelector('.ah .t').textContent = a.done ? (a.ok ? 'done' : 'failed') : ago2(a.started);
+  const key = [a.steps.length, a.done, a.files.length, a.error, a.sessionId].join('|');
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const chat = box.querySelector('.chat');
+  const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+  const top = chat.scrollTop;
   const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  box.innerHTML = `<div class="ah"><span class="who">Claude Code</span><b title="${escB(a.task)}">${escB(a.task)}</b>
-      <span class="t">${a.done ? (a.ok ? 'done' : 'failed') : ago2(a.started)}</span><button id="agClose" title="Close (Esc)" aria-label="Close">✕</button></div>
-    <div class="asteps">${steps.length ? steps.map((x) => `<div class="st ${x.kind}"><i>${time(x.at)}</i><span>${escB(x.text)}</span></div>`).join('') : '<div class="st"><i></i><span>Starting a session…</span></div>'}</div>
-    <div class="af">${a.files.length ? `<div class="files">${a.files.map((f) => `<code>${escB(f)}</code>`).join('')}</div>` : ''}${a.done && a.ok && a.result && !/^[\[{]/.test(a.result) ? `<div class="res">${escB(a.result)}</div>` : ''}${a.error ? `<div class="err">${escB(a.error)}</div>` : ''}${a.sessionId ? `<div class="sess"><code title="${escB(a.resume)}">session ${escB(a.sessionId)}</code><button id="agCopy">Copy resume command</button></div>` : ''}</div>`;
-  const list = box.querySelector('.asteps'); if (keepBottom) list.scrollTop = list.scrollHeight;
-  box.querySelector('#agClose').onclick = () => { agentOpen = false; window.onStudioState({ agent: a }); };
+  const answer = a.done && a.ok && a.result && !/^[\[{]/.test(a.result) ? a.result : '';
+  const steps = a.steps.filter((x) => !/^[\[{]/.test(x.text)
+    // The answer's first line also arrives as a step; say it once.
+    && !(answer && x.kind === 'say' && answer.startsWith(x.text.replace(/…$/, ''))));
+  chat.innerHTML = (steps.length ? steps.map((x) => x.kind === 'say'
+      ? `<div class="msg"><span class="when">${time(x.at)}</span>${escB(x.text)}</div>`
+      : `<div class="st ${x.kind}"><i>${time(x.at)}</i><span>${escB(x.text)}</span></div>`).join('')
+    : '<div class="st"><i></i><span>Starting a session…</span></div>')
+    + (a.files.length ? `<div class="files">Changed ${a.files.map((f) => `<code>${escB(f)}</code>`).join('')}</div>` : '')
+    + (answer ? `<div class="msg"><span class="when">Answer</span>${mdLite(answer)}</div>` : '')
+    + (a.error ? `<div class="msg err">${escB(a.error)}</div>` : '');
+  chat.scrollTop = atBottom ? chat.scrollHeight : top;
+  const foot = box.querySelector('.af');
+  foot.hidden = !a.sessionId;
+  foot.innerHTML = a.sessionId ? `<div class="sess"><code title="${escB(a.resume)}">session ${escB(a.sessionId)}</code><button id="agCopy">Copy resume command</button></div>` : '';
   const cp = box.querySelector('#agCopy');
   if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(a.resume); toast('Copied: ' + a.resume); } catch { toast(a.resume); } };
 };

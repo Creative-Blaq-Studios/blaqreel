@@ -1,8 +1,10 @@
 import 'builder_page.dart';
+import 'pages.dart' show scrollbarCss;
 
 /// The studio's page: served by `blaq_reel studio`. The builder's own CSS,
 /// markup and script are spliced in where the markers are.
 final studioPage = _studioBase
+    .replaceFirst('/*SCROLLBARS*/', scrollbarCss)
     .replaceFirst('/*BUILD_CSS*/', builderCss)
     .replaceFirst('<!--BUILD_HTML-->', builderHtml)
     .replaceFirst('/*BUILD_JS*/', builderJs);
@@ -16,6 +18,7 @@ const _studioBase = r'''<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
+  /*SCROLLBARS*/
   :root {
     color-scheme: dark;
     --bg: #0A0A0A; --surface: #0D0D0D; --deep: #080808; --raised: #141414;

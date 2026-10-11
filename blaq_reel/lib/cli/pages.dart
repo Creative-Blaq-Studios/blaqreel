@@ -5,7 +5,26 @@ import 'dart:convert';
 /// the beats are right (`storyboard`). Each ends in a note the person can
 /// copy back to whoever is writing the reel.
 
-const _css = r'''
+/// Slim scroll bars for every BlaqReel page, the studio's included: a 4px
+/// thumb on no track, brighter under the pointer and orange while dragged.
+/// Chrome and Safari draw the `::-webkit-scrollbar` rules; Firefox, which has
+/// none, gets its own thin bar. (Chrome ignores the webkit rules wherever
+/// `scrollbar-width` is set, so those stay Firefox-only.)
+const scrollbarCss = r'''
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background:transparent; }
+::-webkit-scrollbar-thumb { background:#2A2A2A; border:3px solid transparent; background-clip:padding-box; min-height:32px; }
+::-webkit-scrollbar-thumb:hover { background-color:#444444; }
+::-webkit-scrollbar-thumb:active { background-color:#FF6B00; }
+::-webkit-scrollbar-button { display:none; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width:thin; scrollbar-color:#2A2A2A transparent; }
+}
+''';
+
+const _css =
+    scrollbarCss +
+    r'''
 :root { color-scheme: dark; --bg:#0A0A0A; --surface:#0D0D0D; --deep:#080808; --line:#1A1A1A; --line2:#222222;
   --accent:#FF6B00; --text:#F5F5F5; --text2:#888888; --muted:#666666; --ok:#22C55E;
   --mono:'JetBrains Mono', ui-monospace, Menlo, monospace; --display:'Outfit', system-ui, sans-serif; }
