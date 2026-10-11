@@ -84,7 +84,7 @@ textarea.input { min-height: 80px; resize: vertical; }
 .plist { display: grid; gap: 6px; }
 /* The Parts step fits the window: nothing scrolls the page; what is long
    (the parts list, the timeline) scrolls inside itself. */
-.canvas.fixed { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 16px; }
+.canvas.fixed { overflow: hidden; display: flex; flex-direction: column; padding: 10px 12px; }
 .canvas.fixed > * { flex: none; }
 .canvas.fixed > .grow { flex: 1 1 auto; min-height: 0; }
 .canvas.fixed .pmode { margin-bottom: 10px; }
@@ -102,7 +102,7 @@ textarea.input { min-height: 80px; resize: vertical; }
 .beatbar .bnav { padding: 6px 11px; font-size: 14px; line-height: 1; }
 .beatbar .beatSel { width: 260px; padding: 6px 8px; }
 .beatbar > .seg { margin-left: 8px; }
-body.fab-on .canvas.fixed { padding-bottom: 16px; }
+body.fab-on .canvas.fixed { padding-bottom: 10px; }
 .prow { all: unset; display: grid; grid-template-columns: 36px minmax(0,1fr) 22px; gap: 8px; align-items: center; padding: 8px 10px;
   border: 1px solid var(--line2); background: var(--surface); cursor: pointer; }
 .prow.on { border-color: var(--ok); }

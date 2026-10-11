@@ -14,7 +14,7 @@ library;
 /// The editor's styles.
 const animatorCss = r'''
 .tled { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(78vh, 900px); min-height: 520px; border: 1px solid var(--line2); background: var(--deep); }
-.tl-bar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
+.tl-bar { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
 .tl-bar > button { padding: 6px 10px; font-size: 11px; }
 .tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
 .tl-movel { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 6px; }
@@ -27,7 +27,6 @@ const animatorCss = r'''
 .tl-frame { position: relative; overflow: hidden; outline: 1px solid rgba(255,107,0,.5); box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.6); }
 .tl-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; user-select: none; touch-action: none; }
 .tl-stage > * { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.tl-flabel { position: absolute; left: 12px; bottom: 8px; font: 400 11px var(--mono); color: var(--text2); }
 .tl-scr { background-size: 100% 100%; border-radius: 55px; box-shadow: 0 36px 70px rgba(0,0,0,.45); overflow: hidden; }
 .tl-scr .tl-hole { position: absolute; border-radius: 22px; opacity: 0; background: #F3F3F1; outline: 1px solid #E4E4E0; }
 .tl-part { background-repeat: no-repeat; border-radius: 22px; box-shadow: 0 18px 40px rgba(0,0,0,.28); cursor: grab; overflow: hidden; }
@@ -279,10 +278,10 @@ function timelineEditor(beat, s, index, side, lead) {
     <div class="tl-bar">
       <label class="tl-movel" for="tlMove">Move</label><select class="input tl-move" id="tlMove" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
-      <div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}">${r}</button>`).join('')}</div>
+      <div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r, where]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}" title="${r} · ${where}${id === spec.format ? ' · the reel’s frame' : ' · preview: each frame keeps its own placement'}">${r}</button>`).join('')}</div>
       <button data-safe class="${ed.safe ? 'on' : ''}" title="Show what the platform's buttons and captions cover">Safe zone</button>
     </div>
-    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div><div class="tl-flabel"></div></div>
+    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div></div>
     <div class="tl-time">
       <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
       <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: Math.floor(l / 1000) + 1 }, (_, i) => `<span style="left:${(i * 1000 / l) * 100}%">${i}s</span>`).join('')}</div><div class="tl-rows"></div><div class="tl-ph"></div></div>
@@ -313,12 +312,11 @@ function timelineEditor(beat, s, index, side, lead) {
   let k = 1, snap = { x: null, y: null }, wbox = { x: 0, y: 0, w: 0, h: 0 };
 
   function fit() {
-    const W = box.clientWidth - 24, H = box.clientHeight - 34;
+    // As large as the space allows, with a hair of room round it.
+    const W = box.clientWidth - 12, H = box.clientHeight - 12;
     k = Math.max(0.1, Math.min(W / f.w, H / f.h));
     stage.style.transform = `scale(${k})`;
     frameEl.style.width = f.w * k + 'px'; frameEl.style.height = f.h * k + 'px';
-    const lab = root.querySelector('.tl-flabel');
-    lab.textContent = `${FRAMES[ed.frame][0]} · ${FRAMES[ed.frame][1]}${ed.frame === spec.format ? ' · the reel’s frame' : ' · previewing; each frame keeps its own placement'}`;
   }
 
   // The words, laid out as WordsPainter lays them out in the safe area.
