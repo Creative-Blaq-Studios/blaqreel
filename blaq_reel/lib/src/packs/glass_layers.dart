@@ -56,6 +56,14 @@ class GlassBeat {
   /// Moves the screen in frame for this beat, in stage units.
   final Offset framing;
 
+  /// This beat's ground, if it differs from the reel's. The two crossfade
+  /// as the beats hand over.
+  final GlassLook? look;
+
+  /// Colours of your own for this beat's ground, overriding its look's; the
+  /// look still decides the words' colours and anything behind the screen.
+  final Backdrop? ground;
+
   /// A beat.
   const GlassBeat(
     this.word, {
@@ -71,6 +79,8 @@ class GlassBeat {
     this.device = Device.iphone,
     this.zoom = 1,
     this.framing = Offset.zero,
+    this.look,
+    this.ground,
   });
 }
 
@@ -138,8 +148,12 @@ class GlassLayers {
   /// Drawn over the top of each screen.
   final Widget? statusBar;
 
-  /// What the screens sit on.
+  /// What the screens sit on, unless a beat says otherwise.
   final GlassLook look;
+
+  /// Colours of your own for the ground, overriding [look]'s; the look
+  /// still decides the words' colours.
+  final Backdrop? ground;
 
   /// A music bed.
   final Music? music;
@@ -164,6 +178,7 @@ class GlassLayers {
     this.hole,
     this.statusBar,
     this.look = GlassLook.ink,
+    this.ground,
     this.music,
     this.voice = const [],
     this.motionBlur = 1,
@@ -171,23 +186,41 @@ class GlassLayers {
   });
 
   /// Whether the ground is light, so words go dark on it.
-  bool get _light =>
-      look == GlassLook.mesh ||
-      look == GlassLook.butter ||
-      look == GlassLook.studio;
+  static bool _isLight(GlassLook l) =>
+      l == GlassLook.mesh || l == GlassLook.butter || l == GlassLook.studio;
 
-  /// The look's backdrop.
-  Backdrop get backdrop {
+  /// The look the whole reel uses: [look], unless a render asks for
+  /// another with `--dart-define=BLAQ_REEL_LOOK=<name>` (the `looks`
+  /// command does, to compare grounds).
+  GlassLook get _look => _override ?? look;
+
+  static final GlassLook? _override = () {
+    const name = String.fromEnvironment('BLAQ_REEL_LOOK');
+    if (name.isEmpty) return null;
+    return GlassLook.values.firstWhere(
+      (l) => l.name == name,
+      orElse: () => throw ArgumentError.value(name, 'BLAQ_REEL_LOOK'),
+    );
+  }();
+
+  /// The look [beat] uses: its own, unless a render overrides every look.
+  GlassLook _lookOf(GlassBeat beat) => _override ?? beat.look ?? look;
+
+  /// The reel's backdrop: [ground] if given, or its look's.
+  Backdrop get backdrop => ground ?? backdropOf(_look);
+
+  /// [l]'s backdrop, in this brand's colours.
+  Backdrop backdropOf(GlassLook l) {
     final ink = brand.ink, accent = brand.accent, paper = brand.paper;
     Color mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
     const white = Color(0xFFFFFFFF), black = Color(0xFF000000);
-    return switch (look) {
+    return switch (l) {
       GlassLook.ink || GlassLook.echo => Backdrop(
         top: mix(ink, white, 0.03),
         bottom: mix(ink, black, 0.55),
-        vignette: look == GlassLook.echo ? 0.55 : 0.4,
+        vignette: l == GlassLook.echo ? 0.55 : 0.4,
         glows: [
-          if (look == GlassLook.ink) ...[
+          if (l == GlassLook.ink) ...[
             Glow(
               accent.withValues(alpha: 0.28),
               center: const Alignment(0.4, -0.35),
@@ -292,7 +325,7 @@ class GlassLayers {
   }
 
   /// Layers the look adds behind a beat's screen.
-  List<Layer> _ambient(GlassBeat beat) => switch (look) {
+  List<Layer> _ambient(GlassBeat beat, GlassLook l) => switch (l) {
     // The beat's own screen, huge and out of focus behind it.
     GlassLook.echo => [
       Layer.screen(
@@ -323,11 +356,11 @@ class GlassLayers {
     _ => const [],
   };
 
-  Color get _wordColor => _light ? brand.ink : brand.paper;
+  Color _wordColor(GlassLook l) => _isLight(l) ? brand.ink : brand.paper;
 
   /// The accent on words: on the brand's own colour it would vanish, so
   /// there it is the light colour; on light fields it deepens to read.
-  Color get _wordAccent => switch (look) {
+  Color _wordAccent(GlassLook l) => switch (l) {
     GlassLook.butter => brand.paper,
     GlassLook.mesh ||
     GlassLook.studio => Color.lerp(brand.accent, brand.ink, 0.35)!,
@@ -396,6 +429,8 @@ class GlassLayers {
   /// alternating so consecutive beats mirror each other.
   Scene beatScene(GlassBeat beat, double dir) {
     final f = _frame.adjusted(beat.zoom, beat.framing);
+    final bl = _lookOf(beat);
+    final light = _isLight(bl);
     final l = beat.length;
     const settle = Duration(milliseconds: 1500);
     const lifted = Duration(milliseconds: 3000);
@@ -441,6 +476,9 @@ class GlassLayers {
       name: beat.word,
       length: l,
       camera: camera,
+      backdrop: _override == null
+          ? (beat.ground ?? (bl != _look ? backdropOf(bl) : null))
+          : null,
       speed: beat.slowLift == 1
           ? null
           : Track.from(1)
@@ -449,7 +487,7 @@ class GlassLayers {
                 .hold(lifted - 300.ms)
                 .to(lifted + 300.ms, 1),
       layers: [
-        ..._ambient(beat),
+        ..._ambient(beat, bl),
         Layer.screen(
           beat.screen,
           device: beat.device,
@@ -491,16 +529,16 @@ class GlassLayers {
           at: wordAt,
           until: l - 1100.ms,
           highlight: highlight,
-          accent: _wordAccent,
+          accent: _wordAccent(bl),
           align: f.wordAlign,
           maxWidth: f.wordWidth,
           style: brand
-              .words(f.wordSize, _wordColor)
+              .words(f.wordSize, _wordColor(bl))
               .copyWith(
                 shadows: [
                   Shadow(
-                    color: (_light ? brand.paper : brand.ink).withValues(
-                      alpha: _light ? 0.35 : 0.6,
+                    color: (light ? brand.paper : brand.ink).withValues(
+                      alpha: light ? 0.35 : 0.6,
                     ),
                     blurRadius: 24,
                   ),
@@ -578,7 +616,7 @@ class GlassLayers {
             align: Alignment(0, wide ? 0.46 : 0.36),
             textAlign: TextAlign.center,
             maxWidth: wide ? 0.7 : 0.9,
-            style: brand.words(f.lineSize, _wordColor, tracking: -0.02),
+            style: brand.words(f.lineSize, _wordColor(_look), tracking: -0.02),
           ),
         if (end.url != null)
           Words(
@@ -591,15 +629,14 @@ class GlassLayers {
             style: brand
                 .small(
                   f.lineSize * 0.42,
-                  _light ? brand.ink : brand.accent,
+                  _isLight(_look) ? brand.ink : brand.accent,
                   weight: 600,
                 )
                 .copyWith(
                   shadows: [
                     Shadow(
-                      color: (_light ? brand.paper : brand.ink).withValues(
-                        alpha: 0.9,
-                      ),
+                      color: (_isLight(_look) ? brand.paper : brand.ink)
+                          .withValues(alpha: 0.9),
                       blurRadius: 12,
                     ),
                   ],

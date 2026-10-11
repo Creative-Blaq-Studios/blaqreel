@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'dart:ui' as ui;
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'format.dart';
 import 'reel.dart';
 import 'render.dart';
 import 'scene.dart';
+import 'stage.dart';
 import 'time.dart';
 
 /// Builds a reel for a format: the same scenes laid out for each frame.
@@ -106,6 +110,11 @@ void blaqReelMain({
           });
         }, timeout: long);
       }
+      if (task == 'map') {
+        testWidgets('$label map', (tester) async {
+          await _map(tester, renderer, reels[n]!(f), '${config.out}/map/$n');
+        }, timeout: long);
+      }
       if (task == 'describe') {
         test('$label describe', () {
           // Apart from the previews' own JSON, which names a video.
@@ -123,4 +132,61 @@ void _writeJson(String path, Object? data) {
   final file = File(path);
   file.parent.createSync(recursive: true);
   file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(data));
+}
+
+/// Draws each distinct screen in [reel] flat, and lists what in it could be
+/// featured, into [dir]: a PNG per screen and `map.json`.
+Future<void> _map(
+  WidgetTester tester,
+  ReelRenderer Function(WidgetTester, Reel) renderer,
+  Reel reel,
+  String dir,
+) async {
+  // Widgets the app's own code made are "local": the app and the packages
+  // beside it, not Flutter or pub's cache.
+  final here = Directory.current.absolute.path;
+  // The inspector's own way to say which code is the app's; it is protected
+  // only to keep it out of app code, and this is tooling.
+  // ignore: invalid_use_of_protected_member
+  WidgetInspectorService.instance.addPubRootDirectories([
+    here,
+    Directory(here).parent.path,
+  ]);
+  final r = renderer(tester, reel);
+  await r.mount();
+  final stage = tester.state<ReelStageState>(find.byType(ReelStage));
+  Directory(dir).createSync(recursive: true);
+  final seen = <Widget>{};
+  final screens = <Map<String, Object?>>[];
+  for (final span in reel.timeline) {
+    for (final (j, layer) in span.scene.layers.indexed) {
+      if (!layer.isScreen || !seen.add(layer.child)) continue;
+      // After its transition in: until then the scene may not be painted.
+      await r.seek(
+        span.start +
+            (span.enter?.length ?? Duration.zero) +
+            const Duration(milliseconds: 50),
+      );
+      final boundary = stage.screenBoundary((span.index, j));
+      if (boundary == null || boundary.debugNeedsPaint) continue;
+      final file = 'screen-${span.index}-$j.png';
+      await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: 2);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        File('$dir/$file').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+      final parts = stage.mapScreen((span.index, j));
+      screens.add({
+        'scene': span.scene.name,
+        'start': span.start.inMilliseconds / 1000,
+        'image': file,
+        'screen': layer.child.runtimeType.toString(),
+        'width': layer.size.width,
+        'height': layer.size.height,
+        'parts': [for (final p in parts) p.toJson()],
+      });
+    }
+  }
+  _writeJson('$dir/map.json', {'reel': reel.name, 'screens': screens});
 }

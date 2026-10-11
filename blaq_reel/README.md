@@ -28,6 +28,22 @@ Then fill in `app_reels/host.dart`, the one adapter: given a screen, return
 it ready to draw with the app's theme, fonts and demo data. An app with
 widget tests already has this.
 
+## A guided reel, in five steps
+
+1. **Brief**: where it goes, what it says, which pack, what sound.
+2. **What to feature**: `dart run blaq_reel map <reel>` shows every screen
+   with each card, row, field and photo numbered and named the way the app
+   names it. Click the ones to feature; copy the note back.
+3. **The ground**: `dart run blaq_reel looks <reel> --at 4.2` shows that
+   moment on every Glass Layers ground. Choose one for the reel, or one per
+   beat (`GlassBeat(look: …)`), or your own colours (`ground: Backdrop(...)`).
+4. **Storyboard**: `dart run blaq_reel storyboard <reel>` shows a frame per
+   scene with its timing, words and sounds, and a notes box under each.
+5. **Render and review**: `dart run blaq_reel render`, then the studio.
+
+The `blaq-reel` Claude skill runs these steps with you, stopping at each
+page for your choice.
+
 ## Making a video
 
 ```bash

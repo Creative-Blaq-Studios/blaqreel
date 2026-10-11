@@ -8,6 +8,7 @@ import 'package:yaml/yaml.dart';
 
 import '../src/sfx.dart';
 import 'init.dart';
+import 'pages.dart';
 import 'project.dart';
 import 'studio.dart';
 
@@ -25,7 +26,10 @@ Future<int> runCli(List<String> args) async {
         ..addCommand(_Stills())
         ..addCommand(_Studio())
         ..addCommand(_Sfx())
-        ..addCommand(_Voice());
+        ..addCommand(_Voice())
+        ..addCommand(_Map())
+        ..addCommand(_Looks())
+        ..addCommand(_Storyboard());
   try {
     return await runner.run(args) ?? 0;
   } on UsageException catch (e) {
@@ -449,6 +453,202 @@ class _Voice extends Command<int> {
       if (enc.exitCode != 0) throw CliError('ffmpeg failed: ${enc.stderr}');
       stdout.writeln('  ✓ $out  "$text"');
     }
+    return 0;
+  }
+}
+
+String _stem(Project p, String reel, String format) =>
+    format == p.format ? reel : '$reel-$format';
+
+class _Map extends _ReelCommand {
+  @override
+  String get name => 'map';
+
+  @override
+  String get description =>
+      'Show every screen in a reel with each part that could be featured '
+      'numbered; choose them on the page.';
+
+  @override
+  String get invocation => 'blaq_reel map <reel>';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final reel = reelName();
+    final r = argResults!;
+    stdout.writeln('Mapping the screens in $reel…');
+    final code = await project.renderTest({
+      'BLAQ_REEL_TASK': 'map',
+      'BLAQ_REEL_NAME': reel,
+      if (_formats(r).isNotEmpty) 'BLAQ_REEL_FORMATS': _formats(r),
+    });
+    if (code != 0) return code;
+    final dir = '${project.out}/map/$reel';
+    final map =
+        jsonDecode(File('$dir/map.json').readAsStringSync())
+            as Map<String, Object?>;
+    File('$dir/index.html').writeAsStringSync(mapPage(map, app: project.name));
+    stdout.writeln('Map: $dir/index.html');
+    await _open('$dir/index.html');
+    return 0;
+  }
+}
+
+/// Glass Layers' grounds, with a line on each for the page.
+const _lookBlurbs = {
+  'ink': 'The brand ink with the accent glowing.',
+  'mesh': 'Light: soft drifting fields of the accent and its neighbours.',
+  'butter': 'The accent, whole, as the ground.',
+  'studio': "A photo studio's pale sweep, wall into floor.",
+  'grid': 'Dark, with a floor of lines in 3D under the phone.',
+  'echo': 'Dark, with the screen itself huge and blurred behind.',
+};
+
+class _Looks extends _ReelCommand {
+  _Looks() {
+    argParser
+      ..addOption(
+        'at',
+        defaultsTo: '4.2',
+        help: 'Seconds to compare at, comma-separated.',
+      )
+      ..addOption(
+        'looks',
+        defaultsTo: _lookBlurbs.keys.join(','),
+        help: 'Which grounds to compare.',
+      );
+  }
+
+  @override
+  String get name => 'looks';
+
+  @override
+  String get description =>
+      "Render a reel's moments on each Glass Layers ground, side by side, "
+      'to choose one.';
+
+  @override
+  String get invocation => 'blaq_reel looks <reel> --at 4.2';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final reel = reelName();
+    final r = argResults!;
+    final format = _formats(r).isEmpty ? project.format : _formats(r);
+    final looks = (r['looks'] as String).split(',');
+    final times = [
+      for (final t in (r['at'] as String).split(',')) double.parse(t.trim()),
+    ];
+    final dir = Directory('${project.out}/looks/$reel')
+      ..createSync(recursive: true);
+    for (final look in looks) {
+      stdout.writeln('  $look…');
+      final code = await project.renderTest({
+        'BLAQ_REEL_TASK': 'stills',
+        'BLAQ_REEL_NAME': reel,
+        'BLAQ_REEL_FORMATS': format,
+        'BLAQ_REEL_AT': r['at'] as String,
+        'BLAQ_REEL_LOOK': look,
+      }, quiet: true);
+      if (code != 0) {
+        stderr.writeln('$look failed: ${project.out}/last.log');
+        return code;
+      }
+      for (final t in times) {
+        File(
+          '${project.out}/stills/${_stem(project, reel, format)}-${t}s.png',
+        ).renameSync('${dir.path}/$look-${t}s.png');
+      }
+    }
+    final page = File('${dir.path}/index.html')
+      ..writeAsStringSync(
+        looksPage(
+          reel: reel,
+          app: project.name,
+          looks: looks,
+          times: times,
+          blurbs: _lookBlurbs,
+        ),
+      );
+    stdout.writeln('Looks: ${page.path}');
+    await _open(page.path);
+    return 0;
+  }
+}
+
+class _Storyboard extends _ReelCommand {
+  @override
+  String get name => 'storyboard';
+
+  @override
+  String get description =>
+      'A frame from every scene with its timing, words and sounds, and room '
+      'for notes: approve it before rendering.';
+
+  @override
+  String get invocation => 'blaq_reel storyboard <reel>';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final reel = reelName();
+    final r = argResults!;
+    final format = _formats(r).isEmpty ? project.format : _formats(r);
+    stdout.writeln('Reading $reel…');
+    var code = await project.renderTest({
+      'BLAQ_REEL_TASK': 'describe',
+      'BLAQ_REEL_NAME': reel,
+      'BLAQ_REEL_FORMATS': format,
+    }, quiet: true);
+    if (code != 0) return code;
+    final meta =
+        jsonDecode(
+              File(
+                '${project.out}/studio/describe/$reel-$format.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final scenes = (meta['scenes']! as List).cast<Map<String, Object?>>();
+    // Each scene's telling moment: just after its words land, or its middle.
+    final times = <double>[];
+    for (final s in scenes) {
+      final start = (s['start']! as num).toDouble();
+      final end = (s['end']! as num).toDouble();
+      final words = (s['words']! as List).cast<Map<String, Object?>>();
+      final t = words.isEmpty
+          ? (start + end) / 2
+          : ((words.first['at']! as num).toDouble() + 1.0).clamp(
+              start + 0.3,
+              end - 0.4,
+            );
+      times.add(double.parse(t.toStringAsFixed(2)));
+    }
+    stdout.writeln('Rendering ${times.length} frames…');
+    code = await project.renderTest({
+      'BLAQ_REEL_TASK': 'stills',
+      'BLAQ_REEL_NAME': reel,
+      'BLAQ_REEL_FORMATS': format,
+      'BLAQ_REEL_AT': times.join(','),
+    });
+    if (code != 0) return code;
+    final dir = Directory('${project.out}/storyboard/$reel')
+      ..createSync(recursive: true);
+    final frames = <Map<String, Object?>>[];
+    for (final (i, t) in times.indexed) {
+      final name = 'scene-$i.png';
+      File(
+        '${project.out}/stills/${_stem(project, reel, format)}-${t}s.png',
+      ).copySync('${dir.path}/$name');
+      frames.add({'at': t, 'image': name});
+    }
+    final page = File('${dir.path}/index.html')
+      ..writeAsStringSync(
+        storyboardPage(reel: meta, app: project.name, frames: frames),
+      );
+    stdout.writeln('Storyboard: ${page.path}');
+    await _open(page.path);
     return 0;
   }
 }

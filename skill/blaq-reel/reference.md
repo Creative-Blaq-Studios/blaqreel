@@ -50,15 +50,16 @@ Scene(
 ```
 
 Camera: `tilt` takes the top away, `turn` the right side away, `zoom` scales
-the world, `pan` moves it (stage units), `focus` is the sharp depth,
-`aperture` blur per 100 units from it.
+the world, `pan` moves it (stage units), `focus` is the sharp depth, `depth`
+how far either side of it stays sharp, `aperture` blur per 100 units beyond
+that. Keep every lifted card inside `focus ± depth`.
 
 ## Layers
 
 ```dart
 Layer(widget, size: Size(200, 80), position: Offset(0, -100),
       motion: Motion(x:, y:, z:, tilt:, turn:, roll:, scale:, opacity:, blur:),
-      glass: Glass(depth: 8), carry: true)
+      glass: Glass(depth: 8), carry: true, ignoreFocus: true)
 Layer.timed((t) => KhumioMark(progress: progress(t, 0.s, 1.s)), size:)
 Layer.screen(HomeScreen(),            // drawn through host.wrap, on a Device
   statusBar:, motion:,
@@ -88,9 +89,14 @@ Pick.key(ValueKey('x'))
 
 ```dart
 GlassLayers(brand:, format:, beats: [GlassBeat('Share.', screen:, lift: [Pick…],
-    liftRadius:, zoom:, framing:, taps:, scrolls:, typing:, slowLift: .5)],
+    liftRadius:, zoom:, framing:, taps:, scrolls:, typing:, slowLift: .5,
+    look: GlassLook.butter, ground: Backdrop(...))],     // per-beat ground
   open: (t) => mark, openSize:, end: GlassEnd(logo: (t) => …, logoSize:, line:, url:),
-  hole: (r) => …, statusBar:, dark: true, music:, motionBlur:).build('name')
+  hole: (r) => …, statusBar:, look: GlassLook.mesh, ground: Backdrop(...),
+  music:, motionBlur:).build('name')
+// GlassLook: ink, mesh, butter, studio, grid, echo. A beat's own look
+// crossfades with its neighbours'. BLAQ_REEL_LOOK overrides every look
+// (the `looks` command uses it).
 KineticLaunch(brand:, format: Format.wide, beats: [KineticBeat('Split the {bill}.', screen:, lift:)],
   logo:, line:, url:).build('name')
 DarkGlow(brand:, format: Format.wide, stops: [GlowStop(screen:, title: 'Shared {money}', line:, lift:)],
@@ -122,6 +128,9 @@ path), `sound`, `brand: {ink, accent, paper, fonts: {display, text}}`.
 
 ```
 dart run blaq_reel init | doctor | list
+dart run blaq_reel map <reel>                     # step 2: numbered parts of every screen
+dart run blaq_reel looks <reel> --at 4.2          # step 3: every ground side by side
+dart run blaq_reel storyboard <reel>              # step 4: a frame per scene, with notes
 dart run blaq_reel stills <reel> --at 1,3.5 [--format wide] [--open]
 dart run blaq_reel render <reel> [--format vertical,wide|all] [--fps 60] [--no-audio] [--open]
 dart run blaq_reel studio <reel> [--format wide] [--port 4455]
@@ -130,5 +139,6 @@ dart run blaq_reel voice --script app_reels/voice/script.yaml [--voice Tessa]
 ```
 
 Output: `out/<reel>.mp4` for the default format, `out/<reel>-<format>.mp4`
-otherwise; stills in `out/stills/`; the studio's previews in `out/studio/`;
-the last run's full log in `out/last.log`.
+otherwise; stills in `out/stills/`; pages in `out/map/`, `out/looks/`,
+`out/storyboard/`; the studio's previews in `out/studio/`; the last run's
+full log in `out/last.log`.

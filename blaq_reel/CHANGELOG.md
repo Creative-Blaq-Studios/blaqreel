@@ -32,6 +32,15 @@ app.
   video, side by side; watch any finished video with its timeline, switch
   which reel is previewed live, render finals from the page.
 
+- A guided flow: `map` (every screen with each featurable part numbered,
+  named as the app names it, with its `Pick`), `looks` (one moment on every
+  ground), `storyboard` (a frame per scene with notes); each page ends in a
+  note to copy back. The skill walks through the five steps.
+- Grounds per beat: `GlassBeat(look:, ground:)`, crossfading between beats;
+  `GlassLayers(ground:)` for colours of your own; six looks (ink, mesh,
+  butter, studio, grid, echo); `Backdrop(floor:)`; `Layer(ignoreFocus:)`.
+- A depth band on the camera (`depth`): every lifted card stays sharp.
+
 ### Fixed
 
 - A test pump draws only scheduled frames, so lifts could go unfound when

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' hide Layer;
 import 'package:flutter/widgets.dart';
 
 import 'backdrop.dart';
@@ -65,6 +66,7 @@ class ReelStageState extends State<ReelStage> {
   static const _liftPad = 24.0;
 
   final Map<LayerKey, GlobalKey> _keys = {};
+  final Map<LayerKey, GlobalKey> _shots = {};
   final Map<LayerKey, Widget> _contents = {};
   final Map<PartKey, _Lifted> _lifted = {};
   final Map<PartKey, Rect> _tapRects = {};
@@ -100,6 +102,7 @@ class ReelStageState extends State<ReelStage> {
       for (var j = 0; j < scenes[i].layers.length; j++) {
         final layer = scenes[i].layers[j];
         _keys[(i, j)] = GlobalKey();
+        _shots[(i, j)] = GlobalKey();
         _contents[(i, j)] = layer.isScreen
             ? MediaQuery(
                 data: layer.device!.media,
@@ -337,6 +340,250 @@ class ReelStageState extends State<ReelStage> {
       }
     }
     return out;
+  }
+
+  // ── Mapping screens ──────────────────────────────────────────────────
+
+  /// The screen [key] as drawn, flat, without the camera: for the map.
+  RenderRepaintBoundary? screenBoundary(LayerKey key) {
+    final ro = _shots[key]?.currentContext?.findRenderObject();
+    return ro is RenderRepaintBoundary ? ro : null;
+  }
+
+  /// Every widget in screen [key] that could be lifted, tapped or featured:
+  /// cards, panels, rows and fields big enough to read, each named the way
+  /// the app's own code names it, with a [Pick] that finds it again.
+  List<ScreenPart> mapScreen(LayerKey key) {
+    final root = _keys[key]?.currentContext;
+    final rootBox = root?.findRenderObject();
+    if (root is! Element || rootBox is! RenderBox || !rootBox.hasSize) {
+      return const [];
+    }
+    final screen = Offset.zero & rootBox.size;
+    final byOwner = <Element, ScreenPart>{};
+    final typeOrder = <String, List<Element>>{};
+
+    void collectTypes(Element e) {
+      (typeOrder[e.widget.runtimeType.toString()] ??= []).add(e);
+      e.visitChildren(collectTypes);
+    }
+
+    root.visitChildren(collectTypes);
+
+    void visit(Element e) {
+      // Only the element that made a box: wrappers share their child's.
+      final ro = e is RenderObjectElement ? e.renderObject : null;
+      if (ro is RenderBox && ro.hasSize && _cardish(ro)) {
+        final rect = _rectIn(key, e);
+        // Photos count from a smaller size than panels: a receipt's
+        // thumbnail is worth featuring.
+        final min = ro is RenderImage ? 0.16 : 0.3;
+        if (rect != null &&
+            rect.width >= screen.width * min &&
+            rect.height >= 30 &&
+            rect.width * rect.height <= screen.width * screen.height * 0.75 &&
+            screen.overlaps(rect)) {
+          final owner = _owner(e, key, rect) ?? e;
+          if (!byOwner.containsKey(owner)) {
+            final part = _describe(owner, key, rect, typeOrder);
+            // Only what shows: a card half off the side is outlined where it
+            // can be seen.
+            byOwner[owner] = ScreenPart(
+              name: part.name,
+              text: part.text,
+              rect: part.rect.intersect(screen),
+              pick: part.pick,
+            );
+          }
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    root.visitChildren(visit);
+    final named = byOwner.values.where((p) => !_wrapper(p.name)).toList();
+    bool near(Rect a, Rect b) =>
+        (a.left - b.left).abs() < 14 &&
+        (a.top - b.top).abs() < 14 &&
+        (a.right - b.right).abs() < 14 &&
+        (a.bottom - b.bottom).abs() < 14;
+    // A box the app did not name is kept only where no named one sits.
+    byOwner.removeWhere(
+      (_, p) => _wrapper(p.name) && named.any((n) => near(n.rect, p.rect)),
+    );
+    final entries = byOwner.values.toList()
+      ..sort((a, b) {
+        final dy = a.rect.top.compareTo(b.rect.top);
+        return dy != 0 ? dy : a.rect.left.compareTo(b.rect.left);
+      });
+    return entries;
+  }
+
+  static bool _cardish(RenderBox ro) {
+    if (ro is RenderPhysicalShape || ro is RenderPhysicalModel) return true;
+    if (ro is RenderImage) return ro.image != null;
+    // `Container(color:)` and `ColoredBox` paint with a private box.
+    if (ro.runtimeType.toString() == '_RenderColoredBox') return true;
+    if (ro is RenderEditable) return true;
+    if (ro is RenderDecoratedBox) {
+      final d = ro.decoration;
+      if (d is BoxDecoration) {
+        return d.color != null || d.border != null || d.gradient != null;
+      }
+      if (d is ShapeDecoration) return d.color != null || d.gradient != null;
+    }
+    return false;
+  }
+
+  /// Layout widgets the app also makes, which never name a feature.
+  static const _generic = {
+    'Padding',
+    'SizedBox',
+    'Column',
+    'Row',
+    'Container',
+    'DecoratedBox',
+    'Align',
+    'Center',
+    'Expanded',
+    'Flexible',
+    'Stack',
+    'Positioned',
+    'ConstrainedBox',
+    'ClipRSuperellipse',
+    'ClipRRect',
+    'ClipPath',
+    'Material',
+    'InkWell',
+    'GestureDetector',
+    'Opacity',
+    'Builder',
+    'LayoutBuilder',
+    'IntrinsicHeight',
+    'IntrinsicWidth',
+    'Wrap',
+    'Semantics',
+    'KeyedSubtree',
+    'MediaQuery',
+    'Theme',
+    'DefaultTextStyle',
+    'IconTheme',
+    'Transform',
+    'FractionallySizedBox',
+    'AspectRatio',
+    'Consumer',
+    'HookBuilder',
+    'ValueListenableBuilder',
+    'AnimatedBuilder',
+    'ListenableBuilder',
+    'StreamBuilder',
+    'FutureBuilder',
+    'SafeArea',
+    'ColoredBox',
+    'Ink',
+    'Card',
+    'ListTile',
+    'Text',
+    'RichText',
+  };
+
+  /// Wrappers that sit around a feature without being one.
+  static bool _wrapper(String name) =>
+      _generic.contains(name) ||
+      const [
+        'Scope',
+        'Menu',
+        'Provider',
+        'Listener',
+        'Builder',
+        'Theme',
+        'Frame',
+        'Consumer',
+        'Notifier',
+        'Region',
+        'Detector',
+        'Boundary',
+      ].any(name.contains);
+
+  /// The widget that owns [e]'s box: the outermost widget the app's own code
+  /// made that draws exactly that box and is a feature rather than a
+  /// wrapper. Null when the box belongs to nothing the app named.
+  Element? _owner(Element e, LayerKey key, Rect rect) {
+    Element? best;
+    var depth = 0;
+    Element? walk = e;
+    final top = _keys[key]?.currentContext;
+    while (walk != null && depth < 16) {
+      final w = walk.widget;
+      final name = w.runtimeType.toString();
+      if (debugIsWidgetLocalCreation(w) && !_wrapper(name)) {
+        final r = _rectIn(key, walk);
+        if (r != null && _same(r, rect)) best = walk;
+      }
+      Element? parent;
+      walk.visitAncestorElements((p) {
+        parent = p;
+        return false;
+      });
+      if (parent == null || parent == top) break;
+      walk = parent;
+      depth++;
+    }
+    return best;
+  }
+
+  static bool _same(Rect a, Rect b) =>
+      (a.left - b.left).abs() < 6 &&
+      (a.top - b.top).abs() < 6 &&
+      (a.right - b.right).abs() < 6 &&
+      (a.bottom - b.bottom).abs() < 6;
+
+  ScreenPart _describe(
+    Element owner,
+    LayerKey key,
+    Rect rect,
+    Map<String, List<Element>> typeOrder,
+  ) {
+    final name = owner.widget.runtimeType.toString();
+    final same = typeOrder[name] ?? [owner];
+    final text = _firstText(owner);
+    String pick;
+    final base = name.startsWith('_')
+        ? "Pick.typeName('$name')"
+        : 'Pick.type<$name>()';
+    if (same.length <= 1) {
+      pick = base;
+    } else if (text != null) {
+      final quoted = text.replaceAll("'", r"\'");
+      pick = "$base.containing(Pick.text('$quoted'))";
+    } else {
+      pick = '$base.nth(${same.indexOf(owner)})';
+    }
+    return ScreenPart(
+      name: name,
+      text: text,
+      rect: _rectIn(key, owner) ?? rect,
+      pick: pick,
+    );
+  }
+
+  static String? _firstText(Element e) {
+    String? found;
+    void look(Element c) {
+      if (found != null) return;
+      final w = c.widget;
+      final t = w is Text
+          ? (w.data ?? w.textSpan?.toPlainText())
+          : (w is RichText ? w.text.toPlainText() : null);
+      if (t != null && t.trim().length > 1) {
+        found = t.trim();
+        return;
+      }
+      c.visitChildren(look);
+    }
+
+    e.visitChildren(look);
+    return found;
   }
 
   // ── Drawing ──────────────────────────────────────────────────────────
@@ -676,7 +923,13 @@ class ReelStageState extends State<ReelStage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: KeyedSubtree(key: _keys[key], child: _contents[key]!),
+                  child: RepaintBoundary(
+                    key: _shots[key],
+                    child: KeyedSubtree(
+                      key: _keys[key],
+                      child: _contents[key]!,
+                    ),
+                  ),
                 ),
                 if (layer.statusBar != null)
                   Positioned(
@@ -832,4 +1085,36 @@ class _Circle extends CustomClipper<Path> {
   @override
   bool shouldReclip(_Circle old) =>
       old.center != center || old.radius != radius;
+}
+
+/// A widget in a screen that could be featured: its type, the first text in
+/// it, where it is in the screen, and a [Pick] that finds it.
+class ScreenPart {
+  /// Its type, as the app names it.
+  final String name;
+
+  /// The first text inside it.
+  final String? text;
+
+  /// Where it is in its screen, in the screen's own units.
+  final Rect rect;
+
+  /// Dart that picks it: paste into a `lift:` or `Tap(where:)`.
+  final String pick;
+
+  /// An entry.
+  const ScreenPart({
+    required this.name,
+    required this.text,
+    required this.rect,
+    required this.pick,
+  });
+
+  /// As JSON.
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'text': text,
+    'rect': [rect.left, rect.top, rect.width, rect.height],
+    'pick': pick,
+  };
 }

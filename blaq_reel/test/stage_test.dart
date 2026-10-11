@@ -35,7 +35,10 @@ class _Screen extends StatelessWidget {
     color: const Color(0xFFEEEEEE),
     child: Column(
       children: [
-        const _Card('Outer', child: _Card('Total')),
+        const _Card(
+          'Outer',
+          child: SizedBox(width: 300, child: _Card('Total')),
+        ),
         SizedBox(
           height: 200,
           child: ListView(
@@ -278,5 +281,42 @@ void main() {
     ).build('story');
     final meet = reel.timeline.firstWhere((s) => s.scene.name == 'meet');
     expect(reel.soundtrack.voice.single.at, meet.start);
+  });
+
+  test('Given a beat with its own look, then its scene paints that ground', () {
+    const brand = Brand(
+      ink: Color(0xFF111111),
+      accent: Color(0xFFFFD97A),
+      paper: Color(0xFFF5F5F5),
+      display: 'Ahem',
+      text: 'Ahem',
+    );
+    final glass = GlassLayers(
+      brand: brand,
+      look: GlassLook.mesh,
+      beats: const [
+        GlassBeat('Same.', screen: SizedBox()),
+        GlassBeat('Own.', screen: SizedBox(), look: GlassLook.butter),
+      ],
+    );
+    final reel = glass.build('looks');
+    expect(reel.scenes[0].backdrop, isNull);
+    expect(
+      reel.scenes[1].backdrop!.top,
+      glass.backdropOf(GlassLook.butter).top,
+    );
+  });
+
+  testWidgets('Given a screen, when mapped, then each card is listed with a '
+      'pick that finds it', (tester) async {
+    final r = ReelRenderer(tester, reel(TextEditingController()), host: host);
+    await r.mount();
+    await r.seek(100.ms);
+    final stage = tester.state<ReelStageState>(find.byType(ReelStage));
+    final parts = stage.mapScreen((0, 0));
+    expect(parts.map((p) => p.text), containsAll(['Outer', 'Total']));
+    final total = parts.firstWhere((p) => p.text == 'Total');
+    expect(total.rect.width, greaterThan(0));
+    expect(total.pick, contains('Total'));
   });
 }
