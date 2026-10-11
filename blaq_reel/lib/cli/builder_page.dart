@@ -165,6 +165,9 @@ h2 span { color: var(--muted); }
   display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--deep); color: var(--text);
   border: 1px solid var(--line2); box-shadow: 0 10px 30px rgba(0,0,0,.5); font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 #agentFab[hidden] { display: none; }
+/* Room under every scrolling column, so its last item scrolls clear of the
+   floating button instead of sitting under it. */
+body.fab-on aside, body.fab-on nav, body.fab-on .canvas, body.fab-on #build aside, body.fab-on #build nav { padding-bottom: 88px; }
 #agentFab .mk { color: var(--accent); font-size: 15px; line-height: 1; }
 #agentFab .badge:empty { display: none; }
 #agentFab .badge { font-size: 12px; }
@@ -335,6 +338,7 @@ window.onStudioState = (st) => {
   const a = st.agent, fab = $('agentFab'), box = $('agent');
   agentLast = a;
   placeFab();
+  document.body.classList.toggle('fab-on', !!a);
   if (!a) { fab.hidden = true; box.hidden = true; return; }
   // A new run opens the panel once, so its start is seen; after that it is
   // the person's to open and close.
