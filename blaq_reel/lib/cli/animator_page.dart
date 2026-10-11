@@ -119,6 +119,13 @@ const animatorCss = r'''
 .tl-bar2 { position: absolute; }
 .tl-beatname { gap: 6px !important; color: var(--text) !important; cursor: default !important; }
 .tl-len { width: 52px !important; padding: 2px 5px !important; font: 400 11px var(--mono) !important; text-align: right; }
+
+/* What the inspector edits: the words or a part, a tap away. */
+.tl-choose { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.tl-choose button { padding: 5px 8px; font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-choose button b { color: var(--accent); }
+.tl-choose button.on { border-color: var(--accent); color: var(--accent); }
+.tl-choose .tl-addparts { margin-left: auto; color: var(--text2); }
 ''';
 
 /// The editor's script: `timelineEditor(beat, screen, index, side)` returns
@@ -559,10 +566,19 @@ function timelineEditor(beat, s, index, side, lead) {
   const PART_KEYS = ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'rise', 'scan'];
   const knob = (id, label, min, max, step, value, fmt, set) => `<div class="tl-knob"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" data-fmt="${fmt}"><output class="${set ? 'set' : ''}">${fmtv(fmt, value)}</output></div>`;
   const fmtv = (fmt, v) => ({ n: Math.round(v), x: (+v).toFixed(2) + '×', deg: Math.round(v) + '°', s: (v / 1000).toFixed(2) + 's', pc: Math.round(v) + '%' }[fmt]);
+  // What the inspector can show: the words, and each part; with none
+  // picked yet, the way to pick some.
+  function chooser() {
+    const bar = B(`<div class="tl-choose" role="tablist" aria-label="Edit"><button data-pick="words" class="${ed.sel === 'words' ? 'on' : ''}"><b>T</b> Words</button>${parts.map((p, i) => `<button data-pick="${i}" class="${ed.sel === i ? 'on' : ''}" title="${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}"><b>${i + 1}</b> ${escB(p.type.replace(/^_/, ''))}</button>`).join('')}<button class="tl-addparts" data-pickparts>${parts.length ? 'Pick parts' : '+ Pick parts'}</button></div>`);
+    bar.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => select(b.dataset.pick === 'words' ? 'words' : +b.dataset.pick)));
+    bar.querySelector('[data-pickparts]').onclick = () => { partsMode[index] = 'pick'; draw(); };
+    side.appendChild(bar);
+  }
   function inspector() {
     side.innerHTML = '';
+    chooser();
     if (ed.sel === 'words') return wordsInspector();
-    if (!parts.length) { side.appendChild(B('<div class="ai"><b>No parts yet</b><span>Pick parts to lift, or select the words on the timeline to style them.</span></div>')); return; }
+    if (!parts.length) { side.appendChild(B('<div class="ai"><b>No parts yet</b><span>Pick parts of the screen to lift, or style the words.</span></div>')); return; }
     const i = ed.sel, p = beat.parts[i], plan = partPlan(beat, i, parts.length, dir), d = plan.defaults;
     const own = (key) => p[key] !== undefined && p[key] !== null;
     const el = B(`<div class="tl-insp">

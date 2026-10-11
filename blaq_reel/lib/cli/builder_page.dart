@@ -15,7 +15,10 @@ body.building main, body.building footer { display: none; }
    the width. */
 #build { display: none; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); min-height: 0; }
 body.building #build { display: grid; }
+/* Held to the window's height, so each column scrolls on its own. */
+#build > * { min-height: 0; }
 #build aside { overflow-y: auto; overflow-x: hidden; padding: 12px; background: var(--deep); }
+#build aside > * { flex: none; }
 /* The builder's reel and steps live in the studio's header while building. */
 #buildNav { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding-left: 12px; border-left: 1px solid var(--line2); }
 body:not(.building) #buildNav { display: none; }
