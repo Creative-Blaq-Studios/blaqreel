@@ -54,6 +54,10 @@ class Studio {
   Future<void> _queue = Future.value();
   var _previewQueued = false;
 
+  /// The last beat rendered on its own: which, in what frame, and whether it
+  /// is rendering, rendered or failed.
+  Map<String, Object?>? _beat;
+
   /// A studio.
   Studio(
     this.project, {
@@ -303,6 +307,63 @@ class Studio {
     });
   }
 
+  /// Renders beat [index] of [spec] on its own, as the reel would draw it,
+  /// in [format]: the real screens, so what the editor only sketches (text
+  /// typed into a field, a tap) shows as it will. Written as the hidden
+  /// spec `_beat` and rendered as a studio preview, `_beat-<format>.mp4`.
+  Future<void> beat(Map<String, Object?> spec, int index, String format) {
+    final beats = (spec['beats'] as List? ?? const []);
+    if (index < 0 || index >= beats.length) return Future.value();
+    final b = (beats[index] as Map).cast<String, Object?>();
+    final version = ((_beat?['version'] as int?) ?? 0) + 1;
+    final about = {
+      'reel': spec['name'],
+      'index': index,
+      'word': b['word'],
+      'format': format,
+      'version': version,
+    };
+    _beat = {...about, 'state': 'queued'};
+    return _serial(
+      'Rendering beat ${index + 1} · ${b['word'] ?? ''}',
+      () async {
+        _beat = {...about, 'state': 'rendering'};
+        Directory(_specs).createSync(recursive: true);
+        // The beat alone: no opening, ending, story around it or music.
+        final one =
+            {
+                ...spec,
+                'beats': [b],
+                'music': 'none',
+              }
+              ..remove('name')
+              ..remove('open')
+              ..remove('end')
+              ..remove('hook')
+              ..remove('problem')
+              ..remove('meetLine')
+              ..remove('proof');
+        File('$_specs/_beat.json').writeAsStringSync(jsonEncode(one));
+        final watch = Stopwatch()..start();
+        final code = await _run({
+          'BLAQ_REEL_TASK': 'preview',
+          'BLAQ_REEL_NAME': '_beat',
+          'BLAQ_REEL_FORMATS': format,
+        });
+        _beat = {
+          ...about,
+          'state': code == 0 ? 'done' : 'failed',
+          'video': '/files/_beat-$format.mp4?v=$version',
+          'seconds': watch.elapsed.inSeconds,
+          'rendered': DateTime.now().toIso8601String(),
+        };
+        _status = code == 0
+            ? 'Beat ${index + 1} rendered in ${watch.elapsed.inSeconds}s'
+            : 'The beat failed to render — see the log';
+      },
+    );
+  }
+
   /// Renders the finished video of the reel being worked on.
   Future<void> finalRender({String? name, String? at, bool quick = false}) {
     final r = name ?? reel, f = at ?? format;
@@ -467,6 +528,7 @@ class Studio {
             'format': format,
             'preview': _json('$_dir/$reel-$format.json'),
             'agent': _agent?.toJson(),
+            'beat': _beat,
           });
         case '/api/catalogue' when req.method == 'GET':
           _sendJson(req, _json('$_dir/catalogue/map.json'));
@@ -638,6 +700,17 @@ class Studio {
           _sendJson(req, {'ok': true});
         case '/api/render' when req.method == 'POST':
           unawaited(preview());
+          _sendJson(req, {'ok': true});
+        case '/api/beat' when req.method == 'POST':
+          final body =
+              jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
+          unawaited(
+            beat(
+              (body['spec']! as Map).cast<String, Object?>(),
+              (body['index'] as num?)?.toInt() ?? 0,
+              '${body['format'] ?? format}',
+            ),
+          );
           _sendJson(req, {'ok': true});
         case '/api/final' when req.method == 'POST':
           // Any reel, in one or more formats (`formats=vertical,wide`),

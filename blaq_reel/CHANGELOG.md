@@ -54,6 +54,10 @@
 - Lifted parts are live: a copy is rebuilt from the screen's widget as it
   is now, so what changes after the lift (typed text, a figure) shows on
   the part in the air.
+- Render beat: the editor renders the beat it shows on its own, with the
+  real screens (about half a minute), and plays it over the frame; the
+  playhead follows it, and it says when the beat has changed since.
+  `POST /api/beat` takes the spec as it stands, the beat and the frame.
 - The safe zone is off by default, a small tick in the editor's toolbar,
   and shows by itself while the words are dragged.
 - The editor's toolbar labels the Ground and Move pickers, and says which

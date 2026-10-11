@@ -394,11 +394,12 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === '[' || e.key === ']') && spec.beats.length && (step === 'parts' || step === 'story')) {
     const to = clampBeat(beatIndex + (e.key === ']' ? 1 : -1));
     if (to !== beatIndex) { beatIndex = to; draw(); }
-  } else if (e.code === 'Space' && step === 'parts' && document.querySelector('.tled')) { e.preventDefault(); ed.playing = !ed.playing; }
+  } else if (e.code === 'Space' && step === 'parts' && document.querySelector('.tled')) { e.preventDefault(); togglePlay(); }
 });
 function clampBeat(i) { return Math.max(0, Math.min(spec.beats.length - 1, i)); }
 window.onStudioState = (st) => {
   if (document.body.classList.contains('building') && step === 'preview') previewState(st);
+  if (window.beatState) window.beatState(st);
   const a = st.agent, fab = $('agentFab'), box = $('agent');
   agentLast = a;
   placeFab();

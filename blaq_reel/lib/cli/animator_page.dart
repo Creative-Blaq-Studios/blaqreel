@@ -49,6 +49,18 @@ const animatorCss = r'''
 .tl-part .tl-tag { position: absolute; left: 6px; top: 6px; background: var(--accent); color: #0A0A0A; font: 700 14px var(--mono); padding: 1px 6px; }
 .tl-word { cursor: grab; outline-offset: 4px; }
 .tl-word.sel { outline: 2px solid var(--accent); }
+.tl-render { padding: 5px 10px; border: 1px solid var(--accent); color: var(--accent); background: transparent; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
+.tl-render:hover { background: var(--accent); color: #0A0A0A; }
+.tl-real { position: absolute; inset: 0; z-index: 400; background: rgba(5,5,5,.72); display: grid; place-items: center; }
+.tl-real video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.tl-real .rcard { width: 88%; padding: 16px; } .tl-real .rcard .rc-pct { font-size: 44px; }
+.tl-real > .tl-realx { position: absolute; top: 8px; right: 8px; }
+.tl-realbar { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 6px; align-items: center; padding: 6px; background: rgba(8,8,8,.85); }
+.tl-realbar > * { white-space: nowrap; }
+.tl-realbar button, .tl-real > .tl-realx { padding: 4px 8px; font: 600 10px var(--mono); text-transform: uppercase; background: rgba(10,10,10,.85); color: var(--text); border: 1px solid #333; cursor: pointer; }
+.tl-realbar button:hover, .tl-real > .tl-realx:hover { border-color: var(--accent); }
+.tl-realtag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #22C55E; }
+.tl-stale { font: 600 9.5px var(--mono); text-transform: uppercase; color: #FBBF24; }
 .tl-safetog { display: flex; gap: 5px; align-items: center; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .tl-safetog input { accent-color: var(--accent); margin: 0; }
 .tl-safe { border: 1px dashed rgba(120,120,120,.55); pointer-events: none; z-index: 300; }
@@ -291,7 +303,11 @@ fetch('/api/brand').then((r) => r.json()).then((b) => {
 
 const FRAMES = { vertical: ['9:16', 'Shorts · Reels · TikTok'], portrait: ['4:5', 'Feed'], square: ['1:1', 'Square'], wide: ['16:9', 'YouTube · site'] };
 const STYLE_KEYS = ['color', 'accent', 'size', 'weight', 'reveal', 'plate', 'layer'];
-const ed = { frame: null, safe: false, dragging: false, sel: 0, t: SETTLE + RISE + 600, playing: true, beat: -1 };
+// The rendered beat, while it is shown over the editor: the playhead
+// follows it, and play and seek drive it.
+const realVideo = () => document.querySelector('.tl-real:not([hidden]) video');
+function togglePlay() { const rv = realVideo(); if (rv) { if (rv.paused) rv.play(); else rv.pause(); } else ed.playing = !ed.playing; }
+const ed = { frame: null, safe: false, dragging: false, real: false, realKey: null, sel: 0, t: SETTLE + RISE + 600, playing: true, beat: -1 };
 let animStop = null;
 function stopAnimator() { if (animStop) animStop(); animStop = null; }
 
@@ -502,10 +518,11 @@ function timelineEditor(beat, s, index, side, lead) {
       <span class="tl-movel">Move</span>
       <select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
+      <button class="tl-render" id="tlRender" title="Render this beat alone with the real screens, to see what the editor only sketches: typing, taps, the app's own drawing">▶ Render beat</button>
       <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
       <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe zone</label>
     </div>
-    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div></div>
+    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div></div></div>
     <div class="tl-time">
       <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
       <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: TL / 1000 }, (_, i) => `<span style="left:${(i * 1000 / TL) * 100}%">${i}s</span>`).join('')}<div class="tl-after" style="left:${(l / TL) * 100}%"></div></div><div class="tl-rows"></div><div class="tl-ph"></div></div>
@@ -666,7 +683,8 @@ function timelineEditor(beat, s, index, side, lead) {
     // The timeline.
     root.querySelector('.tl-ph').style.left = (t / TL) * 100 + '%';
     root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's';
-    root.querySelector('.tl-play').textContent = ed.playing ? '❚❚' : '▶';
+    const rv = realVideo();
+    root.querySelector('.tl-play').textContent = (rv ? !rv.paused : ed.playing) ? '❚❚' : '▶';
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
       if (b.dataset.k === 'beat') { b.style.left = '0%'; b.style.width = ((beat.length || 5.6) * 1000 / TL) * 100 + '%'; b.firstChild.textContent = `${(beat.length || 5.6).toFixed(1)}s`; }
       else if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / TL) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / TL) * 100 + '%'; }
@@ -684,7 +702,7 @@ function timelineEditor(beat, s, index, side, lead) {
     root.querySelector('.tl-rows').innerHTML = `<div class="tl-row tl-beatrow"><div class="tl-bar2 beat" data-k="beat" title="Drag the end to make the beat longer or shorter"><span></span><i class="tl-r"></i></div></div>`
       + `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words" title="Drag to move; drag an end to change when they come in or go"><i class="tl-l"></i>${escB(w.reveal)} in<i class="tl-r"></i></div></div>`
       + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}${plan.typing ? ' typed' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div>${plan.typing ? `<div class="tl-bar2 typing" data-k="t${i}" title="Typing “${escB(plan.typing.text)}”: drag to move when it starts">type ${escB(plan.typing.text)}</div>` : ''}</div>`; }).join('');
-    root.querySelector('.tl-play').onclick = () => (ed.playing = !ed.playing);
+    root.querySelector('.tl-play').onclick = togglePlay;
     root.querySelectorAll('[data-sel]').forEach((d) => (d.onclick = () => select(d.dataset.sel === 'words' ? 'words' : +d.dataset.sel)));
     root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k, e.target.classList.contains('tl-r') ? 'end' : e.target.classList.contains('tl-l') ? 'start' : 'move')));
     const len = root.querySelector('#tlLen');
@@ -994,13 +1012,57 @@ function timelineEditor(beat, s, index, side, lead) {
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
   root.querySelector('[data-safe]').onchange = (e) => { ed.safe = e.target.checked; };
-  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); };
+  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); const rv = realVideo(); if (rv) rv.currentTime = ed.t / 1000; };
+
+  // The beat rendered for real, over the frame: progress while it renders,
+  // then the clip, until put away. It belongs to this beat in this frame,
+  // and says so when the beat has changed since.
+  const real = root.querySelector('.tl-real'), renderBtn = root.querySelector('#tlRender');
+  const beatKey = () => JSON.stringify([spec.look, spec.ground, spec.words, beat]);
+  let lastSt = null;
+  const mineOf = (st) => { const b = st && st.beat; return b && b.reel === spec.name && b.index === index && b.format === ed.frame ? b : null; };
+  renderBtn.onclick = async () => {
+    // A render of the beat as it stands is shown; anything else renders.
+    const b = mineOf(lastSt);
+    if (b && !ed.real && (b.state !== 'done' || ed.realKey === beatKey())) { ed.real = true; window.beatState(lastSt); return; }
+    ed.real = true; ed.realKey = beatKey(); ed.playing = false;
+    real.hidden = false; real.innerHTML = '<div class="rcard"><div class="rc-k">Asking for the render</div></div>';
+    await fetch('/api/beat', { method: 'POST', body: JSON.stringify({ spec, index, format: ed.frame }) });
+  };
+  let realShown = '';
+  window.beatState = (st) => {
+    if (!root.isConnected) return;
+    lastSt = st;
+    const b = mineOf(st), mine = !!b;
+    renderBtn.textContent = mine && (b.state === 'queued' || b.state === 'rendering') ? '● Rendering…' : mine && !ed.real && (b.state !== 'done' || ed.realKey === beatKey()) ? '▶ Show render' : '▶ Render beat';
+    if (!ed.real || !mine) { real.hidden = true; realShown = ''; return; }
+    real.hidden = false;
+    if (b.state === 'queued' || b.state === 'rendering') {
+      const card = b.state === 'rendering' && /^Rendering beat/.test(st.job || '') ? renderCardHtml(st) : `<div class="rc-k">Waiting for ${escB(st.job || 'the renderer')}</div>`;
+      real.innerHTML = `<div class="rcard">${card}</div><button class="tl-realx" title="Back to the editor; the render goes on">✕</button>`;
+      realShown = '';
+    } else if (b.state === 'failed') {
+      real.innerHTML = `<div class="rcard"><div class="rc-k">The beat failed to render</div><div class="rc-phase">The log under Library says why.</div></div><button class="tl-realx">✕</button>`;
+      realShown = '';
+    } else if (realShown !== b.video) {
+      realShown = b.video;
+      real.innerHTML = `<video src="${b.video}" autoplay loop muted playsinline controls></video>
+        <div class="tl-realbar"><span class="tl-realtag" title="This beat rendered with the real screens, in ${b.seconds} s">Rendered</span><span class="tl-stale" hidden>Changed since</span><span style="flex:1"></span><button data-again>↻ Again</button><button class="tl-realx" title="Back to the editor">✕ Editor</button></div>`;
+      real.querySelector('[data-again]').onclick = () => renderBtn.click();
+    }
+    const stale = real.querySelector('.tl-stale');
+    if (stale) stale.hidden = ed.realKey === beatKey();
+    real.querySelectorAll('.tl-realx').forEach((x) => (x.onclick = () => { ed.real = false; real.hidden = true; realShown = ''; window.beatState(st); }));
+  };
+  if (typeof state !== 'undefined' && state) window.beatState(state);
 
   let raf = 0, alive = true, last = performance.now();
   function tick(now) {
     if (!alive) return;
     if (!root.isConnected) { alive = false; return; }
-    if (ed.playing) { ed.t += now - last; if (ed.t > l) ed.t = 0; }
+    const rv = realVideo();
+    if (rv) ed.t = rv.currentTime * 1000;
+    else if (ed.playing) { ed.t += now - last; if (ed.t > l) ed.t = 0; }
     last = now; render();
     raf = requestAnimationFrame(tick);
   }
