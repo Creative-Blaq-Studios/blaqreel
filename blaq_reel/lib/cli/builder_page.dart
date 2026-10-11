@@ -115,31 +115,49 @@ h2 span { color: var(--muted); }
 .irow .ir { font: 400 11px var(--mono); color: var(--muted); }
 .irow .ir em { color: var(--ok); font-style: normal; }
 .pfoot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-#agent { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(420px, calc(100vw - 32px));
+#agentFab { position: fixed; right: 16px; bottom: calc(var(--fab-bottom, 16px) + env(safe-area-inset-bottom, 0px)); z-index: 16;
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--deep); color: var(--text);
+  border: 1px solid var(--line2); box-shadow: 0 10px 30px rgba(0,0,0,.5); font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+#agentFab[hidden] { display: none; }
+#agentFab .mk { color: var(--accent); font-size: 15px; line-height: 1; }
+#agentFab .badge:empty { display: none; }
+#agentFab .badge { font-size: 12px; }
+#agentFab.ok .badge { color: var(--ok); }
+#agentFab.failed .badge { color: var(--bad); }
+#agentFab.running { border-color: var(--accent); animation: glow 1.6s ease-in-out infinite; }
+#agentFab.running .mk { animation: spin 3s linear infinite; display: inline-block; }
+#agentFab[aria-expanded="true"] { border-color: var(--accent); }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,0,.0), 0 10px 30px rgba(0,0,0,.5); }
+  50% { box-shadow: 0 0 22px 4px rgba(255,107,0,.45), 0 10px 30px rgba(0,0,0,.5); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #agentFab.running, #agentFab.running .mk { animation: none; } }
+#agent { position: fixed; right: 16px; bottom: calc(var(--fab-bottom, 16px) + 54px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100vw - 32px));
   z-index: 15; background: var(--deep); border: 1px solid var(--line2); box-shadow: 0 20px 60px rgba(0,0,0,.6);
-  display: grid; grid-template-rows: auto 1fr auto; max-height: 62vh; }
+  display: flex; flex-direction: column; max-height: min(70vh, 640px); overflow: hidden; }
+#agent[hidden] { display: none; }
 #agent.running { border-color: var(--accent); }
 #agent.failed { border-color: var(--bad); }
-#agent .ah { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line2); }
-#agent .ah .who { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
-#agent .ah b { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#agent .ah .t { font: 400 11px var(--mono); color: var(--text2); }
-#agent .ah button { padding: 3px 8px; font-size: 11px; }
-#agent .asteps { overflow: auto; padding: 8px 12px; display: grid; gap: 3px; align-content: start; min-height: 0; }
+#agent .ah { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line2); flex: none; }
+#agent .ah .who { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); flex: none; }
+#agent .ah b { font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#agent .ah .t { font: 400 11px var(--mono); color: var(--text2); flex: none; }
+#agent .ah button { padding: 3px 8px; font-size: 11px; flex: none; }
+#agent .asteps { overflow-y: auto; overflow-x: hidden; padding: 8px 12px; display: grid; gap: 4px; align-content: start; min-height: 0; flex: 0 1 auto; }
 #agent .st { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font: 400 12px/1.45 var(--mono); color: var(--text2); }
+#agent .st span { overflow-wrap: anywhere; }
 #agent .st i { font-style: normal; color: var(--muted); }
 #agent .st.edit span { color: var(--accent); }
 #agent .st.say span { color: var(--text); font-family: var(--display); font-size: 13px; }
 #agent .st.run span { color: var(--warn); }
-#agent .af { border-top: 1px solid var(--line2); padding: 10px 12px; display: grid; gap: 8px; }
+#agent .st.note span { color: var(--ok); }
+#agent .af { border-top: 1px solid var(--line2); padding: 10px 12px; display: grid; gap: 8px; flex: none; }
+#agent .af:empty { display: none; }
 #agent .files { display: flex; flex-wrap: wrap; gap: 4px; }
-#agent .files code { font: 400 11px var(--mono); border: 1px solid var(--line2); padding: 2px 6px; color: var(--text); }
-#agent .res { font-size: 13px; color: var(--text); white-space: pre-wrap; max-height: 120px; overflow: auto; }
-#agent .err { font-size: 13px; color: var(--bad); white-space: pre-wrap; }
-#agent .sess { display: flex; gap: 8px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
-#agent .sess code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#agent.min { grid-template-rows: auto; }
-#agent.min .asteps, #agent.min .af { display: none; }
+#agent .files code { font: 400 11px var(--mono); border: 1px solid var(--line2); padding: 2px 6px; color: var(--text); overflow-wrap: anywhere; }
+#agent .res { font-size: 13px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow-y: auto; }
+#agent .err { font-size: 13px; color: var(--bad); white-space: pre-wrap; overflow-wrap: anywhere; }
+#agent .sess { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
+#agent .sess code { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 .pulse { width: 8px; height: 8px; background: var(--accent); animation: pulse 1s infinite; flex: none; }
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
@@ -167,7 +185,8 @@ h2 span { color: var(--muted); }
 
 /// The builder's markup.
 const builderHtml = r'''
-<aside id="agent" hidden aria-live="polite"></aside>
+<button id="agentFab" hidden aria-haspopup="dialog" aria-expanded="false"><span class="mk">✳</span><span class="lb">Claude Code</span><span class="badge"></span></button>
+<aside id="agent" hidden aria-live="polite" aria-label="Claude Code"></aside>
 <div id="build">
   <nav>
     <div class="field"><span>Reel</span>
@@ -223,26 +242,45 @@ function screenOf(id) { return catalogue && catalogue.screens.find((s) => s.id =
 // Every headless Claude Code run the studio starts (drafts, inventory,
 // staging) shows here as it happens: its steps, the files it changed, and
 // the command that reopens the session in a terminal.
-let agentHidden = null, agentMin = false, agentSeen = null;
+let agentOpen = false, agentSeen = null, agentLast = null;
 function ago2(iso) { const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? Math.round(s) + 's' : Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's'; }
+// The floating button sits above the Library's transport bar, or at the
+// foot of the page in the builder.
+function placeFab() {
+  const footer = document.querySelector('footer');
+  const lift = document.body.classList.contains('building') || !footer ? 16 : footer.offsetHeight + 16;
+  document.body.style.setProperty('--fab-bottom', lift + 'px');
+}
+window.addEventListener('resize', placeFab);
+$('agentFab').onclick = () => { agentOpen = !agentOpen; window.onStudioState({ agent: agentLast }); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && agentOpen) { agentOpen = false; window.onStudioState({ agent: agentLast }); } });
 window.onStudioState = (st) => {
-  const a = st.agent, box = $('agent');
-  if (!a || agentHidden === a.started) { box.hidden = true; return; }
-  if (agentSeen !== a.started) { agentSeen = a.started; agentMin = false; }
-  box.hidden = false;
-  box.className = (a.done ? (a.ok ? '' : 'failed') : 'running') + (agentMin ? ' min' : '');
-  const keepBottom = box.querySelector('.asteps') ? (box.querySelector('.asteps').scrollHeight - box.querySelector('.asteps').scrollTop - box.querySelector('.asteps').clientHeight < 30) : true;
-  box.innerHTML = `<div class="ah">${a.done ? (a.ok ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✕</span>') : '<span class="pulse"></span>'}
-      <span class="who">Claude Code</span><b>${escB(a.task)}</b><span class="t">${a.done ? (a.ok ? 'done' : 'failed') : ago2(a.started)}</span>
-      <button id="agMin" title="${agentMin ? 'Show' : 'Hide'} the steps">${agentMin ? '▴' : '▾'}</button>${a.done ? '<button id="agX" title="Dismiss">✕</button>' : ''}</div>
-    <div class="asteps">${a.steps.length ? a.steps.filter((x) => !/^[\[{]/.test(x.text)).map((x) => `<div class="st ${x.kind}"><i>${new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</i><span>${escB(x.text)}</span></div>`).join('') : '<div class="st"><i></i><span>Starting a session…</span></div>'}</div>
-    <div class="af">${a.files.length ? `<div class="files">${a.files.map((f) => `<code>${escB(f)}</code>`).join('')}</div>` : ''}
-      ${a.done && a.ok && a.result && !/^[\[{]/.test(a.result) ? `<div class="res">${escB(a.result)}</div>` : ''}
-      ${a.error ? `<div class="err">${escB(a.error)}</div>` : ''}
-      ${a.sessionId ? `<div class="sess"><code title="${escB(a.resume)}">session ${escB(a.sessionId)}</code><button id="agCopy">Copy resume command</button></div>` : ''}</div>`;
-  const steps = box.querySelector('.asteps'); if (keepBottom) steps.scrollTop = steps.scrollHeight;
-  box.querySelector('#agMin').onclick = () => { agentMin = !agentMin; window.onStudioState(st); };
-  const x = box.querySelector('#agX'); if (x) x.onclick = () => { agentHidden = a.started; box.hidden = true; };
+  const a = st.agent, fab = $('agentFab'), box = $('agent');
+  agentLast = a;
+  placeFab();
+  if (!a) { fab.hidden = true; box.hidden = true; return; }
+  // A new run opens the panel once, so its start is seen; after that it is
+  // the person's to open and close.
+  if (agentSeen !== a.started) { agentSeen = a.started; if (!a.done) agentOpen = true; }
+  fab.hidden = false;
+  fab.className = a.done ? (a.ok ? 'ok' : 'failed') : 'running';
+  fab.querySelector('.badge').textContent = a.done ? (a.ok ? '✓' : '✕') : '';
+  fab.querySelector('.lb').textContent = a.done ? 'Claude Code' : 'Claude is working';
+  fab.setAttribute('aria-expanded', String(agentOpen));
+  fab.title = a.task;
+  box.hidden = !agentOpen;
+  if (!agentOpen) return;
+  box.className = a.done ? (a.ok ? '' : 'failed') : 'running';
+  const old = box.querySelector('.asteps');
+  const keepBottom = !old || old.scrollHeight - old.scrollTop - old.clientHeight < 30;
+  const steps = a.steps.filter((x) => !/^[\[{]/.test(x.text));
+  const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  box.innerHTML = `<div class="ah"><span class="who">Claude Code</span><b title="${escB(a.task)}">${escB(a.task)}</b>
+      <span class="t">${a.done ? (a.ok ? 'done' : 'failed') : ago2(a.started)}</span><button id="agClose" title="Close (Esc)" aria-label="Close">✕</button></div>
+    <div class="asteps">${steps.length ? steps.map((x) => `<div class="st ${x.kind}"><i>${time(x.at)}</i><span>${escB(x.text)}</span></div>`).join('') : '<div class="st"><i></i><span>Starting a session…</span></div>'}</div>
+    <div class="af">${a.files.length ? `<div class="files">${a.files.map((f) => `<code>${escB(f)}</code>`).join('')}</div>` : ''}${a.done && a.ok && a.result && !/^[\[{]/.test(a.result) ? `<div class="res">${escB(a.result)}</div>` : ''}${a.error ? `<div class="err">${escB(a.error)}</div>` : ''}${a.sessionId ? `<div class="sess"><code title="${escB(a.resume)}">session ${escB(a.sessionId)}</code><button id="agCopy">Copy resume command</button></div>` : ''}</div>`;
+  const list = box.querySelector('.asteps'); if (keepBottom) list.scrollTop = list.scrollHeight;
+  box.querySelector('#agClose').onclick = () => { agentOpen = false; window.onStudioState({ agent: a }); };
   const cp = box.querySelector('#agCopy');
   if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(a.resume); toast('Copied: ' + a.resume); } catch { toast(a.resume); } };
 };
@@ -250,6 +288,7 @@ window.onStudioState = (st) => {
 // ── Tabs ────────────────────────────────────────────────────────────
 function setTab(build) {
   document.body.classList.toggle('building', build);
+  requestAnimationFrame(placeFab);
   $('tabBuild').classList.toggle('on', build); $('tabLibrary').classList.toggle('on', !build);
   if (build) openBuilder();
 }

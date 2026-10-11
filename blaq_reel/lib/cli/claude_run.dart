@@ -125,6 +125,12 @@ class ClaudeRun {
     }
   }
 
+  /// Long commands and patterns, cut to what a person reads at a glance.
+  static String _short(Object? text, [int max = 90]) {
+    final t = '${text ?? ''}'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return t.length > max ? '${t.substring(0, max - 1)}…' : t;
+  }
+
   void _tool(String name, Map<Object?, Object?> input) {
     switch (name) {
       case 'Read':
@@ -132,12 +138,14 @@ class ClaudeRun {
       case 'Grep':
         steps.add(
           ClaudeStep(
-            'Searching for "${input['pattern']}"${input['path'] == null ? '' : ' in ${_rel(input['path'])}'}',
+            'Searching for "${_short(input['pattern'], 60)}"${input['path'] == null ? '' : ' in ${_rel(input['path'])}'}',
             'search',
           ),
         );
       case 'Glob':
-        steps.add(ClaudeStep('Looking for ${input['pattern']}', 'search'));
+        steps.add(
+          ClaudeStep('Looking for ${_short(input['pattern'], 60)}', 'search'),
+        );
       case 'Edit' || 'MultiEdit':
         final f = _rel(input['file_path']);
         files.add(f);
@@ -147,7 +155,7 @@ class ClaudeRun {
         files.add(f);
         steps.add(ClaudeStep('Writing $f', 'edit'));
       case 'Bash':
-        steps.add(ClaudeStep('Running ${input['command']}', 'run'));
+        steps.add(ClaudeStep('Running ${_short(input['command'])}', 'run'));
       default:
         steps.add(ClaudeStep(name, 'note'));
     }
