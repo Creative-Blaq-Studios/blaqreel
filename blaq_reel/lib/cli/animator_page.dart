@@ -17,7 +17,12 @@ const animatorCss = r'''
 .tl-bar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
 .tl-bar > button { padding: 6px 10px; font-size: 11px; }
 .tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
-.tl-moves button { padding: 6px 8px; font-size: 10.5px; }
+.tl-movel { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 6px; }
+.tl-bar > * { flex: none; }
+.tl-bar .tl-move { width: 130px; padding: 5px 8px; }
+.tl-bar .bnav { padding: 5px 10px; font-size: 14px; line-height: 1; }
+.tl-bar .beatSel { width: 180px !important; padding: 5px 8px; }
+.tl-bar .seg button { padding: 6px 9px; font-size: 10.5px; }
 .tl-stagebox { position: relative; min-height: 0; overflow: hidden; background: #050505; display: grid; place-items: center; }
 .tl-frame { position: relative; overflow: hidden; outline: 1px solid rgba(255,107,0,.5); box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.6); }
 .tl-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; user-select: none; touch-action: none; }
@@ -256,7 +261,7 @@ function setStyle(beat, key, v) {
   save();
 }
 
-function timelineEditor(beat, s, index, side) {
+function timelineEditor(beat, s, index, side, lead) {
   stopAnimator();
   if (ed.beat !== index) { ed.beat = index; ed.sel = beat.parts.length ? 0 : 'words'; ed.t = SETTLE + RISE + 600; ed.playing = true; }
   if (!ed.frame) ed.frame = spec.format || 'vertical';
@@ -272,10 +277,10 @@ function timelineEditor(beat, s, index, side) {
 
   const root = B(`<div class="tled">
     <div class="tl-bar">
-      <div class="seg tl-moves" role="radiogroup" aria-label="Start from a move">${MOVES.map(([id, name]) => `<button data-move="${id}" title="${escB(MOVES.find((m) => m[0] === id)[2])}">${name}</button>`).join('')}</div>
+      <label class="tl-movel" for="tlMove">Move</label><select class="input tl-move" id="tlMove" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
-      <span class="hint" style="margin:0">Frame</span><div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}">${r}</button>`).join('')}</div>
-      <button data-safe class="${ed.safe ? 'on' : ''}">Safe zone</button>
+      <div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}">${r}</button>`).join('')}</div>
+      <button data-safe class="${ed.safe ? 'on' : ''}" title="Show what the platform's buttons and captions cover">Safe zone</button>
     </div>
     <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div><div class="tl-flabel"></div></div>
     <div class="tl-time">
@@ -422,7 +427,6 @@ function timelineEditor(beat, s, index, side) {
     root.querySelector('.tl-ph').style.left = (t / l) * 100 + '%';
     root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's';
     root.querySelector('.tl-play').textContent = ed.playing ? '❚❚' : '▶';
-    root.querySelectorAll('[data-move]').forEach((b) => b.classList.toggle('on', (beat.move || 'lift') === b.dataset.move));
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
       if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / l) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / l) * 100 + '%'; }
       else { const plan = partPlan(beat, +b.dataset.k, parts.length, dir); b.style.left = (plan.start / l) * 100 + '%'; b.style.width = ((plan.end - plan.start) / l) * 100 + '%'; }
@@ -594,7 +598,9 @@ function timelineEditor(beat, s, index, side) {
   }
 
   // Wiring.
-  root.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { beat.move = b.dataset.move; beat.parts.forEach((p) => PART_KEYS.forEach((key) => delete p[key])); save(); ed.t = 0; ed.playing = true; rows(); inspector(); }));
+  root.querySelector('#tlMove').onchange = (e) => { beat.move = e.target.value; beat.parts.forEach((p) => PART_KEYS.forEach((key) => delete p[key])); save(); ed.t = 0; ed.playing = true; rows(); inspector(); };
+  // The beat picker and Pick/Animate lead the toolbar, so they take no row.
+  if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelectorAll('[data-frame]').forEach((b) => (b.onclick = () => { ed.frame = b.dataset.frame; draw(); }));
   root.querySelector('[data-safe]').onclick = (e) => { ed.safe = !ed.safe; e.target.classList.toggle('on', ed.safe); };
   root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * l, 0, l); };

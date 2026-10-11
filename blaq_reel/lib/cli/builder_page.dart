@@ -764,7 +764,6 @@ function drawParts(c, side) {
   const [prev, nextB] = prow.querySelectorAll('.bnav');
   prev.onclick = () => { beatIndex--; draw(); }; nextB.onclick = () => { beatIndex++; draw(); };
   prow.querySelector('.beatSel').onchange = (e) => { beatIndex = +e.target.value; draw(); };
-  c.appendChild(prow);
   c.classList.add('fixed');
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
   if (s.kind === 'component') {
@@ -776,14 +775,16 @@ function drawParts(c, side) {
   // Two jobs: which parts lift (Pick), then how they and the words move
   // (Animate, the timeline editor).
   const mode = partsMode[beatIndex] || (beat.parts.length ? 'animate' : 'pick');
-  const head = B(`<div class="seg" role="tablist" aria-label="Pick or animate"><button data-mode="pick" class="${mode === 'pick' ? 'on' : ''}">1 · Pick parts${beat.parts.length ? ' (' + beat.parts.length + ')' : ''}</button><button data-mode="animate" class="${mode === 'animate' ? 'on' : ''}">2 · Animate</button></div>`);
+  const head = B(`<div class="seg" role="tablist" aria-label="Pick or animate"><button data-mode="pick" class="${mode === 'pick' ? 'on' : ''}">Pick${beat.parts.length ? ' (' + beat.parts.length + ')' : ''}</button><button data-mode="animate" class="${mode === 'animate' ? 'on' : ''}">Animate</button></div>`);
   head.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => { partsMode[beatIndex] = b.dataset.mode; draw(); }));
   prow.appendChild(head);
   if (mode === 'animate') {
-    if (beatIndex === spec.beats.length - 1) { const on = next('On to the story'); on.style.marginTop = '0'; on.style.marginLeft = 'auto'; prow.appendChild(on); }
-    c.appendChild(timelineEditor(beat, s, beatIndex, side)).classList.add('grow');
+    // The beat picker and the switch join the editor's own toolbar.
+    c.appendChild(timelineEditor(beat, s, beatIndex, side, [...prow.children])).classList.add('grow');
+    if (beatIndex === spec.beats.length - 1) { const on = next('On to the story'); on.style.marginTop = '10px'; c.appendChild(on); }
     return;
   }
+  c.appendChild(prow);
   const nb = B('<div class="row2" style="margin-top:12px"></div>');
   c.appendChild(B(`<p class="why" style="margin-top:-4px">Click the parts of <b>${escB(s.label)}</b> to feature, in order: the first rises highest. One to three reads best; up to six lift. Then animate them.</p>`));
   const wrap = B('<div class="picker grow"><div class="shot2"></div><div><div class="plist"></div></div></div>');
