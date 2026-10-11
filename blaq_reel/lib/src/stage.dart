@@ -805,41 +805,21 @@ class ReelStageState extends State<ReelStage> {
     final safe = widget.reel.format.safe;
     final stage = _stage;
     final safeWidth = stage.width * (1 - safe.left - safe.right);
+    final fitted = [
+      for (final w in scene.words) w.fitted(safeWidth * w.maxWidth),
+    ];
     Widget body = Stack(
       children: [
         if (scene.backdrop != null)
           Positioned.fill(
             child: CustomPaint(painter: BackdropPainter(scene.backdrop!, t)),
           ),
+        // Words set behind the layers, then the layers, then the rest.
+        for (final (k, words) in fitted.indexed)
+          if (words.behind) _words(k, words, local, stage, safe, safeWidth),
         for (final (_, _, child) in world) child,
-        for (final (k, words) in [
-          for (final w in scene.words) w.fitted(safeWidth * w.maxWidth),
-        ].indexed)
-          Positioned.fill(
-            key: ValueKey('words $k'),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                stage.width * safe.left,
-                stage.height * safe.top,
-                stage.width * safe.right,
-                stage.height * safe.bottom,
-              ),
-              child: Align(
-                alignment: words.align,
-                child: CustomPaint(
-                  size: WordsPainter.layout(
-                    words,
-                    safeWidth * words.maxWidth,
-                  ).size,
-                  painter: WordsPainter(
-                    words,
-                    local,
-                    maxWidth: safeWidth * words.maxWidth,
-                  ),
-                ),
-              ),
-            ),
-          ),
+        for (final (k, words) in fitted.indexed)
+          if (!words.behind) _words(k, words, local, stage, safe, safeWidth),
       ],
     );
     final clip = effect.clip;
@@ -1017,6 +997,81 @@ class ReelStageState extends State<ReelStage> {
               ),
       ),
     ));
+  }
+
+  /// One of a scene's words, in the frame's safe area: aligned, moved by
+  /// its offset, on its plate if it has one.
+  Widget _words(
+    int k,
+    Words words,
+    Duration local,
+    Size stage,
+    EdgeInsets safe,
+    double safeWidth,
+  ) {
+    Widget text = CustomPaint(
+      size: WordsPainter.layout(words, safeWidth * words.maxWidth).size,
+      painter: WordsPainter(words, local, maxWidth: safeWidth * words.maxWidth),
+    );
+    if (words.plate != null) {
+      // The plate comes and goes with the words.
+      final shown =
+          progress(local, words.at, words.at + 300.ms) *
+          (words.until == null
+              ? 1
+              : 1 - progress(local, words.until!, words.until! + 400.ms));
+      final size = words.style.fontSize ?? 40;
+      text = Stack(
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: shown,
+              child: ClipRect(
+                child: words.plateBlur > 0
+                    ? BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: words.plateBlur,
+                          sigmaY: words.plateBlur,
+                        ),
+                        child: ColoredBox(color: words.plate!),
+                      )
+                    : ColoredBox(color: words.plate!),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              size * 0.28,
+              size * 0.12,
+              size * 0.28,
+              size * 0.18,
+            ),
+            child: text,
+          ),
+        ],
+      );
+    }
+    return Positioned.fill(
+      key: ValueKey('words $k'),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          stage.width * safe.left,
+          stage.height * safe.top,
+          stage.width * safe.right,
+          stage.height * safe.bottom,
+        ),
+        child: Align(
+          alignment: words.align,
+          child: Transform.translate(
+            offset: Offset(
+              words.offset.dx * stage.width,
+              words.offset.dy * stage.height,
+            ),
+            child: text,
+          ),
+        ),
+      ),
+    );
   }
 
   /// A box drawn through [matrix], softened by [sigma], with an optional

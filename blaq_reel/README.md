@@ -39,14 +39,21 @@ widget tests already has this.
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
-3. **Parts**: every beat in a strip along the top; each beat's screen with
-   its cards, rows and photos numbered. Click what it features, in order,
-   and choose a move to start from: Lift, Lift + scan, Spread, Fan, Zoom
-   in, Tap, Pop or Orbit, each drawn playing on its card. Then the
-   **animator** plays the beat live: drag each part to where it lands and
-   give it its own height, size, tilt, turn, roll, start time and scan
-   line. It runs the renderer's own camera and timing in the page, so what
-   you set is what renders.
+3. **Parts**, in two modes per beat. **Pick parts**: the screen with its
+   cards, rows and photos numbered; click what it features, in order.
+   **Animate**, the timeline editor: the beat plays live in the real frame
+   (9:16, 4:5, 1:1 or 16:9, with the platform's safe zone), with a track per
+   part and one for the words, and an inspector for whichever is selected.
+   Start from a move (Lift, Lift + scan, Spread, Fan, Zoom in, Tap, Pop,
+   Orbit), then drag each part to where it lands and give it its own height,
+   size, tilt, turn, roll, start and scan line; drag a bar to retime it. The
+   words have a colour, an accent, a size, a weight, a reveal and timing,
+   set for the whole reel or one beat, and a place per frame: drag them
+   (they snap to the safe zone and the centre), anchor them, give them a
+   width to wrap at, a plate, or put them behind the phone. The editor
+   warns when they cover a part, and **Move clear** finds them a spot. It
+   runs the renderer's own camera, timing and word layout in the page, so
+   what you set is what renders.
 4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).

@@ -379,4 +379,60 @@ void main() {
     expect(own.scale, isNull);
     expect(PartMove.fromJson({'type': 'AppCard', 'text': 'Total'}), isNull);
   });
+
+  test('Given a beat with its own words over the reel\'s, when built, then '
+      'the beat\'s win, the reel\'s fill the rest, and they sit where set', () {
+    const brand = Brand(
+      ink: Color(0xFF111111),
+      accent: Color(0xFFFFD97A),
+      paper: Color(0xFFF5F5F5),
+      display: 'Ahem',
+      text: 'Ahem',
+    );
+    final reel = GlassLayers(
+      brand: brand,
+      format: const Format('small', Size(360, 640), pixelRatio: 1),
+      words: const GlassWords(color: Color(0xFF2B4BFF), size: 96),
+      beats: [
+        GlassBeat(
+          'Share it all.',
+          screen: const SizedBox(),
+          words: const GlassWords(
+            color: Color(0xFFFF0000),
+            anchor: Alignment.topCenter,
+            offset: Offset(0, 0.04),
+            width: 0.7,
+            plate: Color(0xFFFFF8EC),
+            behind: true,
+          ),
+        ),
+      ],
+    ).build('words');
+    final w = reel.scenes.single.words.single;
+    expect(w.style.color, const Color(0xFFFF0000));
+    expect(w.style.fontSize, 96);
+    expect(w.align, Alignment.topCenter);
+    expect(w.textAlign, TextAlign.center);
+    expect(w.offset, const Offset(0, 0.04));
+    expect(w.maxWidth, 0.7);
+    expect(w.fit, isFalse);
+    expect(w.plate, const Color(0xFFFFF8EC));
+    expect(w.behind, isTrue);
+  });
+
+  test('Given words that wrap, when a word is longer than a line, then the '
+      'type shrinks until it fits rather than breaking the word', () {
+    const words = Words(
+      'Extraordinarily long.',
+      at: Duration.zero,
+      style: TextStyle(fontSize: 100, fontFamily: 'Ahem'),
+    );
+    final sized = words.fitted(300);
+    final widest = (TextPainter(
+      text: TextSpan(text: 'Extraordinarily', style: sized.style),
+      textDirection: TextDirection.ltr,
+    )..layout()).width;
+    expect(sized.style.fontSize, lessThan(100));
+    expect(widest, lessThanOrEqualTo(300));
+  });
 }

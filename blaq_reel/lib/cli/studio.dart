@@ -437,6 +437,8 @@ class Studio {
       switch (path) {
         case '/':
           _send(req, 'text/html; charset=utf-8', utf8.encode(studioPage));
+        case '/api/brand':
+          _sendJson(req, project.brand);
         case '/api/state':
           _sendJson(req, {
             'version': _version,

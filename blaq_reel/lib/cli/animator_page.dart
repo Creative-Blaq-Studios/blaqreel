@@ -1,50 +1,97 @@
-/// The builder's animator: one Glass Layers beat played in the page, live,
-/// with the same camera, tracks, eases and per-part moves the renderer
-/// uses (`packs/glass_layers.dart`, `stage.dart`), so what is set here is
-/// what renders. Each part can be dragged to where it lands and given its
-/// own height, size, turn, timing and scan line.
+/// The builder's Timeline editor: one beat in the real frame (9:16, 4:5,
+/// 1:1, 16:9) with the platform's safe zone, a track per lifted part and
+/// one for the words, and an inspector in the side column for whichever is
+/// selected. It plays live with the renderer's own camera, tracks, eases
+/// and per-part moves ported to the page (`packs/glass_layers.dart`,
+/// `stage.dart`), and lays the words out as `WordsPainter` does, so what is
+/// set here is what renders.
 ///
 /// It draws from the catalogue's flat shot of the screen, so a part that
 /// runs on past what the screen shows previews as what shows; the render
 /// opens it out to all of it.
 library;
 
-/// The animator's styles.
+/// The editor's styles.
 const animatorCss = r'''
-.anim { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 22px; align-items: start; margin-top: 26px; }
-.anim .an-wrap { position: relative; overflow: hidden; border: 1px solid var(--line2); touch-action: none; user-select: none; }
-.anim .an-wrap.an-dragging { cursor: grabbing; }
-.anim .an-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
-.anim .an-stage > * { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.anim .an-scr { background-size: 100% 100%; border-radius: 55px; box-shadow: 0 36px 70px rgba(0,0,0,.45); overflow: hidden; }
-.anim .an-scr .an-hole { position: absolute; border-radius: 22px; opacity: 0; }
-.anim .an-part { background-repeat: no-repeat; border-radius: 22px; box-shadow: 0 18px 40px rgba(0,0,0,.28); cursor: grab; overflow: hidden; }
-.anim .an-part.an-sel { outline: 3px solid var(--accent); outline-offset: 3px; }
-.anim .an-part .an-sweep { position: absolute; left: 0; right: 0; height: 3px; background: var(--accent); box-shadow: 0 0 14px 4px rgba(255,107,0,.5); opacity: 0; }
-.anim .an-part .an-tag { position: absolute; left: 6px; top: 6px; background: var(--accent); color: #0A0A0A; font: 700 14px var(--mono); padding: 1px 6px; }
-.anim .an-word { font-weight: 900; letter-spacing: -0.035em; line-height: .95; white-space: pre-wrap; transform: none !important; }
-.anim .an-ctl { display: grid; gap: 12px; min-width: 0; }
-.anim .an-bar { display: flex; gap: 8px; align-items: center; }
-.anim .an-bar input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
-.anim .an-bar .an-time { font: 400 12px var(--mono); color: var(--text2); width: 58px; text-align: right; }
-.anim .an-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.anim .an-chips button { padding: 6px 10px; font-size: 11px; }
-.anim .an-chips button.on { border-color: var(--accent); color: var(--accent); }
-.anim .an-chips button .an-own { color: var(--accent); margin-left: 4px; }
-.anim .an-knobs { display: grid; grid-template-columns: 74px minmax(0, 1fr) 54px; gap: 8px 10px; align-items: center; border: 1px solid var(--line2); background: var(--surface); padding: 12px; }
-.anim .an-knobs label { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text2); }
-.anim .an-knobs input[type=range] { width: 100%; accent-color: var(--accent); }
-.anim .an-knobs output { font: 400 12px var(--mono); color: var(--text); text-align: right; }
-.anim .an-knobs .an-wide { grid-column: 2 / 4; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.anim .an-knobs .an-head { grid-column: 1 / 4; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.anim .an-knobs .an-head b { font-weight: 600; overflow-wrap: anywhere; min-width: 0; flex: 1; }
-.anim .an-knobs .an-set { color: var(--accent); }
-@media (max-width: 1000px) { .anim { grid-template-columns: 1fr; } }
+.tled { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(78vh, 900px); min-height: 520px; border: 1px solid var(--line2); background: var(--deep); }
+.tl-bar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
+.tl-bar > button { padding: 6px 10px; font-size: 11px; }
+.tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
+.tl-moves button { padding: 6px 8px; font-size: 10.5px; }
+.tl-stagebox { position: relative; min-height: 0; overflow: hidden; background: #050505; display: grid; place-items: center; }
+.tl-frame { position: relative; overflow: hidden; outline: 1px solid rgba(255,107,0,.5); box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.6); }
+.tl-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; user-select: none; touch-action: none; }
+.tl-stage > * { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.tl-flabel { position: absolute; left: 12px; bottom: 8px; font: 400 11px var(--mono); color: var(--text2); }
+.tl-scr { background-size: 100% 100%; border-radius: 55px; box-shadow: 0 36px 70px rgba(0,0,0,.45); overflow: hidden; }
+.tl-scr .tl-hole { position: absolute; border-radius: 22px; opacity: 0; background: #F3F3F1; outline: 1px solid #E4E4E0; }
+.tl-part { background-repeat: no-repeat; border-radius: 22px; box-shadow: 0 18px 40px rgba(0,0,0,.28); cursor: grab; overflow: hidden; }
+.tl-part.sel { outline: 3px solid var(--accent); outline-offset: 3px; }
+.tl-part .tl-sweep { position: absolute; left: 0; right: 0; height: 3px; background: var(--accent); box-shadow: 0 0 14px 4px rgba(255,107,0,.5); opacity: 0; }
+.tl-part .tl-tag { position: absolute; left: 6px; top: 6px; background: var(--accent); color: #0A0A0A; font: 700 14px var(--mono); padding: 1px 6px; }
+.tl-word { cursor: grab; outline-offset: 4px; }
+.tl-word.sel { outline: 2px solid var(--accent); }
+.tl-safe { border: 1px dashed rgba(120,120,120,.55); pointer-events: none; z-index: 300; }
+.tl-safe span { position: absolute; right: 4px; bottom: 2px; font: 600 8px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: rgba(120,120,120,.8); }
+.tl-gv, .tl-gh { background: #FF2D9A; display: none; z-index: 310; pointer-events: none; }
+.tl-gv { width: 1px; height: 100%; } .tl-gh { height: 1px; width: 100%; }
+.tl-warn { left: 8px !important; top: 8px !important; z-index: 320; display: none; background: var(--warn); color: #141414; font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .05em; padding: 4px 7px; }
+.tl-time { display: grid; grid-template-columns: 210px minmax(0, 1fr); border-top: 1px solid var(--line2); max-height: 230px; overflow: auto; }
+.tl-names { display: grid; grid-auto-rows: 30px; border-right: 1px solid var(--line2); min-width: 0; }
+.tl-head { display: flex; gap: 8px; align-items: center; padding: 0 8px; border-bottom: 1px solid var(--line2); height: 24px; }
+.tl-head .tl-play { padding: 1px 8px; font-size: 11px; }
+.tl-tm { font: 600 11px var(--mono); color: var(--text2); font-variant-numeric: tabular-nums; }
+.tl-name { display: flex; gap: 8px; align-items: center; padding: 0 10px; border-bottom: 1px solid var(--line); font: 400 11px var(--mono); color: var(--text2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-name b { color: var(--text); flex: none; }
+.tl-name.on { color: var(--accent); background: #140C05; }
+.tl-tracks { position: relative; min-width: 0; }
+.tl-ruler { position: relative; height: 24px; border-bottom: 1px solid var(--line2); font: 400 10px var(--mono); color: var(--muted); cursor: pointer; }
+.tl-ruler span { position: absolute; top: 5px; transform: translateX(-50%); pointer-events: none; }
+.tl-ruler span:first-child { transform: none; padding-left: 3px; }
+.tl-rows { display: grid; grid-auto-rows: 30px; }
+.tl-row { position: relative; border-bottom: 1px solid var(--line); }
+.tl-row.on { background: #140C05; }
+.tl-bar2 { position: absolute; top: 6px; height: 18px; background: #3A2410; border: 1px solid #E06000; cursor: ew-resize; display: flex; align-items: center; padding: 0 6px; font: 600 9.5px var(--mono); color: #FFB37A; white-space: nowrap; overflow: hidden; }
+.tl-row.on .tl-bar2 { background: var(--accent); color: #0A0A0A; }
+.tl-bar2.words { background: #14243A; border-color: #4A7BD0; color: #9DC0FF; }
+.tl-row.on .tl-bar2.words { background: #4A7BD0; color: #0A0A0A; }
+.tl-ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); pointer-events: none; }
+.tl-insp { display: grid; gap: 0; border: 1px solid var(--line2); background: var(--surface); }
+.tl-ih { display: grid; gap: 2px; padding: 12px; }
+.tl-ih b { font-size: 15px; overflow-wrap: anywhere; }
+.tl-sec { display: grid; gap: 8px; padding: 12px; border-top: 1px solid var(--line2); }
+.lbl2 { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.lbl2 .set, .tl-knob output.set { color: var(--accent); }
+.mono2 { font: 400 11px var(--mono); color: var(--text2); overflow-wrap: anywhere; }
+.tl-knob { display: grid; grid-template-columns: 54px minmax(0, 1fr) 50px; gap: 8px; align-items: center; }
+.tl-knob label { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text2); }
+.tl-knob input { width: 100%; accent-color: var(--accent); }
+.tl-knob output { font: 400 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.tl-row2 { display: flex; gap: 6px; align-items: center; }
+.tl-row2 button { padding: 5px 8px; font-size: 10.5px; }
+.tl-num { width: 64px; padding: 5px 6px; font: 400 12px var(--mono); text-align: right; }
+.tl-chk { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.tl-chk input { accent-color: var(--accent); }
+.tl-sws { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tl-sw { width: 22px; height: 22px; padding: 0; border: 1px solid #333; cursor: pointer; }
+.tl-sw.on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tl-cc { width: 28px; height: 24px; padding: 0; border: 0; background: none; }
+.tl-place { display: flex; gap: 12px; align-items: flex-start; }
+.tl-grid { display: grid; grid-template-columns: repeat(3, 24px); gap: 3px; }
+.tl-grid button { width: 24px; height: 17px; padding: 0; background: #111; border: 1px solid #333; }
+.tl-grid button.on { background: var(--accent); border-color: var(--accent); }
+.tl-col { display: grid; gap: 6px; }
+.tl-overlap { display: flex; gap: 8px; align-items: center; border: 1px solid var(--warn); color: var(--warn); padding: 8px; font-size: 12px; }
+.tl-overlap[hidden] { display: none; }
+.tl-overlap span { flex: 1; }
+.pmode { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; }
+.pmode h1 { margin: 0; }
 ''';
 
-/// The animator's script: `animator(beat, screen, index)` returns its
-/// element; `stopAnimator()` stops the one on the page. Uses the builder's
-/// `B`, `escB`, `spec`, `save`, `change` and `draw`.
+/// The editor's script: `timelineEditor(beat, screen, index, side)` returns
+/// its element and fills the side column with the inspector;
+/// `stopAnimator()` stops the one on the page. Uses the builder's `B`,
+/// `escB`, `spec`, `save`, `draw` and `MOVES`.
 const animatorJs = r'''
 // ── The animator ────────────────────────────────────────────────────
 // A port of what the renderer does for one Glass Layers beat. Keep it in
@@ -156,163 +203,414 @@ function cameraOf(beat, f, dir, l) {
   };
 }
 
+// ── The Timeline editor ─────────────────────────────────────────────
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// One beat: the stage in the real frame, a track per part and one for the
+// words, and an inspector in the side column for what is selected.
+let BRAND = { ink: '#17181A', accent: '#FFD97A', paper: '#F1F1F3', fonts: {} };
+fetch('/api/brand').then((r) => r.json()).then((b) => {
+  BRAND = { ...BRAND, ...b, fonts: b.fonts || {} };
+  const fam = BRAND.fonts.display;
+  // The display face from Google Fonts by its family, when it is one there.
+  if (fam && !document.getElementById('brandFont')) {
+    const l = document.createElement('link'); l.id = 'brandFont'; l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam)}:wght@400..900&display=swap`;
+    document.head.appendChild(l);
+  }
+}).catch(() => {});
+
+const FRAMES = { vertical: ['9:16', 'Shorts · Reels · TikTok'], portrait: ['4:5', 'Feed'], square: ['1:1', 'Square'], wide: ['16:9', 'YouTube · site'] };
+const STYLE_KEYS = ['color', 'accent', 'size', 'weight', 'reveal', 'plate', 'layer'];
+const ed = { frame: null, safe: true, sel: 0, t: SETTLE + RISE + 600, playing: true, beat: -1 };
 let animStop = null;
-const animSel = {};   // the part chosen on each beat, by beat index
 function stopAnimator() { if (animStop) animStop(); animStop = null; }
 
-function animator(beat, s, index) {
+const hexMix = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
+const isDark = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2] < 0.4; };
+const LIGHT_LOOKS = ['mesh', 'butter', 'studio'];
+const POS_ALIGN = (pos) => [{ l: -1, c: 0, r: 1 }[pos[1]], { t: -1, m: 0, b: 1 }[pos[0]]];
+
+// The words as they will render: the pack's own look, under the reel's,
+// under the beat's; placed for [frame]. Keep in step with _beatWords in
+// glass_layers.dart and _words in spec.dart.
+function wordsOf(beat, frame) {
+  const look = beat.look || spec.look, light = LIGHT_LOOKS.includes(look);
+  const reel = spec.words || {}, own = beat.words || {};
+  const pick = (k) => (own[k] ?? reel[k]);
+  const accentDefault = look === 'butter' ? BRAND.paper : look === 'mesh' || look === 'studio' ? hexMix(BRAND.accent, BRAND.ink, 0.35) : BRAND.accent;
+  const hasLift = beat.parts.length > 0, l = (beat.length || 5.6) * 1000;
+  const place = (own.places || {})[frame] || null;
+  return {
+    color: pick('color') || (light ? BRAND.ink : BRAND.paper), accent: pick('accent') || accentDefault,
+    size: pick('size') ?? null, weight: pick('weight') ?? null, reveal: pick('reveal') || 'letters',
+    plate: pick('plate') || 'none', layer: pick('layer') || 'above',
+    at: own.at ?? (hasLift ? 2 : 1.2), until: own.until ?? (l / 1000 - 1.1),
+    place, light, scope: own.own ? 'beat' : 'reel',
+  };
+}
+// Where a style edit goes: the beat's own, or the reel's.
+function setStyle(beat, key, v) {
+  const w = wordsOf(beat, ed.frame);
+  if (w.scope === 'beat') { beat.words = beat.words || {}; beat.words[key] = v; }
+  else { spec.words = spec.words || {}; spec.words[key] = v; }
+  save();
+}
+
+function timelineEditor(beat, s, index, side) {
   stopAnimator();
-  const dir = index % 2 === 0 ? 1 : -1;
-  const f = layoutOf(spec.format), l = (beat.length || 5.6) * 1000;
-  const light = ['mesh', 'butter', 'studio'].includes(beat.look || spec.look);
-  const ground = { mesh: 'linear-gradient(160deg,#FFF4D6,#FFD9A8 45%,#E9DDF5)', butter: 'linear-gradient(180deg,#FFE29A,#F2C34E)', studio: 'linear-gradient(180deg,#FAF8F3,#E9E6DF)', grid: 'linear-gradient(180deg,#0B0B0B,#151515)', ink: 'radial-gradient(circle at 70% 30%,#3A2E14,#0E0E0E 60%)', echo: 'linear-gradient(180deg,#111,#050505)' }[beat.look || spec.look] || '#111';
+  if (ed.beat !== index) { ed.beat = index; ed.sel = beat.parts.length ? 0 : 'words'; ed.t = SETTLE + RISE + 600; ed.playing = true; }
+  if (!ed.frame) ed.frame = spec.format || 'vertical';
+  const dir = index % 2 === 0 ? 1 : -1, l = (beat.length || 5.6) * 1000;
+  const f = layoutOf(ed.frame);
+  const look = beat.look || spec.look;
+  const ground = { mesh: 'linear-gradient(160deg,#FFF4D6,#FFD9A8 45%,#E9DDF5)', butter: 'linear-gradient(180deg,#FFE29A,#F2C34E)', studio: 'linear-gradient(180deg,#FAF8F3,#E9E6DF)', grid: 'linear-gradient(180deg,#0B0B0B,#151515)', ink: 'radial-gradient(circle at 70% 30%,#3A2E14,#0E0E0E 60%)', echo: 'linear-gradient(180deg,#111,#050505)' }[look] || '#111';
   const partOf = (p) => s.parts.find((x) => x.name === p.type && (x.text || null) === (p.text || null));
   const parts = beat.parts.slice(0, 6);
-  let selected = Math.min(animSel[index] ?? 0, Math.max(parts.length - 1, 0));
-  let t = SETTLE + RISE + 400, playing = parts.length > 0, last = performance.now();
+  if (typeof ed.sel === 'number' && ed.sel >= parts.length) ed.sel = parts.length ? 0 : 'words';
+  const [sl, st, sr, sb] = SAFE[ed.frame] || [0.06, 0.06, 0.06, 0.06];
+  const safe = { x: f.w * sl, y: f.h * st, w: f.w * (1 - sl - sr), h: f.h * (1 - st - sb) };
 
-  const root = B(`<div class="anim">
-    <div><div class="an-wrap"><div class="an-stage"></div></div>
-      <div class="an-bar" style="margin-top:8px"><button class="an-play">Pause</button><input type="range" class="an-scrub" min="0" max="${l}" step="10"><span class="an-time"></span></div>
-      <p class="hint" style="margin:6px 0 0">Drag a part to where it should land. ${spec.pack === 'glass' || spec.pack === 'story' ? '' : 'Previewed as Glass Layers.'}</p></div>
-    <div class="an-ctl"><div class="field" style="margin:0"><span>Each part</span><div class="an-chips"></div></div><div class="an-knobs"></div></div>
+  const root = B(`<div class="tled">
+    <div class="tl-bar">
+      <div class="seg tl-moves" role="radiogroup" aria-label="Start from a move">${MOVES.map(([id, name]) => `<button data-move="${id}" title="${escB(MOVES.find((m) => m[0] === id)[2])}">${name}</button>`).join('')}</div>
+      <span style="flex:1"></span>
+      <span class="hint" style="margin:0">Frame</span><div class="seg" role="radiogroup" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r]]) => `<button data-frame="${id}" class="${ed.frame === id ? 'on' : ''}">${r}</button>`).join('')}</div>
+      <button data-safe class="${ed.safe ? 'on' : ''}">Safe zone</button>
+    </div>
+    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div><div class="tl-flabel"></div></div>
+    <div class="tl-time">
+      <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
+      <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: Math.floor(l / 1000) + 1 }, (_, i) => `<span style="left:${(i * 1000 / l) * 100}%">${i}s</span>`).join('')}</div><div class="tl-rows"></div><div class="tl-ph"></div></div>
+    </div>
   </div>`);
-  const wrap = root.querySelector('.an-wrap'), stage = root.querySelector('.an-stage');
-  stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px';
-  stage.style.background = ground;
-  const fit = () => { const k = wrap.clientWidth / f.w; stage.style.transform = `scale(${k})`; wrap.style.height = f.h * k + 'px'; return k; };
+  const stage = root.querySelector('.tl-stage'), frameEl = root.querySelector('.tl-frame'), box = root.querySelector('.tl-stagebox');
+  stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px'; stage.style.background = ground;
 
-  if (!parts.length) {
-    root.querySelector('.an-ctl').innerHTML = '<p class="hint">Pick parts above to animate them.</p>';
-  }
-  // The screen, its holes, and each part cut from the screen's own shot.
+  // The screen, the holes its parts leave, the parts, the words, guides.
   const img = `/catalogue/${s.image}`;
-  const scr = B(`<div class="an-scr" style="width:${SCREEN[0]}px;height:${SCREEN[1]}px;background-image:url('${img}')"></div>`);
+  const scr = B(`<div class="tl-scr" style="width:${SCREEN[0]}px;height:${SCREEN[1]}px;background-image:url('${img}')"></div>`);
   stage.appendChild(scr);
-  const pageColor = '#F4F3EF';
   const els = parts.map((p, k) => {
-    const sp = partOf(p);
-    const r = sp ? sp.rect : [0, 0, 0, 0];
-    const hole = B(`<div class="an-hole" style="left:${r[0]}px;top:${r[1]}px;width:${r[2]}px;height:${r[3]}px;background:${pageColor}"></div>`);
+    const sp = partOf(p), r = sp ? sp.rect : [0, 0, 0, 0];
+    const hole = B(`<div class="tl-hole" style="left:${r[0]}px;top:${r[1]}px;width:${r[2]}px;height:${r[3]}px"></div>`);
     scr.appendChild(hole);
-    const el = B(`<div class="an-part" style="width:${r[2]}px;height:${r[3]}px;background-image:url('${img}');background-size:${SCREEN[0]}px ${SCREEN[1]}px;background-position:${-r[0]}px ${-r[1]}px"><div class="an-sweep"></div><span class="an-tag">${k + 1}</span></div>`);
-    el.onpointerdown = (e) => startDrag(e, k);
+    const el = B(`<div class="tl-part" style="width:${r[2]}px;height:${r[3]}px;background-image:url('${img}');background-size:${SCREEN[0]}px ${SCREEN[1]}px;background-position:${-r[0]}px ${-r[1]}px"><div class="tl-sweep"></div><span class="tl-tag">${k + 1}</span></div>`);
+    el.onpointerdown = (e) => dragPart(e, k);
     stage.appendChild(el);
-    return { el, hole, rect: r, sweep: el.querySelector('.an-sweep') };
+    return { el, hole, rect: r, sweep: el.querySelector('.tl-sweep') };
   });
-  const [sl, st, sr, sb] = SAFE[spec.format] || [0.06, 0.06, 0.06, 0.06];
-  const word = B(`<div class="an-word"></div>`);
-  word.style.cssText += `;left:${f.w * sl}px;top:${f.h * st}px;width:${f.w * (1 - sl - sr)}px;height:${f.h * (1 - st - sb)}px;display:flex;font-size:${f.size}px;color:${light ? '#141414' : '#F5F5F5'};`;
-  word.style.justifyContent = f.align[0] < -0.5 ? 'flex-start' : 'center';
-  word.style.alignItems = f.align[1] > 0.5 ? 'flex-end' : f.align[1] < -0.5 ? 'flex-start' : 'center';
-  word.textContent = beat.word || '';
+  const word = B('<div class="tl-word" tabindex="0" aria-label="The words: drag to place"></div>');
+  word.onpointerdown = (e) => dragWords(e);
   stage.appendChild(word);
+  stage.appendChild(B(`<div class="tl-safe" style="left:${safe.x}px;top:${safe.y}px;width:${safe.w}px;height:${safe.h}px"><span>safe zone</span></div>`));
+  const gv = B('<div class="tl-gv"></div>'), gh = B('<div class="tl-gh"></div>'), warn = B('<div class="tl-warn"></div>');
+  stage.append(gv, gh, warn);
+  let k = 1, snap = { x: null, y: null }, wbox = { x: 0, y: 0, w: 0, h: 0 };
+
+  function fit() {
+    const W = box.clientWidth - 24, H = box.clientHeight - 34;
+    k = Math.max(0.1, Math.min(W / f.w, H / f.h));
+    stage.style.transform = `scale(${k})`;
+    frameEl.style.width = f.w * k + 'px'; frameEl.style.height = f.h * k + 'px';
+    const lab = root.querySelector('.tl-flabel');
+    lab.textContent = `${FRAMES[ed.frame][0]} · ${FRAMES[ed.frame][1]}${ed.frame === spec.format ? ' · the reel’s frame' : ' · previewing; each frame keeps its own placement'}`;
+  }
+
+  // The words, laid out as WordsPainter lays them out in the safe area.
+  function layoutWords(w) {
+    const fontBase = w.size == null ? f.size : (w.size * f.size) / 80;
+    const width = w.place && w.place.width != null ? w.place.width / 100 : null;
+    const maxW = safe.w * (width ?? f.width);
+    const align = w.place ? POS_ALIGN(w.place.pos || 'bl') : f.align;
+    const fam = BRAND.fonts.display ? `'${BRAND.fonts.display}', ` : '';
+    Object.assign(word.style, {
+      fontFamily: `${fam}var(--display), sans-serif`, fontWeight: w.weight ?? 800, color: w.color,
+      letterSpacing: '-0.035em', lineHeight: 1.02, textAlign: align[0] < -0.3 ? 'left' : align[0] > 0.3 ? 'right' : 'center',
+      textShadow: `0 0 24px ${w.light ? 'rgba(241,241,243,.35)' : 'rgba(23,24,26,.6)'}`,
+      zIndex: w.layer === 'behind' ? 1 : 200,
+    });
+    // Plate behind: light behind dark words, dark behind light ones.
+    const dark = isDark(w.color);
+    word.style.background = w.plate === 'none' ? 'transparent' : w.plate === 'solid' ? (dark ? '#FFF8EC' : '#141414') : (dark ? 'rgba(255,248,236,.62)' : 'rgba(14,14,14,.55)');
+    word.style.backdropFilter = w.plate === 'soft' ? 'blur(8px)' : 'none';
+    // Sized as Words.fitted sizes them: on one line, shrunk to fit; or,
+    // with a width, shrunk only if a single word is longer than a line.
+    let size = fontBase;
+    word.style.fontSize = size + 'px'; word.style.whiteSpace = 'nowrap'; word.style.width = 'auto'; word.style.padding = '0';
+    const text = beat.word || '';
+    word.innerHTML = width == null ? escB(text) : text.split(/\s+/).map((x) => `<span>${escB(x)}</span>`).join(' ');
+    const widest = width == null ? word.scrollWidth : Math.max(0, ...[...word.querySelectorAll('span')].map((x) => x.offsetWidth));
+    if (widest > maxW) { size = (size * maxW) / widest * 0.98; word.style.fontSize = size + 'px'; }
+    word.innerHTML = escB(text);
+    const plateOn = w.plate !== 'none', padX = plateOn ? size * 0.28 : 0;
+    word.style.padding = plateOn ? `${size * 0.12}px ${padX}px ${size * 0.18}px` : '0';
+    if (width != null && word.scrollWidth - 2 * padX > maxW + 0.5) {
+      // Wrapped: as wide as its longest line, as TextPainter measures it.
+      word.style.whiteSpace = 'normal'; word.style.width = maxW + 2 * padX + 'px';
+      const range = document.createRange(); range.selectNodeContents(word);
+      const lines = {};
+      for (const r of range.getClientRects()) { const key = Math.round(r.top); lines[key] = [Math.min(lines[key]?.[0] ?? r.left, r.left), Math.max(lines[key]?.[1] ?? r.right, r.right)]; }
+      const longest = Math.max(...Object.values(lines).map(([a2, b2]) => b2 - a2)) / k;
+      if (isFinite(longest) && longest > 0) word.style.width = Math.ceil(longest) + 2 * padX + 1 + 'px';
+    }
+    const bw = word.offsetWidth, bh = word.offsetHeight;
+    const off = w.place ? [(w.place.dx || 0) / 100 * f.w, (w.place.dy || 0) / 100 * f.h] : [0, 0];
+    wbox = { x: safe.x + ((align[0] + 1) / 2) * (safe.w - bw) + off[0], y: safe.y + ((align[1] + 1) / 2) * (safe.h - bh) + off[1], w: bw, h: bh };
+    word.style.left = wbox.x + 'px'; word.style.top = wbox.y + 'px';
+    return size;
+  }
+  // The words revealed at the beat's time, as letters, words, typed or faded.
+  function revealWords(w, t) {
+    const at = w.at * 1000, until = w.until * 1000, text = beat.word || '';
+    const n = text.length, p = clamp((t - at) / 900, 0, 1), leave = clamp((t - until) / 450, 0, 1);
+    const accentAt = text.endsWith('.') ? n - 1 : n;
+    let shown = text, op = t >= at && leave < 1 ? 1 - leave : 0, lift = 0;
+    if (w.reveal === 'letters' || w.reveal === 'type') shown = text.slice(0, Math.ceil(n * (w.reveal === 'type' ? p : EASE.out(p))));
+    if (w.reveal === 'words') { const ws = text.split(' '); shown = ws.slice(0, Math.ceil(ws.length * EASE.out(p))).join(' '); }
+    if (w.reveal === 'fade') { op *= EASE.out(p); lift = (1 - EASE.out(p)) * 12; }
+    if (w.reveal === 'letters' || w.reveal === 'words') lift = (1 - EASE.out(p)) * 18;
+    word.innerHTML = escB(shown.slice(0, accentAt)) + (shown.length > accentAt ? `<i style="font-style:normal;color:${w.accent}">${escB(shown.slice(accentAt))}</i>` : '') + `<span style="visibility:hidden">${escB(text.slice(shown.length))}</span>`;
+    const selected = ed.sel === 'words';
+    word.style.opacity = selected && op === 0 ? 0.35 : op;
+    word.style.translate = `0 ${lift}px`;
+    word.classList.toggle('sel', selected);
+  }
+
+  const area = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  function partBoxes() {
+    const fr = stage.getBoundingClientRect();
+    return els.map((e) => { const r = e.el.getBoundingClientRect(); return { x: (r.left - fr.left) / k, y: (r.top - fr.top) / k, w: r.width / k, h: r.height / k }; });
+  }
 
   function render() {
-    const cam = cameraOf(beat, f, dir, l);
+    const t = ed.t, cam = cameraOf(beat, f, dir, l);
     const pose = { tilt: cam.tilt.at(t), turn: cam.turn.at(t), roll: cam.roll.at(t), zoom: cam.zoom.at(t), panX: cam.panX.at(t), panY: cam.panY.at(t) };
     const has = parts.length > 0;
     const sz = has ? trk(0).hold(SETTLE).to(SETTLE + RISE, -80).at(t) : 0;
     const sop = has ? trk(1).hold(SETTLE).to(SETTLE + RISE, moveOf(beat) === 'zoom' ? 0.5 : 0.76).at(t) : 1;
     const base = M.chain(M.T(f.w / 2 + pose.panX, f.h / 2 + pose.panY, 0), M.P(DIST), M.RX(-pose.tilt), M.RY(pose.turn), M.RZ(pose.roll), M.S(pose.zoom, pose.zoom, pose.zoom), M.T(0, 0, -sz));
     const screenM = M.mul(base, M.T(-SCREEN[0] / 2, -SCREEN[1] / 2, 0));
-    scr.style.transform = M.css(screenM); scr.style.opacity = sop; scr.style.zIndex = 1;
+    scr.style.transform = M.css(screenM); scr.style.opacity = sop;
     const order = [];
-    els.forEach((x, k) => {
-      const plan = partPlan(beat, k, parts.length, dir);
+    els.forEach((x, i) => {
+      const plan = partPlan(beat, i, parts.length, dir);
       const z = plan.z.at(t), trv = plan.travel.at(t), [rx, ry, rw, rh] = x.rect;
       const cx = rx + rw / 2, cy = ry + rh / 2;
       const shift = plan.lands ? [(SCREEN[0] / 2 + plan.lands[0] - cx) * trv, (SCREEN[1] / 2 + plan.lands[1] - cy) * trv] : [0, 0];
       const sc = plan.scale.at(t);
-      const m = M.chain(screenM, M.T(cx + plan.x.at(t) + shift[0], cy + shift[1], -z), M.RX(-plan.tilt.at(t)), M.RY(plan.turn.at(t)), M.RZ(plan.roll.at(t)), M.S(sc, sc, 1), M.T(-rw / 2, -rh / 2, 0));
-      x.el.style.transform = M.css(m);
-      x.el.classList.toggle('an-sel', k === selected);
+      x.el.style.transform = M.css(M.chain(screenM, M.T(cx + plan.x.at(t) + shift[0], cy + shift[1], -z), M.RX(-plan.tilt.at(t)), M.RY(plan.turn.at(t)), M.RZ(plan.roll.at(t)), M.S(sc, sc, 1), M.T(-rw / 2, -rh / 2, 0)));
+      x.el.classList.toggle('sel', i === ed.sel);
       x.hole.style.opacity = z > 2 ? 1 : 0;
-      const sw = plan.scanned ? Math.max(0, Math.min(1, (t - plan.start - 600) / 1100)) : 0;
-      x.sweep.style.opacity = sw > 0 && sw < 1 ? 1 : 0;
-      x.sweep.style.top = EASE.inOutCubic(sw) * 100 + '%';
-      order.push([sz + z, k]);
+      const sw = plan.scanned ? clamp((t - plan.start - 600) / 1100, 0, 1) : 0;
+      x.sweep.style.opacity = sw > 0 && sw < 1 ? 1 : 0; x.sweep.style.top = EASE.inOutCubic(sw) * 100 + '%';
+      order.push([sz + z, i]);
     });
-    order.sort((a, b) => a[0] - b[0]).forEach(([, k], i) => (els[k].el.style.zIndex = 2 + i));
-    word.style.zIndex = 20;
-    const wordAt = has ? 2000 : 1200;
-    word.style.opacity = t >= wordAt && t <= l - 1100 ? Math.min(1, (t - wordAt) / 300) : 0;
-    root.querySelector('.an-scrub').value = t;
-    root.querySelector('.an-time').textContent = (t / 1000).toFixed(2) + 's';
+    order.sort((a, b) => a[0] - b[0]).forEach(([, i], j) => (els[i].el.style.zIndex = 3 + j));
+    scr.style.zIndex = 2;
+    const w = wordsOf(beat, ed.frame);
+    layoutWords(w); revealWords(w, t);
+    gv.style.display = snap.x == null ? 'none' : 'block'; if (snap.x != null) gv.style.left = snap.x + 'px';
+    gh.style.display = snap.y == null ? 'none' : 'block'; if (snap.y != null) gh.style.top = snap.y + 'px';
+    root.querySelector('.tl-safe').style.display = ed.safe ? 'block' : 'none';
+    // Words over a landed part: say so, and leave the call to the person.
+    const hits = t > SETTLE + RISE && w.layer !== 'behind' && w.plate === 'none' && t >= w.at * 1000 && t <= w.until * 1000 ? partBoxes().map((pb, i) => (area(wbox, pb) > 150 ? i + 1 : 0)).filter(Boolean) : [];
+    ed.overlap = hits;
+    warn.style.display = hits.length ? 'block' : 'none'; warn.textContent = hits.length ? `⚠ The words cover part ${hits.join(', ')}` : '';
+    const ow = side.querySelector('.tl-overlap');
+    if (ow) { ow.hidden = !hits.length; ow.querySelector('span').textContent = hits.length ? `The words cover part ${hits.join(', ')}. Move them, give them a plate, or put them behind.` : ''; }
+    // The timeline.
+    root.querySelector('.tl-ph').style.left = (t / l) * 100 + '%';
+    root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's';
+    root.querySelector('.tl-play').textContent = ed.playing ? '❚❚' : '▶';
+    root.querySelectorAll('[data-move]').forEach((b) => b.classList.toggle('on', (beat.move || 'lift') === b.dataset.move));
+    root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
+      if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / l) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / l) * 100 + '%'; }
+      else { const plan = partPlan(beat, +b.dataset.k, parts.length, dir); b.style.left = (plan.start / l) * 100 + '%'; b.style.width = ((plan.end - plan.start) / l) * 100 + '%'; }
+    });
   }
 
-  let raf = 0, alive = true;
+  function rows() {
+    const w = wordsOf(beat, ed.frame);
+    root.querySelector('.tl-names').innerHTML = `<div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div>`
+      + `<div class="tl-name ${ed.sel === 'words' ? 'on' : ''}" data-sel="words"><b>T</b>Words · ${escB(beat.word || '—')}</div>`
+      + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
+    root.querySelector('.tl-rows').innerHTML = `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words">${escB(w.reveal)} in</div></div>`
+      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}">rise${plan.scanned ? ' · scan' : ''}</div></div>`; }).join('');
+    root.querySelector('.tl-play').onclick = () => (ed.playing = !ed.playing);
+    root.querySelectorAll('[data-sel]').forEach((d) => (d.onclick = () => select(d.dataset.sel === 'words' ? 'words' : +d.dataset.sel)));
+    root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k)));
+  }
+  function select(sel) { ed.sel = sel; rows(); inspector(); }
+
+  // Dragging a part sets where it lands; the beat holds at that moment.
+  function dragPart(e, i) {
+    e.preventDefault(); select(i); ed.playing = false;
+    const plan = partPlan(beat, i, parts.length, dir);
+    ed.t = Math.max(ed.t, plan.end + 50);
+    const [rx, ry, rw, rh] = els[i].rect;
+    const from = plan.lands ? [...plan.lands] : [rx + rw / 2 - SCREEN[0] / 2, ry + rh / 2 - SCREEN[1] / 2];
+    const x0 = e.clientX, y0 = e.clientY;
+    const zoom = cameraOf(beat, f, dir, l).zoom.at(ed.t), depth = -80 + plan.height;
+    const eff = k * zoom / Math.max(0.2, 1 - zoom * depth / DIST);
+    const mv = (ev) => { beat.parts[i].to = [Math.round(from[0] + (ev.clientX - x0) / eff), Math.round(from[1] + (ev.clientY - y0) / eff)]; };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); rows(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }
+  // Dragging the words: offsets from their anchor, snapping to the safe
+  // zone's edges and the frame's centre lines.
+  function dragWords(e) {
+    e.preventDefault(); select('words'); ed.playing = false;
+    const w = wordsOf(beat, ed.frame);
+    if (ed.t < w.at * 1000 + 900 || ed.t > w.until * 1000) ed.t = w.at * 1000 + 1000;
+    const pl = placeFor(w), x0 = e.clientX, y0 = e.clientY, d0 = [pl.dx, pl.dy], b0 = { ...wbox };
+    const mv = (ev) => {
+      let nx = b0.x + (ev.clientX - x0) / k, ny = b0.y + (ev.clientY - y0) / k;
+      const xs = [[safe.x, 0], [f.w / 2, 0.5], [safe.x + safe.w, 1]], ys = [[safe.y, 0], [f.h / 2, 0.5], [safe.y + safe.h, 1]];
+      snap = { x: null, y: null };
+      for (const [lx, a] of xs) if (Math.abs(nx + a * wbox.w - lx) < 7 / k + 3) { nx = lx - a * wbox.w; snap.x = lx; break; }
+      for (const [ly, a] of ys) if (Math.abs(ny + a * wbox.h - ly) < 7 / k + 3) { ny = ly - a * wbox.h; snap.y = ly; break; }
+      pl.dx = Math.round((d0[0] + ((nx - b0.x) / f.w) * 100) * 10) / 10; pl.dy = Math.round((d0[1] + ((ny - b0.y) / f.h) * 100) * 10) / 10;
+    };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); snap = { x: null, y: null }; save(); inspector(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }
+  // This frame's placement, made from the pack's own if there is none yet.
+  function placeFor(w) {
+    beat.words = beat.words || {}; beat.words.places = beat.words.places || {};
+    if (!beat.words.places[ed.frame]) {
+      const [ax, ay] = f.align;
+      const pos = (ay < -0.5 ? 't' : ay > 0.5 ? 'b' : 'm') + (ax < -0.5 ? 'l' : ax > 0.5 ? 'r' : 'c');
+      beat.words.places[ed.frame] = { pos, dx: 0, dy: 0 };
+    }
+    return beat.words.places[ed.frame];
+  }
+  function dragBar(e, key) {
+    e.preventDefault();
+    select(key === 'words' ? 'words' : +key); ed.playing = false;
+    const x0 = e.clientX, w = root.querySelector('.tl-rows').getBoundingClientRect().width;
+    if (key === 'words') {
+      const cur = wordsOf(beat, ed.frame), a0 = cur.at, u0 = cur.until;
+      const mv = (ev) => { const d = Math.round(((ev.clientX - x0) / w) * (l / 1000) * 20) / 20; beat.words = beat.words || {}; beat.words.at = clamp(a0 + d, 0, l / 1000 - 0.6); beat.words.until = clamp(u0 + d, beat.words.at + 0.5, l / 1000); ed.t = beat.words.at * 1000 + 700; };
+      const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); };
+      addEventListener('pointermove', mv); addEventListener('pointerup', up); return;
+    }
+    const i = +key, plan = partPlan(beat, i, parts.length, dir), d0 = plan.start - SETTLE - (moveOf(beat) === 'tap' ? 450 : 0);
+    const mv = (ev) => { beat.parts[i].delay = clamp(Math.round((d0 + ((ev.clientX - x0) / w) * l) / 50) * 50, 0, 2500); ed.t = partPlan(beat, i, parts.length, dir).start + 900; };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); rows(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }
+
+  // ── The inspector, in the side column ──
+  const PART_KEYS = ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'scan'];
+  const knob = (id, label, min, max, step, value, fmt, set) => `<div class="tl-knob"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" data-fmt="${fmt}"><output class="${set ? 'set' : ''}">${fmtv(fmt, value)}</output></div>`;
+  const fmtv = (fmt, v) => ({ n: Math.round(v), x: (+v).toFixed(2) + '×', deg: Math.round(v) + '°', s: (v / 1000).toFixed(2) + 's', pc: Math.round(v) + '%' }[fmt]);
+  function inspector() {
+    side.innerHTML = '';
+    if (ed.sel === 'words') return wordsInspector();
+    if (!parts.length) { side.appendChild(B('<div class="ai"><b>No parts yet</b><span>Pick parts to lift, or select the words on the timeline to style them.</span></div>')); return; }
+    const i = ed.sel, p = beat.parts[i], plan = partPlan(beat, i, parts.length, dir), d = plan.defaults;
+    const own = (key) => p[key] !== undefined && p[key] !== null;
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">Part ${i + 1} of ${parts.length}</span><b>${escB(p.type)}</b>${p.text ? `<span class="mono2">“${escB(p.text)}”</span>` : ''}</div>
+      <div class="tl-sec"><div class="lbl2"><span>Lands</span><span class="${own('to') ? 'set' : ''}">${plan.lands ? 'moved' : 'in place'}</span></div>
+        <div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="pX" value="${plan.lands ? Math.round(plan.lands[0]) : 0}"><span class="lbl2">Y</span><input class="input tl-num" id="pY" value="${plan.lands ? Math.round(plan.lands[1]) : 0}"><button id="pIn">In place</button></div>
+        <span class="hint" style="margin:0">From the screen's centre. Or drag the part on the preview.</span></div>
+      <div class="tl-sec"><div class="lbl2">Depth</div>${knob('pz', 'Height', 0, 360, 5, p.z ?? plan.height, 'n', own('z'))}${knob('pscale', 'Size', 0.5, 2, 0.01, p.scale ?? d.scale, 'x', own('scale'))}</div>
+      <div class="tl-sec"><div class="lbl2">Rotation</div>${knob('ptilt', 'Tilt', -45, 45, 1, p.tilt ?? 0, 'deg', own('tilt'))}${knob('pturn', 'Turn', -45, 45, 1, p.turn ?? d.turn, 'deg', own('turn'))}${knob('proll', 'Roll', -45, 45, 1, p.roll ?? d.roll, 'deg', own('roll'))}</div>
+      <div class="tl-sec"><div class="lbl2">Timing</div>${knob('pdelay', 'Starts', 0, 2500, 50, p.delay ?? d.delay, 's', own('delay'))}<span class="hint" style="margin:0">After the screen settles. Or drag its bar on the timeline.</span></div>
+      <div class="tl-sec"><div class="lbl2">Effects</div><label class="tl-chk"><input type="checkbox" id="pscan" ${plan.scanned ? 'checked' : ''}> A scan line reads it as it rises</label></div>
+      <div class="tl-sec"><button id="pReset">Reset to ${escB((MOVES.find((m) => m[0] === (beat.move || 'lift')) || MOVES[0])[1])}</button></div>
+    </div>`);
+    side.appendChild(el);
+    const map = { pz: 'z', pscale: 'scale', ptilt: 'tilt', pturn: 'turn', proll: 'roll', pdelay: 'delay' };
+    Object.entries(map).forEach(([id, key]) => { const inp = el.querySelector('#' + id); inp.oninput = () => { p[key] = +inp.value; inp.nextElementSibling.textContent = fmtv(inp.dataset.fmt, +inp.value); inp.nextElementSibling.classList.add('set'); ed.playing = false; ed.t = Math.max(ed.t, partPlan(beat, i, parts.length, dir).end + 50); save(); }; inp.onchange = rows; });
+    const xy = () => { const x = parseFloat(el.querySelector('#pX').value), y = parseFloat(el.querySelector('#pY').value); if (!isNaN(x) && !isNaN(y)) { p.to = [x, y]; save(); } };
+    el.querySelector('#pX').oninput = xy; el.querySelector('#pY').oninput = xy;
+    el.querySelector('#pIn').onclick = () => { delete p.to; save(); inspector(); };
+    el.querySelector('#pscan').onchange = (e) => { p.scan = e.target.checked; save(); ed.t = SETTLE; ed.playing = true; rows(); };
+    el.querySelector('#pReset').onclick = () => { PART_KEYS.forEach((key) => delete p[key]); save(); inspector(); rows(); };
+  }
+  function wordsInspector() {
+    const w = wordsOf(beat, ed.frame), pl = w.place;
+    const swatches = (key) => [BRAND.ink, BRAND.paper, BRAND.accent, '#FFFFFF', '#000000', '#FF6B00'].filter((c, j, a) => a.indexOf(c) === j)
+      .map((c) => `<button class="tl-sw ${w[key].toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-sw="${key}" data-v="${c}" style="background:${c}" aria-label="${key} ${c}" title="${c}"></button>`).join('')
+      + `<input type="color" class="tl-cc" data-cc="${key}" value="${w[key]}" aria-label="Any ${key}">`;
+    const align = pl ? POS_ALIGN(pl.pos || 'bl') : f.align;
+    const curPos = (align[1] < -0.5 ? 't' : align[1] > 0.5 ? 'b' : 'm') + (align[0] < -0.5 ? 'l' : align[0] > 0.5 ? 'r' : 'c');
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">The words</span><b>${escB(beat.word || 'No words yet')}</b></div>
+      <div class="tl-sec"><div class="lbl2">Applies to</div><div class="seg"><button data-scope="beat" class="${w.scope === 'beat' ? 'on' : ''}">This beat</button><button data-scope="reel" class="${w.scope === 'reel' ? 'on' : ''}">Every beat</button></div>
+        <span class="hint" style="margin:0">${w.scope === 'reel' ? 'The look is set once for the reel. Placement and timing are always this beat’s own.' : 'This beat has its own look; the others keep the reel’s.'}</span></div>
+      <div class="tl-sec"><div class="lbl2">Text</div><input class="input" id="wText" value="${escB(beat.word || '')}" placeholder="e.g. Share."></div>
+      <div class="tl-sec"><div class="lbl2">Colour</div><div class="tl-sws">${swatches('color')}</div><div class="lbl2">Accent · the full stop</div><div class="tl-sws">${swatches('accent')}</div></div>
+      <div class="tl-sec"><div class="lbl2">Type</div>${knob('wSize', 'Size', 30, 160, 1, w.size ?? 80, 'n', w.size != null)}
+        <div class="seg">${[[500, 'Medium'], [700, 'Bold'], [800, 'Extra'], [900, 'Black']].map(([v, n]) => `<button data-wt="${v}" class="${(w.weight ?? 800) === v ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+      <div class="tl-sec"><div class="lbl2"><span>Place · ${FRAMES[ed.frame][0]}</span><span>${pl ? 'set by you' : 'the style’s own'}</span></div>
+        <div class="tl-place"><div class="tl-grid">${['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'].map((q) => `<button data-pos="${q}" class="${curPos === q ? 'on' : ''}" aria-label="Anchor ${q}"></button>`).join('')}</div>
+          <div class="tl-col"><div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="wDx" value="${pl ? pl.dx || 0 : 0}"><span class="lbl2">%</span></div><div class="tl-row2"><span class="lbl2">Y</span><input class="input tl-num" id="wDy" value="${pl ? pl.dy || 0 : 0}"><span class="lbl2">%</span></div></div></div>
+        ${knob('wWidth', 'Width', 20, 100, 1, pl && pl.width != null ? pl.width : Math.round(f.width * 100), 'pc', pl && pl.width != null)}
+        <span class="hint" style="margin:0">Or drag the words on the preview; they snap to the safe zone’s edges and the centre. With a width set they wrap at it; without, they shrink to one line.</span>${pl ? '<button id="wPlaceReset">Back to the style’s own place</button>' : ''}</div>
+      <div class="tl-sec"><div class="lbl2">Layer</div><div class="tl-row2" style="flex-wrap:wrap"><div class="seg">${[['above', 'In front'], ['behind', 'Behind phone']].map(([v, n]) => `<button data-layer="${v}" class="${w.layer === v ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="seg">${[['none', 'No plate'], ['soft', 'Soft'], ['solid', 'Solid']].map(([v, n]) => `<button data-plate="${v}" class="${w.plate === v ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+        <div class="tl-overlap" hidden><span></span><button id="wClear">Move clear</button></div></div>
+      <div class="tl-sec"><div class="lbl2">Reveal</div><div class="seg">${[['letters', 'Letters'], ['words', 'Words'], ['type', 'Typed'], ['fade', 'Fade']].map(([v, n]) => `<button data-rev="${v}" class="${w.reveal === v ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="tl-row2"><span class="lbl2">In</span><input class="input tl-num" id="wAt" value="${(+w.at).toFixed(2)}"><span class="lbl2">Out</span><input class="input tl-num" id="wUntil" value="${(+w.until).toFixed(2)}"><span class="lbl2">s</span></div></div>
+    </div>`);
+    side.appendChild(el);
+    const redo = () => { inspector(); rows(); };
+    el.querySelectorAll('[data-scope]').forEach((b) => (b.onclick = () => {
+      beat.words = beat.words || {};
+      if (b.dataset.scope === 'beat') { const cur = wordsOf(beat, ed.frame); STYLE_KEYS.forEach((key) => { if (cur[key] != null && (spec.words || {})[key] != null) beat.words[key] = cur[key]; }); beat.words.own = true; }
+      else { STYLE_KEYS.forEach((key) => delete beat.words[key]); delete beat.words.own; }
+      save(); redo();
+    }));
+    el.querySelector('#wText').oninput = (e) => { beat.word = e.target.value; save(); };
+    el.querySelector('#wText').onchange = rows;
+    el.querySelectorAll('[data-sw]').forEach((b) => (b.onclick = () => { setStyle(beat, b.dataset.sw, b.dataset.v); redo(); }));
+    el.querySelectorAll('[data-cc]').forEach((i) => (i.oninput = () => setStyle(beat, i.dataset.cc, i.value)));
+    const sz = el.querySelector('#wSize'); sz.oninput = () => { setStyle(beat, 'size', +sz.value); sz.nextElementSibling.textContent = sz.value; sz.nextElementSibling.classList.add('set'); };
+    el.querySelectorAll('[data-wt]').forEach((b) => (b.onclick = () => { setStyle(beat, 'weight', +b.dataset.wt); redo(); }));
+    el.querySelectorAll('[data-pos]').forEach((b) => (b.onclick = () => { const p2 = placeFor(w); Object.assign(p2, { pos: b.dataset.pos, dx: 0, dy: 0 }); save(); redo(); }));
+    const dxy = () => { const p2 = placeFor(w), x = parseFloat(el.querySelector('#wDx').value), y = parseFloat(el.querySelector('#wDy').value); if (!isNaN(x)) p2.dx = x; if (!isNaN(y)) p2.dy = y; save(); };
+    el.querySelector('#wDx').oninput = dxy; el.querySelector('#wDy').oninput = dxy;
+    const wd = el.querySelector('#wWidth'); wd.oninput = () => { placeFor(w).width = +wd.value; wd.nextElementSibling.textContent = wd.value + '%'; wd.nextElementSibling.classList.add('set'); save(); };
+    const pr = el.querySelector('#wPlaceReset'); if (pr) pr.onclick = () => { delete beat.words.places[ed.frame]; save(); redo(); };
+    el.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { setStyle(beat, 'layer', b.dataset.layer); redo(); }));
+    el.querySelectorAll('[data-plate]').forEach((b) => (b.onclick = () => { setStyle(beat, 'plate', b.dataset.plate); redo(); }));
+    el.querySelectorAll('[data-rev]').forEach((b) => (b.onclick = () => { setStyle(beat, 'reveal', b.dataset.rev); ed.t = w.at * 1000 - 200; ed.playing = true; redo(); }));
+    const times = () => { const a = parseFloat(el.querySelector('#wAt').value), u = parseFloat(el.querySelector('#wUntil').value); beat.words = beat.words || {}; if (!isNaN(a)) beat.words.at = a; if (!isNaN(u)) beat.words.until = u; save(); };
+    el.querySelector('#wAt').oninput = times; el.querySelector('#wUntil').oninput = times;
+    // "Move clear": the anchor where the words cover the least of the parts.
+    el.querySelector('#wClear').onclick = () => {
+      const pbs = partBoxes(), p2 = placeFor(w);
+      let best = null;
+      for (const q of ['bl', 'bc', 'br', 'tl', 'tc', 'tr', 'ml', 'mr', 'mc']) {
+        const [ax, ay] = POS_ALIGN(q), b2 = { x: safe.x + ((ax + 1) / 2) * (safe.w - wbox.w), y: safe.y + ((ay + 1) / 2) * (safe.h - wbox.h), w: wbox.w, h: wbox.h };
+        const cover = pbs.reduce((sum, pb) => sum + area(b2, pb), 0);
+        if (!best || cover < best.cover - 1) best = { q, cover };
+      }
+      Object.assign(p2, { pos: best.q, dx: 0, dy: 0 }); save(); redo();
+    };
+  }
+
+  // Wiring.
+  root.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { beat.move = b.dataset.move; beat.parts.forEach((p) => PART_KEYS.forEach((key) => delete p[key])); save(); ed.t = 0; ed.playing = true; rows(); inspector(); }));
+  root.querySelectorAll('[data-frame]').forEach((b) => (b.onclick = () => { ed.frame = b.dataset.frame; draw(); }));
+  root.querySelector('[data-safe]').onclick = (e) => { ed.safe = !ed.safe; e.target.classList.toggle('on', ed.safe); };
+  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * l, 0, l); };
+
+  let raf = 0, alive = true, last = performance.now();
   function tick(now) {
     if (!alive) return;
     if (!root.isConnected) { alive = false; return; }
-    if (playing) { t += now - last; if (t > l) t = 0; }
+    if (ed.playing) { ed.t += now - last; if (ed.t > l) ed.t = 0; }
     last = now; render();
     raf = requestAnimationFrame(tick);
   }
   animStop = () => { alive = false; cancelAnimationFrame(raf); };
-  const pl = root.querySelector('.an-play');
-  const setPlaying = (v) => { playing = v; pl.textContent = v ? 'Pause' : 'Play'; };
-  setPlaying(playing);
-  pl.onclick = () => setPlaying(!playing);
-  root.querySelector('.an-scrub').oninput = (e) => { setPlaying(false); t = +e.target.value; };
-
-  // Dragging a part sets where it lands; the beat holds at that moment.
-  let dispK = 1;
-  function startDrag(e, k) {
-    e.preventDefault(); select(k); setPlaying(false);
-    const plan = partPlan(beat, k, parts.length, dir);
-    t = Math.max(t, plan.end + 50);
-    const [rx, ry, rw, rh] = els[k].rect;
-    const from = plan.lands ? [...plan.lands] : [rx + rw / 2 - SCREEN[0] / 2, ry + rh / 2 - SCREEN[1] / 2];
-    const x0 = e.clientX, y0 = e.clientY;
-    const zoom = cameraOf(beat, f, dir, l).zoom.at(t), depth = -80 + plan.height;
-    const eff = dispK * zoom / Math.max(0.2, 1 - zoom * depth / DIST);
-    wrap.classList.add('an-dragging');
-    const move = (ev) => {
-      const p = beat.parts[k];
-      p.to = [Math.round(from[0] + (ev.clientX - x0) / eff), Math.round(from[1] + (ev.clientY - y0) / eff)];
-      knobs();
-    };
-    const up = () => { wrap.classList.remove('an-dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); save(); chips(); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
-  }
-  function select(k) { selected = k; animSel[index] = k; chips(); knobs(); }
-
-  const ownKeys = ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'scan'];
-  const hasOwn = (p) => ownKeys.some((key) => p[key] !== undefined && p[key] !== null);
-  function chips() {
-    const c = root.querySelector('.an-chips'); c.innerHTML = '';
-    parts.forEach((p, k) => {
-      const b = B(`<button class="${k === selected ? 'on' : ''}">${k + 1} · ${escB(p.type)}${hasOwn(p) ? '<span class="an-own" title="Has its own settings">●</span>' : ''}</button>`);
-      b.onclick = () => select(k); c.appendChild(b);
-    });
-  }
-  function knobs() {
-    const box = root.querySelector('.an-knobs'); if (!parts.length) { box.remove(); return; }
-    const p = beat.parts[selected], plan = partPlan(beat, selected, parts.length, dir), d = plan.defaults;
-    const val = (k, fallback) => (p[k] ?? fallback);
-    const row = (key, label, min, max, step, fallback, fmt) => `<label for="k-${key}">${label}</label><input type="range" id="k-${key}" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${val(key, fallback)}"><output class="${p[key] !== undefined && p[key] !== null ? 'an-set' : ''}">${fmt(val(key, fallback))}</output>`;
-    const lands = plan.lands;
-    box.innerHTML = `<div class="an-head"><b>Part ${selected + 1} · ${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</b><button class="an-reset" title="Back to the move's own settings">Reset</button></div>
-      <label>Lands</label><div class="an-wide"><span class="hint" style="margin:0">${lands ? `x ${Math.round(lands[0])}, y ${Math.round(lands[1])} from the screen's centre` : 'where it sat'}</span>${Array.isArray(p.to) ? '<button class="an-inplace">Rise in place</button>' : ''}</div>
-      ${row('z', 'Height', 0, 360, 5, plan.height, (v) => Math.round(v))}
-      ${row('scale', 'Size', 0.5, 2, 0.01, d.scale, (v) => (+v).toFixed(2) + '×')}
-      ${row('tilt', 'Tilt', -45, 45, 1, 0, (v) => v + '°')}
-      ${row('turn', 'Turn', -45, 45, 1, d.turn, (v) => Math.round(v) + '°')}
-      ${row('roll', 'Roll', -45, 45, 1, d.roll, (v) => Math.round(v) + '°')}
-      ${row('delay', 'Starts', 0, 2500, 50, d.delay, (v) => (v / 1000).toFixed(2) + 's')}
-      <label for="k-scan">Scan</label><div class="an-wide"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font:400 13px var(--display);color:var(--text)"><input type="checkbox" id="k-scan" ${val('scan', d.scan) ? 'checked' : ''}> A scan line reads it as it rises</label></div>`;
-    box.querySelectorAll('input[type=range]').forEach((el) => {
-      el.oninput = () => { p[el.dataset.k] = +el.value; el.nextElementSibling.textContent = { z: (v) => Math.round(v), scale: (v) => (+v).toFixed(2) + '×', tilt: (v) => v + '°', turn: (v) => v + '°', roll: (v) => v + '°', delay: (v) => (v / 1000).toFixed(2) + 's' }[el.dataset.k](+el.value); el.nextElementSibling.classList.add('an-set'); if (el.dataset.k === 'delay' || el.dataset.k === 'z') { setPlaying(false); t = Math.max(t, partPlan(beat, selected, parts.length, dir).end + 50); } save(); };
-      el.onchange = () => chips();
-    });
-    box.querySelector('#k-scan').onchange = (e) => { p.scan = e.target.checked; save(); chips(); setPlaying(true); t = 0; };
-    const ip = box.querySelector('.an-inplace'); if (ip) ip.onclick = () => { delete p.to; save(); knobs(); chips(); };
-    box.querySelector('.an-reset').onclick = () => { ownKeys.forEach((key) => delete p[key]); save(); knobs(); chips(); };
-  }
-  chips(); knobs();
-  requestAnimationFrame(() => { dispK = fit(); render(); raf = requestAnimationFrame(tick); });
-  new ResizeObserver(() => { dispK = fit(); }).observe(wrap);
+  rows(); inspector();
+  requestAnimationFrame(() => { fit(); render(); raf = requestAnimationFrame(tick); });
+  new ResizeObserver(() => fit()).observe(box);
   return root;
 }
 ''';

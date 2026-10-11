@@ -74,6 +74,21 @@ class Words {
   /// Keeps them on one line: the type shrinks until they fit the width.
   final bool fit;
 
+  /// Moved from where [align] puts it, as fractions of the frame: `0.1`
+  /// across is a tenth of the frame's width.
+  final Offset offset;
+
+  /// A backing plate behind the words, so they read over whatever is
+  /// behind them; null draws none.
+  final Color? plate;
+
+  /// Blurs what is behind the plate, as frosted glass, by this sigma.
+  final double plateBlur;
+
+  /// Drawn behind the scene's layers (the phone, its parts) rather than in
+  /// front of them.
+  final bool behind;
+
   /// Words.
   const Words(
     this.text, {
@@ -92,19 +107,26 @@ class Words {
     this.rise = const Duration(milliseconds: 700),
     this.sound,
     this.fit = false,
+    this.offset = Offset.zero,
+    this.plate,
+    this.plateBlur = 0,
+    this.behind = false,
   });
 
-  /// These words with their type shrunk, if need be, to fit [maxWidth] on
-  /// one line. Without [fit], unchanged.
+  /// These words sized for a line of [maxWidth]: with [fit], shrunk to
+  /// sit on one line; otherwise shrunk only if a single word is longer than
+  /// a line, so that no word is ever broken in two.
   Words fitted(double maxWidth) {
-    if (!fit) return this;
-    final one = TextPainter(
-      text: TextSpan(text: plain, style: style),
+    double widthOf(String text) => (TextPainter(
+      text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
       maxLines: 1,
-    )..layout();
-    if (one.width <= maxWidth) return this;
-    final size = (style.fontSize ?? 14) * maxWidth / one.width * 0.98;
+    )..layout()).width;
+    final widest = fit
+        ? widthOf(plain)
+        : plain.split(RegExp(r'\s+')).map(widthOf).fold(0.0, math.max);
+    if (widest <= maxWidth) return this;
+    final size = (style.fontSize ?? 14) * maxWidth / widest * 0.98;
     return Words(
       text,
       at: at,
@@ -126,6 +148,10 @@ class Words {
       stagger: stagger,
       rise: rise,
       sound: sound,
+      offset: offset,
+      plate: plate,
+      plateBlur: plateBlur,
+      behind: behind,
     );
   }
 

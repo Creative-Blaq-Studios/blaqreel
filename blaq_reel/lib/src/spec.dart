@@ -13,6 +13,7 @@ import 'packs/kinetic_launch.dart';
 import 'packs/story_ad.dart';
 import 'scene.dart';
 import 'time.dart';
+import 'words.dart';
 
 /// One of the app's screens, staged for reels: the widget in its demo
 /// state, a name for people, and anything it always needs (a scroll back
@@ -146,6 +147,99 @@ class ReelSpec {
     return p;
   }
 
+  static Color? _color(Object? v) {
+    if (v is! String || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(v)) return null;
+    return Color(0xFF000000 | int.parse(v.substring(1), radix: 16));
+  }
+
+  /// Words as a spec writes them: a style (`color`, `accent`, `size`,
+  /// `weight`, `reveal`, `plate`, `layer`), and on a beat its timing
+  /// (`at`, `until`, seconds) and where it sits in each frame (`places`:
+  /// `{"vertical": {"pos": "bl", "dx": 0, "dy": 0, "width": 88}}`, `pos`
+  /// a row t/m/b and a column l/c/r, `dx`/`dy` percent of the frame,
+  /// `width` percent of the safe area).
+  static GlassWords? _words(Object? v, Format format) {
+    if (v is! Map) return null;
+    final j = v.cast<String, Object?>();
+    double? n(Object? x) => x is num ? x.toDouble() : null;
+    final color = _color(j['color']);
+    final place = (j['places'] as Map?)?[format.name];
+    final p = place is Map ? place.cast<String, Object?>() : null;
+    final pos = p?['pos'];
+    final anchor = pos is String && pos.length == 2
+        ? Alignment(
+            switch (pos[1]) {
+              'l' => -1,
+              'r' => 1,
+              _ => 0,
+            },
+            switch (pos[0]) {
+              't' => -1,
+              'b' => 1,
+              _ => 0,
+            },
+          )
+        : null;
+    // A plate is light behind dark words and dark behind light ones.
+    final dark = color == null || color.computeLuminance() < 0.4;
+    final plate = switch (j['plate']) {
+      'solid' => dark ? const Color(0xFFFFF8EC) : const Color(0xFF141414),
+      'soft' => dark ? const Color(0x9EFFF8EC) : const Color(0x8C0E0E0E),
+      'none' => const Color(0x00000000),
+      _ => null,
+    };
+    final weight = n(j['weight']);
+    return GlassWords(
+      color: color,
+      accent: _color(j['accent']),
+      size: n(j['size']),
+      weight: weight == null
+          ? null
+          : FontWeight.values[((weight / 100).round() - 1).clamp(0, 8)],
+      reveal: switch (j['reveal']) {
+        'letters' => Reveal.letters,
+        'words' => Reveal.words,
+        'type' || 'typewriter' => Reveal.typewriter,
+        'fade' => Reveal.fade,
+        _ => null,
+      },
+      at: n(j['at']) == null ? null : (n(j['at'])! * 1000).round().ms,
+      until: n(j['until']) == null ? null : (n(j['until'])! * 1000).round().ms,
+      anchor: anchor,
+      offset: p == null
+          ? null
+          : Offset((n(p['dx']) ?? 0) / 100, (n(p['dy']) ?? 0) / 100),
+      width: n(p?['width']) == null ? null : n(p!['width'])! / 100,
+      plate: plate,
+      plateBlur: j['plate'] == 'soft' ? 8 : (j['plate'] == null ? null : 0),
+      behind: switch (j['layer']) {
+        'behind' => true,
+        'above' => false,
+        _ => null,
+      },
+    );
+  }
+
+  /// [a] over [b]: what [a] sets, else what [b] does.
+  static GlassWords? _over(GlassWords? a, GlassWords? b) {
+    if (a == null || b == null) return a ?? b;
+    return GlassWords(
+      color: a.color ?? b.color,
+      accent: a.accent ?? b.accent,
+      size: a.size ?? b.size,
+      weight: a.weight ?? b.weight,
+      reveal: a.reveal ?? b.reveal,
+      at: a.at ?? b.at,
+      until: a.until ?? b.until,
+      anchor: a.anchor ?? b.anchor,
+      offset: a.offset ?? b.offset,
+      width: a.width ?? b.width,
+      plate: a.plate ?? b.plate,
+      plateBlur: a.plateBlur ?? b.plateBlur,
+      behind: a.behind ?? b.behind,
+    );
+  }
+
   static double _num(Object? v, double fallback) =>
       v is num ? v.toDouble() : fallback;
 
@@ -191,6 +285,8 @@ class ReelSpec {
       final m => Music('$m', gain: -8),
     };
     final end = json['end'] as Map<String, Object?>?;
+    // The reel's words, which every beat's own sit over.
+    final reelWords = _words(json['words'], format);
     final fps = (json['fps'] as int?) ?? config.fps;
 
     GlassBeat glassBeat(Map<String, Object?> b) {
@@ -216,6 +312,7 @@ class ReelSpec {
         scrolls: s.scrolls,
         piece: s.size,
         taps: s.taps,
+        words: _over(_words(b['words'], format), reelWords),
         // Each part's own landing place, height, size, turn, timing, scan.
         partMoves: [
           for (final p in (b['parts'] as List?) ?? const [])

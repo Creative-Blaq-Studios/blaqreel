@@ -94,6 +94,14 @@ Pick.key(ValueKey('x'))
 //   tilt:, turn: 12, roll:, delay: 400.ms, scan: true), null, ...]): each
 //   part over the move. Specs: on each part, "to": [x, y] (from the screen's
 //   centre), "z", "scale", "tilt", "turn", "roll", "delay" (ms), "scan".
+// GlassBeat(words: GlassWords(color:, accent:, size: 96, weight:, reveal:,
+//   at:, until:, anchor: Alignment.topCenter, offset: Offset(0, .04),
+//   width: .7, plate: Color(...), plateBlur: 8, behind: true)), and
+//   GlassLayers(words: GlassWords(...)) for the reel; the beat's win.
+// Specs: reel "words": {"color", "accent", "size", "weight", "reveal",
+//   "plate": none|soft|solid, "layer": above|behind}; a beat's "words" the
+//   same plus "at", "until" (s) and "places": {"vertical": {"pos": "bl",
+//   "dx", "dy" (% of the frame), "width" (% of the safe area)}}.
 // GlassBeat(move: GlassMove.spread): lift, scan, spread, fan, zoom, tap,
 // pop, orbit. Specs: "move": "spread" ("sweep" is scan).
 // Lift(to: Offset(-120, -230), travel: Track…) sends a part to a place on

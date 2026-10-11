@@ -39,6 +39,9 @@ class GlassBeat {
   /// The most parts a beat lifts.
   static const maxParts = 6;
 
+  /// This beat's words: how they look, sit and arrive, over the reel's.
+  final GlassWords? words;
+
   /// The lifted widgets' corner radius.
   final double liftRadius;
 
@@ -112,6 +115,7 @@ class GlassBeat {
     this.move = GlassMove.lift,
     this.partMoves = const [],
     this.piece,
+    this.words,
   });
 }
 
@@ -192,6 +196,9 @@ class GlassLayers {
   /// Voice-over.
   final List<VoiceLine> voice;
 
+  /// How every beat's words look and sit, unless a beat says otherwise.
+  final GlassWords? words;
+
   /// Frames blended per output frame.
   final int motionBlur;
 
@@ -214,6 +221,7 @@ class GlassLayers {
     this.voice = const [],
     this.motionBlur = 1,
     this.fps = 30,
+    this.words,
   });
 
   /// Whether the ground is light, so words go dark on it.
@@ -466,7 +474,6 @@ class GlassLayers {
       beat.framing,
     );
     final bl = _lookOf(beat);
-    final light = _isLight(bl);
     final l = beat.length;
     const settle = Duration(milliseconds: 1500);
     const rise = Duration(milliseconds: 1500);
@@ -566,30 +573,74 @@ class GlassLayers {
         ),
       ],
       words: [
-        Words(
-          beat.word,
-          fit: true,
-          at: wordAt,
-          until: l - 1100.ms,
-          highlight: highlight,
-          accent: _wordAccent(bl),
-          align: f.wordAlign,
-          maxWidth: f.wordWidth,
-          style: brand
-              .words(f.wordSize, _wordColor(bl))
-              .copyWith(
-                shadows: [
-                  Shadow(
-                    color: (light ? brand.paper : brand.ink).withValues(
-                      alpha: light ? 0.35 : 0.6,
-                    ),
-                    blurRadius: 24,
-                  ),
-                ],
-              ),
-        ),
+        _beatWords(beat, f, bl, highlight, at: wordAt, until: l - 1100.ms),
       ],
       cues: [if (hasLift) Cue(settle, 'rise')],
+    );
+  }
+
+  /// A beat's words: the pack's own look, under the reel's [words], under
+  /// the beat's own.
+  Words _beatWords(
+    GlassBeat beat,
+    _Frame f,
+    GlassLook bl,
+    String? highlight, {
+    required Duration at,
+    required Duration until,
+  }) {
+    final own = beat.words, reel = words;
+    T? pick<T>(T? Function(GlassWords w) get) =>
+        (own == null ? null : get(own)) ?? (reel == null ? null : get(reel));
+    final light = _isLight(bl);
+    final color = pick((w) => w.color) ?? _wordColor(bl);
+    final anchor = pick((w) => w.anchor);
+    final size = pick((w) => w.size);
+    final weight = pick((w) => w.weight);
+    final plate = pick((w) => w.plate);
+    final width = pick((w) => w.width);
+    return Words(
+      beat.word,
+      // A width set by hand wraps the words at it; otherwise they shrink
+      // to fit one line.
+      fit: width == null,
+      at: own?.at ?? at,
+      until: own?.until ?? until,
+      highlight: highlight,
+      accent: pick((w) => w.accent) ?? _wordAccent(bl),
+      align: anchor ?? f.wordAlign,
+      textAlign: anchor == null
+          ? TextAlign.left
+          : anchor.x < -0.3
+          ? TextAlign.left
+          : anchor.x > 0.3
+          ? TextAlign.right
+          : TextAlign.center,
+      maxWidth: width ?? f.wordWidth,
+      reveal: pick((w) => w.reveal) ?? Reveal.letters,
+      offset: pick((w) => w.offset) ?? Offset.zero,
+      plate: plate == null || plate.a == 0 ? null : plate,
+      plateBlur: pick((w) => w.plateBlur) ?? 0,
+      behind: pick((w) => w.behind) ?? false,
+      // A size is set for a 9:16 frame; other frames scale it as the pack
+      // scales its own.
+      style: brand
+          .words(size == null ? f.wordSize : size * f.wordSize / 80, color)
+          .copyWith(
+            fontWeight: weight,
+            // The display face is variable: its weight is an axis too.
+            fontVariations: weight == null
+                ? null
+                : [FontVariation('wght', weight.value.toDouble())],
+            shadows: [
+              Shadow(
+                color: (light ? brand.paper : brand.ink).withValues(
+                  alpha: light ? 0.35 : 0.6,
+                ),
+                blurRadius: 24,
+              ),
+            ],
+          ),
     );
   }
 
@@ -756,28 +807,7 @@ class GlassLayers {
         ),
       ],
       words: [
-        Words(
-          beat.word,
-          fit: true,
-          at: 1.1.s,
-          until: l - 1100.ms,
-          highlight: highlight,
-          accent: _wordAccent(bl),
-          align: f.wordAlign,
-          maxWidth: f.wordWidth,
-          style: brand
-              .words(f.wordSize, _wordColor(bl))
-              .copyWith(
-                shadows: [
-                  Shadow(
-                    color: (light ? brand.paper : brand.ink).withValues(
-                      alpha: light ? 0.35 : 0.6,
-                    ),
-                    blurRadius: 24,
-                  ),
-                ],
-              ),
-        ),
+        _beatWords(beat, f, bl, highlight, at: 1.1.s, until: l - 1100.ms),
       ],
       cues: const [Cue(Duration(milliseconds: 150), 'rise')],
     );
@@ -971,6 +1001,69 @@ extension GlassLookTone on GlassLook {
       this == GlassLook.mesh ||
       this == GlassLook.butter ||
       this == GlassLook.studio;
+}
+
+/// How a beat's words look, sit and arrive, over the pack's own: set for
+/// the whole reel on [GlassLayers.words], and any beat's own on
+/// [GlassBeat.words]. Whatever is null is left to what is under it.
+class GlassWords {
+  /// The words' colour.
+  final Color? color;
+
+  /// The accented part's colour (the full stop, or what is in braces).
+  final Color? accent;
+
+  /// Font size, in stage units on a 9:16 frame (the pack's own is 80);
+  /// other frames scale it as they scale their own.
+  final double? size;
+
+  /// Font weight.
+  final FontWeight? weight;
+
+  /// How they arrive.
+  final Reveal? reveal;
+
+  /// When they arrive, in the beat's own time.
+  final Duration? at;
+
+  /// When they leave.
+  final Duration? until;
+
+  /// Where in the frame's safe area they sit.
+  final Alignment? anchor;
+
+  /// Moved from the anchor, as fractions of the frame.
+  final Offset? offset;
+
+  /// Their widest, as a fraction of the safe area's width; longer lines
+  /// wrap.
+  final double? width;
+
+  /// A backing plate; fully transparent means none.
+  final Color? plate;
+
+  /// Frosting behind the plate.
+  final double? plateBlur;
+
+  /// Behind the phone and its parts rather than in front.
+  final bool? behind;
+
+  /// Words.
+  const GlassWords({
+    this.color,
+    this.accent,
+    this.size,
+    this.weight,
+    this.reveal,
+    this.at,
+    this.until,
+    this.anchor,
+    this.offset,
+    this.width,
+    this.plate,
+    this.plateBlur,
+    this.behind,
+  });
 }
 
 /// One lifted part's own way off the screen, over its beat's [GlassMove]:

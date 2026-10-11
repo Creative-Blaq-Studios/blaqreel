@@ -56,6 +56,24 @@ class Project {
   /// The default format.
   String get format => '${_yaml['format'] ?? 'vertical'}';
 
+  /// The brand as reel.yaml gives it: colours by name, and each font's
+  /// family (`packages/khumio_shared/Gabarito` is `Gabarito`), for pages
+  /// that draw in the brand's look.
+  Map<String, Object?> get brand {
+    final b = _yaml['brand'];
+    if (b is! YamlMap) return const {};
+    final fonts = b['fonts'];
+    return {
+      for (final k in ['ink', 'accent', 'paper'])
+        if (b[k] != null) k: '${b[k]}',
+      if (fonts is YamlMap)
+        'fonts': {
+          for (final e in fonts.entries)
+            '${e.key}': '${e.value}'.split('/').last,
+        },
+    };
+  }
+
   /// The app's name, from pubspec.yaml.
   String get name {
     final doc = loadYaml(File('${root.path}/pubspec.yaml').readAsStringSync());

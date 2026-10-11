@@ -292,6 +292,7 @@ const STEPS = [
 ];
 
 let styleClips = {}, styleKey = null, styleBusy = false;
+const partsMode = {};   // each beat's Parts mode: 'pick' or 'animate'
 let spec = null, step = 'screens', beatIndex = 0, catalogue = null, saving = null, groundShots = null;
 const B = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 const escB = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -734,13 +735,28 @@ function drawParts(c, side) {
     tabs.appendChild(t);
   });
   c.appendChild(tabs);
-  c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: what does it feature?</h1><p class="why">Click the parts of <b>${escB(s ? s.label : beat.screen)}</b> to feature, in order: the first rises highest. One to three reads best. Pick what shows the beat's point.</p></div>`));
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
   if (s.kind === 'component') {
-    c.querySelector('.why').innerHTML = `<b>${escB(s.label)}</b> is a piece of the app, so this beat shows it whole: large, on the ground, doing what it does. There is nothing to pick.`;
+    c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: ${escB(s.label)}</h1><p class="why"><b>${escB(s.label)}</b> is a piece of the app, so this beat shows it whole: large, on the ground, doing what it does. There is nothing to pick.</p></div>`));
     c.appendChild(B(`<div class="scr" style="max-width:320px;cursor:default"><span class="pic"><img src="/catalogue/${s.image}" alt="${escB(s.label)}"></span></div>`));
+    beatList(side, { select: true });
     return;
   }
+  // Two jobs: which parts lift (Pick), then how they and the words move
+  // (Animate, the timeline editor).
+  const mode = partsMode[beatIndex] || (beat.parts.length ? 'animate' : 'pick');
+  const head = B(`<div class="pmode"><h1>Beat ${beatIndex + 1}${beat.word ? ' · ' + escB(beat.word) : ''}</h1><span style="flex:1"></span><div class="seg" role="tablist"><button data-mode="pick" class="${mode === 'pick' ? 'on' : ''}">1 · Pick parts${beat.parts.length ? ' (' + beat.parts.length + ')' : ''}</button><button data-mode="animate" class="${mode === 'animate' ? 'on' : ''}">2 · Animate</button></div></div>`);
+  head.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => { partsMode[beatIndex] = b.dataset.mode; draw(); }));
+  c.appendChild(head);
+  const nb = B('<div class="row2" style="margin-top:18px"></div>');
+  if (mode === 'animate') {
+    c.appendChild(timelineEditor(beat, s, beatIndex, side));
+    if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }
+    else nb.appendChild(next('On to the story'));
+    c.appendChild(nb);
+    return;
+  }
+  c.appendChild(B(`<p class="why" style="margin-top:-4px">Click the parts of <b>${escB(s.label)}</b> to feature, in order: the first rises highest. One to three reads best; up to six lift. Then animate them.</p>`));
   const wrap = B('<div class="picker"><div class="shot2"></div><div><div class="plist"></div></div></div>');
   const shot = wrap.querySelector('.shot2'); shot.appendChild(B(`<img src="/catalogue/${s.image}" alt="${escB(s.label)}">`));
   const isOn = (p) => beat.parts.findIndex((x) => x.type === p.name && (x.text || null) === (p.text || null));
@@ -766,27 +782,8 @@ function drawParts(c, side) {
     wrap.querySelector('.plist').parentElement.appendChild(ty);
   }
   c.appendChild(wrap);
-  // How the chosen parts leave the screen, each move drawn as it plays.
-  const moving = spec.pack === 'glass' || spec.pack === 'story';
-  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Start from a move · resets each part's own settings${moving ? '' : ` · ${escB(PACKS.find((p) => p.id === spec.pack).name)} has its own motion; these apply to Glass Layers and Story Ad`}</span></div>`));
-  const moves = B('<div class="moves" role="radiogroup" aria-label="Move"></div>');
-  MOVES.forEach(([id, name, blurb]) => {
-    const on = (beat.move || 'lift') === id;
-    const b = B(`<button class="mv mv-${id}${on ? ' on' : ''}" role="radio" aria-checked="${on}"><div class="mvst"><div class="mvph"><div class="mvbar"></div><div class="mvbar"></div><div class="mvbar"></div></div></div><b>${name}</b><span>${blurb}</span></button>`);
-    // A move is where every part starts from: choosing one clears what
-    // each part was given of its own.
-    b.onclick = () => change(() => { beat.move = id; beat.parts.forEach((p) => ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'scan'].forEach((k) => delete p[k])); });
-    moves.appendChild(b);
-  });
-  c.appendChild(moves);
-  // Each part's own landing place, height, size, turn, timing and scan,
-  // played live.
-  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Animate · the beat plays here as you set it; drag a part to where it should land</span></div>`));
-  c.appendChild(animator(beat, s, beatIndex));
-  const nb = B('<div class="row2" style="margin-top:22px"></div>');
-  if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }
-  else { nb.appendChild(next('On to the story')); }
-  c.appendChild(nb);
+  const go = B('<button class="primary">Animate them →</button>'); go.onclick = () => { partsMode[beatIndex] = 'animate'; draw(); };
+  nb.appendChild(go); c.appendChild(nb);
   beatList(side, { select: true });
 }
 

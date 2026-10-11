@@ -18,6 +18,19 @@
   beat's `GlassMove`, which is now where every part starts from. Specs set
   them on each part (`"to": [x, y]`, `"z"`, `"scale"`, `"tilt"`, `"turn"`,
   `"roll"`, `"delay"`, `"scan"`). Up to six parts lift.
+- Words you can set: `GlassWords` (colour, accent, size, weight, reveal,
+  timing, anchor, offset, width, plate, behind) for the whole reel on
+  `GlassLayers.words` and per beat on `GlassBeat.words`, the beat's over the
+  reel's. Specs carry a reel `"words"` style and each beat's `"words"` with
+  its timing and a placement per frame (`"places": {"vertical": {"pos",
+  "dx", "dy", "width"}}`), so each format keeps its own. `Words` gained
+  `offset`, `plate`, `plateBlur` and `behind`; a set width wraps the words,
+  and a word longer than a line shrinks the type instead of breaking.
+- The Parts step's timeline editor (Pick parts, then Animate): the real
+  frame with its safe zone, a track per part and for the words, an
+  inspector for each, dragging and snapping on the stage, and a warning
+  with Move clear when the words cover a part. The studio serves the
+  brand (`/api/brand`) so the editor sets words in the brand's own face.
 - The builder's animator: the beat plays live in the Parts step with the
   renderer's own camera, tracks and eases ported to the page, so what is
   set is what renders. Drag a part to where it lands; set the rest per
