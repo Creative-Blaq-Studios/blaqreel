@@ -480,9 +480,24 @@ class Studio {
           final body = await utf8.decodeStream(req);
           final spec = jsonDecode(body);
           Directory(_specs).createSync(recursive: true);
-          File('$_specs/${_safe(q['name'])}.json').writeAsStringSync(
+          final file = File('$_specs/${_safe(q['name'])}.json');
+          // A rename (`from`) moves the reel: it may not land on another.
+          final from = q['from'] == null ? null : _safe(q['from']);
+          if (from != null && from != _safe(q['name']) && file.existsSync()) {
+            req.response.statusCode = HttpStatus.conflict;
+            req.response.write(
+              'A reel called "${_safe(q['name'])}" already exists.',
+            );
+            await req.response.close();
+            return;
+          }
+          file.writeAsStringSync(
             '${const JsonEncoder.withIndent('  ').convert(spec)}\n',
           );
+          if (from != null && from != _safe(q['name'])) {
+            final old = File('$_specs/$from.json');
+            if (old.existsSync()) old.deleteSync();
+          }
           _sendJson(req, {'ok': true});
         case '/api/spec/preview' when req.method == 'POST':
           // Read the reels again (a new spec is a new reel), then work on it.

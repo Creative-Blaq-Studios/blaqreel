@@ -53,7 +53,12 @@ widget tests already has this.
    width to wrap at, a plate, or put them behind the phone. The editor
    warns when they cover a part, and **Move clear** finds them a spot. It
    runs the renderer's own camera, timing and word layout in the page, so
-   what you set is what renders.
+   what you set is what renders. The timeline sets durations too: drag the
+   beat's own bar to set its length, a part's bar end for how long it rises,
+   the words' ends for when they come and go. Numbers scrub like a design
+   tool's (drag the label, or ↑/↓; Shift ×10, Alt ×0.1). `[` and `]` step
+   through the beats, Space plays and pauses, and the chips at the top of
+   the inspector switch between the words and each part.
 4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).

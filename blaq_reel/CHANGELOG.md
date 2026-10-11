@@ -26,6 +26,17 @@
   "dx", "dy", "width"}}`), so each format keeps its own. `Words` gained
   `offset`, `plate`, `plateBlur` and `behind`; a set width wraps the words,
   and a word longer than a line shrinks the type instead of breaking.
+- Number fields scrub like a design tool's; `[` and `]` step through
+  beats and Space plays or pauses in the builder (the Library's keys no
+  longer act while building); chips at the top of the inspector switch
+  between the words and each part.
+
+### Fixed (builder)
+
+- Renaming a reel left its old file behind, so it showed twice. A rename
+  now moves the file, and refuses a name another reel already has.
+- The inspector shrank instead of scrolling, hiding its lower settings.
+
 - Durations on the timeline: the beat's own bar, whose end sets its
   length; each part's bar, whose end sets how long it takes to rise
   (`PartMove.rise`, a part's `"rise"` in ms); and the words' bar, whose ends

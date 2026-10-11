@@ -579,11 +579,16 @@ function startDrag(e, el, list) {
 function drawBrief(c, side) {
   c.appendChild(B(`<div><h1>What is it for, and how should it look?</h1><p class="why">Watch each style on your screens and choose one. Then say what the reel should get across, and who writes the story: the AI, you, or both.</p></div>`));
   const name = B(`<div class="field"><label for="bName">Name (lowercase, for the file)</label><input class="input" id="bName" value="${escB(spec.name)}"></div>`);
-  name.querySelector('input').onchange = (e) => {
+  // Renaming moves the reel's file; it never overwrites another reel.
+  name.querySelector('input').onchange = async (e) => {
     const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
     if (!v || v === spec.name) return;
+    const body = { ...spec }; delete body.name;
+    const r = await fetch('/api/spec?name=' + encodeURIComponent(v) + '&from=' + encodeURIComponent(spec.name), { method: 'PUT', body: JSON.stringify(body) });
+    if (!r.ok) { toast(await r.text()); e.target.value = spec.name; return; }
     spec.name = v; const o = $('specPick').querySelector('option:checked'); if (o) { o.value = v; o.textContent = v; }
-    save(); toast('Saved as ' + v);
+    try { localStorage.setItem('blaqreel-reel', v); } catch {}
+    toast('Renamed to ' + v);
   };
   c.appendChild(name);
   const key = JSON.stringify(spec.beats.slice(0, 2).map((b) => [b.screen, b.parts, b.word, b.line, b.move]) ) + spec.look;
