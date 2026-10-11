@@ -517,6 +517,56 @@ class Studio {
                   pack: '/files/_style-$pack-$format.mp4?v=$stamp',
             },
           });
+        case '/api/screens/unstaged':
+          _sendJson(req, _unstaged());
+        case '/api/inventory' when req.method == 'GET':
+          _sendJson(req, _inventory());
+        case '/api/inventory/scan' when req.method == 'POST':
+          await _serial('Taking the inventory with Claude', () async {
+            _status = 'Claude is reading the app';
+            final found = await Drafter(project).inventory();
+            mergeInventory(project, found, replace: true);
+          });
+          _sendJson(req, _inventory());
+        case '/api/inventory/find' when req.method == 'POST':
+          final body =
+              jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
+          var added = <Map<String, Object?>>[];
+          await _serial('Looking for it with Claude', () async {
+            _status = 'Claude is looking';
+            added = await Drafter(
+              project,
+            ).inventory(lookFor: '${body['description'] ?? ''}');
+            mergeInventory(project, added);
+          });
+          _sendJson(req, {..._inventory(), 'added': added});
+        case '/api/screens/stage' when req.method == 'POST':
+          final body =
+              jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
+          String? summary;
+          String? error;
+          await _serial('Staging a screen with Claude', () async {
+            _status = 'Claude is staging the screen';
+            try {
+              summary = await Drafter(project).stageScreen(
+                name: body['name'] as String?,
+                file: body['file'] as String?,
+                description: body['description'] as String?,
+                items: [
+                  for (final i in (body['items'] as List?) ?? const [])
+                    (i as Map).cast<String, Object?>(),
+                ],
+              );
+            } on CliError catch (e) {
+              error = e.message;
+            }
+          });
+          if (error == null) await catalogue();
+          _sendJson(req, {
+            'ok': error == null,
+            'summary': summary,
+            'error': error,
+          });
         case '/api/looks' when req.method == 'POST':
           final name = _safe(q['name']);
           final ok = await looks(
@@ -625,6 +675,52 @@ class Studio {
     await _file(req, thumb);
   }
 
+  /// The inventory, each item marked with whether the kit stages it yet.
+  Map<String, Object?> _inventory() {
+    final file = File('${project.reels}/inventory.json');
+    final staged = StringBuffer();
+    for (final f in ['kit.dart', 'screens.dart']) {
+      final k = File('${project.reels}/$f');
+      if (k.existsSync()) staged.write(k.readAsStringSync());
+    }
+    if (!file.existsSync()) return {'items': const [], 'taken': null};
+    final doc = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    return {
+      'taken': doc['taken'],
+      'items': [
+        for (final i in (doc['items']! as List).cast<Map<String, Object?>>())
+          {...i, 'staged': staged.toString().contains('${i['name']}')},
+      ],
+    };
+  }
+
+  /// Screens in the app's code that the kit does not offer yet: every
+  /// `…Screen` widget in lib/ not named in app_reels/.
+  List<Map<String, String>> _unstaged() {
+    final staged = StringBuffer();
+    for (final f in ['kit.dart', 'screens.dart']) {
+      final file = File('${project.reels}/$f');
+      if (file.existsSync()) staged.write(file.readAsStringSync());
+    }
+    final lib = Directory('${project.root.path}/lib');
+    if (!lib.existsSync()) return const [];
+    final found = <Map<String, String>>[];
+    final pattern = RegExp(r'class (\w+Screen) extends');
+    for (final f in lib.listSync(recursive: true).whereType<File>()) {
+      if (!f.path.endsWith('.dart')) continue;
+      for (final m in pattern.allMatches(f.readAsStringSync())) {
+        final name = m.group(1)!;
+        if (staged.toString().contains(name)) continue;
+        found.add({
+          'name': name,
+          'file': f.path.substring(project.root.path.length + 1),
+        });
+      }
+    }
+    found.sort((a, b) => a['name']!.compareTo(b['name']!));
+    return found;
+  }
+
   /// A name safe to use as a file name.
   static String _safe(String? name) {
     final n = (name ?? '').trim();
@@ -688,4 +784,34 @@ class Studio {
     await res.addStream(file.openRead(start, end + 1));
     await res.close();
   }
+}
+
+/// Adds [found] to the app's inventory (`app_reels/inventory.json`), or
+/// with [replace] starts it afresh; items are kept unique by name.
+void mergeInventory(
+  Project project,
+  List<Map<String, Object?>> found, {
+  bool replace = false,
+}) {
+  final file = File('${project.reels}/inventory.json');
+  final items = <String, Map<String, Object?>>{};
+  if (!replace && file.existsSync()) {
+    final doc = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    for (final i in (doc['items']! as List).cast<Map<String, Object?>>()) {
+      items['${i['name']}'] = i;
+    }
+  }
+  for (final i in found) {
+    if (i['name'] == null) continue;
+    items['${i['name']}'] = {...?items['${i['name']}'], ...i};
+  }
+  final list = items.values.toList()
+    ..sort((a, b) {
+      final k = '${a['kind']}'.compareTo('${b['kind']}');
+      return k != 0 ? k : '${a['name']}'.compareTo('${b['name']}');
+    });
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert({'taken': DateTime.now().toIso8601String(), 'items': list})}\n',
+  );
 }

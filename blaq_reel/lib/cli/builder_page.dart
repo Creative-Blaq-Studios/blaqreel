@@ -90,6 +90,31 @@ textarea.input { min-height: 80px; resize: vertical; }
 .clip video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .clip span { font: 400 12px var(--mono); color: var(--muted); padding: 12px; text-align: center; }
 .stylebar { margin-top: 12px; }
+.beat { grid-template-columns: 26px minmax(0, 1fr) 26px; touch-action: none; }
+.beat .grip { all: unset; cursor: grab; color: var(--text2); font-size: 16px; text-align: center; padding: 4px 0; }
+.beat .grip:focus-visible { outline: 2px solid var(--accent); }
+.beat .rm { all: unset; cursor: pointer; color: var(--muted); text-align: center; padding: 4px 0; }
+.beat .rm:hover { color: var(--bad); }
+.beat.dragging { opacity: .9; border-color: var(--accent); position: relative; z-index: 3; box-shadow: 0 10px 30px rgba(0,0,0,.6); cursor: grabbing; }
+.beat.gap { margin-top: 46px; transition: margin .12s; }
+.beats.gap-end { padding-bottom: 46px; }
+.beat .t b .n { color: var(--accent); font: 600 12px var(--mono); margin-right: 4px; }
+h2 span { color: var(--muted); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 20; display: grid; place-items: center; padding: 24px; }
+.overlay .panel { background: var(--deep); border: 1px solid var(--line2); width: min(980px, 100%); max-height: 88vh; display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 12px; padding: 18px 20px; }
+.ph { display: flex; justify-content: space-between; align-items: center; }
+.ph .x { padding: 6px 10px; }
+.plist2 { overflow: auto; border: 1px solid var(--line2); min-height: 200px; }
+.irow { display: grid; grid-template-columns: 20px 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.irow:hover { background: var(--surface); }
+.irow.staged { opacity: .55; cursor: default; }
+.irow input { accent-color: var(--accent); width: 16px; height: 16px; }
+.irow .ik { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.irow .in b { display: block; font-weight: 600; }
+.irow .in span { color: var(--text2); font-size: 13px; }
+.irow .ir { font: 400 11px var(--mono); color: var(--muted); }
+.irow .ir em { color: var(--ok); font-style: normal; }
+.pfoot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
 .lk.on { border-color: var(--accent); }
@@ -177,9 +202,11 @@ $('tabLibrary').onclick = () => { setTab(false); history.replaceState(null, '', 
 $('tabBuild').onclick = () => { setTab(true); history.replaceState(null, '', '#build'); };
 // #build opens the studio on the builder; #build-<step> on a step of it.
 if (location.hash.startsWith('#build')) {
-  const s = location.hash.slice(7);
+  const s = location.hash.slice(7).replace(/-add$/, '');
   if (STEPS.some((x) => x.id === s)) step = s;
   setTimeout(() => setTab(true), 0);
+  // #build-screens-add opens the picker too.
+  if (location.hash.endsWith('-add')) setTimeout(() => openPicker(), 600);
 }
 
 async function openBuilder() {
@@ -241,22 +268,60 @@ function next(label = 'Next') {
   return b;
 }
 function beatList(side, opts = {}) {
-  side.appendChild(B('<h2>Beats</h2>'));
+  side.appendChild(B('<h2>Beats <span>drag to reorder</span></h2>'));
   if (!spec.beats.length) { side.appendChild(B('<div class="hint">No beats yet. Pick screens to add them.</div>')); return; }
   const list = B('<div class="beats"></div>');
   spec.beats.forEach((b, i) => {
     const s = screenOf(b.screen);
-    const el = B(`<div class="beat${opts.select && i === beatIndex ? ' on' : ''}"><span class="n">${i + 1}</span>
-      <div class="t"><b>${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${b.parts.length} part${b.parts.length === 1 ? '' : 's'}</span></div>
-      <div class="ops"><button title="Earlier">↑</button><button title="Later">↓</button><button title="Remove">✕</button></div></div>`);
-    const [up, down, rm] = el.querySelectorAll('.ops button');
-    up.onclick = () => change(() => { if (i > 0) [spec.beats[i - 1], spec.beats[i]] = [spec.beats[i], spec.beats[i - 1]]; });
-    down.onclick = () => change(() => { if (i < spec.beats.length - 1) [spec.beats[i + 1], spec.beats[i]] = [spec.beats[i], spec.beats[i + 1]]; });
-    rm.onclick = () => change(() => { spec.beats.splice(i, 1); beatIndex = Math.max(0, Math.min(beatIndex, spec.beats.length - 1)); });
+    const el = B(`<div class="beat${opts.select && i === beatIndex ? ' on' : ''}" data-i="${i}"><button class="grip" title="Drag to reorder (or use the arrow keys)" aria-label="Move beat ${i + 1}">⠿</button>
+      <div class="t"><b><span class="n">${i + 1}</span> ${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${b.parts.length} part${b.parts.length === 1 ? '' : 's'}</span></div>
+      <button class="rm" title="Remove" aria-label="Remove beat ${i + 1}">✕</button></div>`);
+    el.querySelector('.rm').onclick = () => change(() => { spec.beats.splice(i, 1); beatIndex = Math.max(0, Math.min(beatIndex, spec.beats.length - 1)); });
     el.querySelector('.t').onclick = () => { beatIndex = i; if (opts.select) draw(); else { step = 'parts'; draw(); } };
+    const grip = el.querySelector('.grip');
+    grip.onkeydown = (e) => {
+      const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1;
+      if (to < 0 || to >= spec.beats.length) return;
+      e.preventDefault(); moveBeat(i, to);
+      requestAnimationFrame(() => document.querySelector(`.beat[data-i="${to}"] .grip`)?.focus());
+    };
+    grip.onpointerdown = (e) => startDrag(e, el, list);
     list.appendChild(el);
   });
   side.appendChild(list);
+}
+function moveBeat(from, to) {
+  change(() => {
+    const [b] = spec.beats.splice(from, 1); spec.beats.splice(to, 0, b);
+    if (beatIndex === from) beatIndex = to;
+  });
+}
+// Drag a beat by its grip: it follows the pointer and the others make room;
+// letting go puts it there.
+function startDrag(e, el, list) {
+  e.preventDefault();
+  const from = +el.dataset.i;
+  el.classList.add('dragging'); el.setPointerCapture(e.pointerId);
+  const startY = e.clientY;
+  const move = (ev) => {
+    el.style.transform = `translateY(${ev.clientY - startY}px)`;
+    const others = [...list.children].filter((x) => x !== el);
+    let to = others.length;
+    for (let k = 0; k < others.length; k++) {
+      const r = others[k].getBoundingClientRect();
+      if (ev.clientY < r.top + r.height / 2) { to = k; break; }
+    }
+    el.dataset.to = to;
+    others.forEach((x, k) => x.classList.toggle('gap', k === to));
+    list.classList.toggle('gap-end', to === others.length);
+  };
+  const up = () => {
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+    const to = el.dataset.to === undefined ? from : +el.dataset.to;
+    el.classList.remove('dragging'); el.style.transform = '';
+    if (to !== from) moveBeat(from, to); else draw();
+  };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
 
 // 1 ─ Brief
@@ -326,6 +391,9 @@ function drawBrief(c, side) {
 // 2 ─ Screens
 function drawScreens(c, side) {
   c.appendChild(B(`<div><h1>Which screens?</h1><p class="why">Start with what you want to show. Each screen you add becomes a beat, in the order you add them; add one twice to feature two moments of it. Next you'll see every style played on the first two.</p></div>`));
+  const add = B('<div class="row2" style="margin-bottom:16px"><button class="primary">+ Add screens from the app</button><span class="hint">Every screen, sheet and dialog in the app, by name. Pick some and the AI stages them here.</span></div>');
+  add.querySelector('button').onclick = () => openPicker();
+  c.appendChild(add);
   const lazy = B('<div class="ai" style="margin-bottom:18px"><b>Not sure which?</b><span>Describe the reel and let the AI choose the screens, the parts and the words. You can change all of it after.</span><button>Let the AI choose →</button></div>');
   lazy.querySelector('button').onclick = () => change(() => { spec.storyBy = 'all'; step = 'brief'; });
   c.appendChild(lazy);
@@ -340,6 +408,101 @@ function drawScreens(c, side) {
   c.appendChild(grid);
   c.appendChild(next());
   beatList(side);
+}
+
+let inventory = null, staging = false, pickerKind = 'all', pickerSearch = '';
+const picked = new Set();
+
+async function openPicker() {
+  document.getElementById('picker')?.remove();
+  const ov = B(`<div id="picker" class="overlay" role="dialog" aria-label="Add screens"><div class="panel">
+    <div class="ph"><h2 style="font-size:24px">Add screens from the app</h2><button class="x" aria-label="Close">✕</button></div>
+    <p class="hint" id="pTaken"></p>
+    <div class="row2"><input class="input" id="pSearch" placeholder="Search screens, sheets, dialogs, routes…" style="flex:1;min-width:200px"><div class="seg" id="pKinds"></div></div>
+    <div class="plist2" id="pList"><p class="hint">Reading the inventory…</p></div>
+    <div class="pfoot">
+      <button class="primary" id="pGo" disabled>Generate previews</button>
+      <span class="hint" id="pNote"></span>
+      <span style="flex:1"></span>
+      <input class="input" id="pFind" placeholder="Not here? Describe it: the sheet that confirms a payment" style="max-width:360px">
+      <button id="pFindGo">Ask the AI to find it</button>
+      <button id="pRescan" title="Read the whole app again">Read the app again</button>
+    </div></div></div>`);
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector('.x').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+  const search = ov.querySelector('#pSearch'); search.value = pickerSearch;
+  search.oninput = () => { pickerSearch = search.value; drawPicker(); };
+  [['all', 'All'], ['screen', 'Screens'], ['sheet', 'Sheets'], ['dialog', 'Dialogs']].forEach(([k, label]) => {
+    const b = B(`<button class="${pickerKind === k ? 'on' : ''}">${label}</button>`);
+    b.onclick = () => { pickerKind = k; ov.querySelectorAll('#pKinds button').forEach((x) => x.classList.toggle('on', x === b)); drawPicker(); };
+    ov.querySelector('#pKinds').appendChild(b);
+  });
+  ov.querySelector('#pGo').onclick = () => generate(ov);
+  ov.querySelector('#pFindGo').onclick = async (e) => {
+    const d = ov.querySelector('#pFind').value.trim(); if (!d) return toast('Describe what to look for');
+    e.target.textContent = 'Claude is looking…'; e.target.classList.add('busy');
+    const r = await fetch('/api/inventory/find', { method: 'POST', body: JSON.stringify({ description: d }) }).then((x) => x.json()).catch(() => null);
+    e.target.textContent = 'Ask the AI to find it'; e.target.classList.remove('busy');
+    if (!r) return toast('The search failed; see the log');
+    inventory = r; (r.added || []).forEach((i) => picked.add(i.name));
+    toast(r.added && r.added.length ? 'Found: ' + r.added.map((i) => i.name).join(', ') : 'Nothing matched that');
+    drawPicker();
+  };
+  ov.querySelector('#pRescan').onclick = async (e) => {
+    e.target.textContent = 'Claude is reading the app…'; e.target.classList.add('busy');
+    inventory = await fetch('/api/inventory/scan', { method: 'POST' }).then((x) => x.json()).catch(() => inventory);
+    e.target.textContent = 'Read the app again'; e.target.classList.remove('busy');
+    drawPicker();
+  };
+  if (!inventory) inventory = await fetch('/api/inventory').then((r) => r.json());
+  drawPicker();
+  search.focus();
+}
+
+function drawPicker() {
+  const ov = document.getElementById('picker'); if (!ov || !inventory) return;
+  const list = ov.querySelector('#pList');
+  ov.querySelector('#pTaken').textContent = inventory.taken
+    ? `${inventory.items.length} places in the app, read ${new Date(inventory.taken).toLocaleString()}. Ones already in the studio are marked.`
+    : 'No inventory yet: Read the app to list its screens, sheets and dialogs.';
+  const q = pickerSearch.toLowerCase();
+  const rows = inventory.items.filter((i) => (pickerKind === 'all' || i.kind === pickerKind) &&
+    (!q || [i.name, i.description, i.route, i.file].some((v) => String(v || '').toLowerCase().includes(q))));
+  list.innerHTML = rows.length ? '' : '<p class="hint">Nothing matches. Ask the AI to find it, below.</p>';
+  rows.forEach((i) => {
+    const on = picked.has(i.name);
+    const row = B(`<label class="irow${i.staged ? ' staged' : ''}"><input type="checkbox" ${on ? 'checked' : ''} ${i.staged ? 'disabled' : ''}>
+      <span class="ik">${escB(i.kind || 'screen')}</span>
+      <span class="in"><b>${escB(i.name)}</b><span>${escB(i.description || '')}</span></span>
+      <span class="ir">${i.staged ? '<em>In the studio</em>' : escB(i.route || '')}</span></label>`);
+    row.querySelector('input').onchange = (e) => { if (e.target.checked) picked.add(i.name); else picked.delete(i.name); updateGo(); };
+    list.appendChild(row);
+  });
+  updateGo();
+}
+function updateGo() {
+  const ov = document.getElementById('picker'); if (!ov) return;
+  const go = ov.querySelector('#pGo');
+  go.disabled = !picked.size || staging;
+  go.textContent = staging ? 'Generating previews…' : picked.size ? `Generate previews for ${picked.size}` : 'Generate previews';
+  ov.querySelector('#pNote').textContent = staging ? 'Claude is staging them; a few minutes. You can close this.' : '';
+}
+async function generate(ov) {
+  const items = inventory.items.filter((i) => picked.has(i.name) && !i.staged);
+  if (!items.length) return;
+  staging = true; updateGo();
+  toast(`Claude is staging ${items.length} screen${items.length === 1 ? '' : 's'}; a few minutes`);
+  const r = await fetch('/api/screens/stage', { method: 'POST', body: JSON.stringify({ items }) }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  staging = false; picked.clear();
+  if (r.ok) {
+    catalogue = await fetch('/api/catalogue').then((x) => x.json());
+    inventory = await fetch('/api/inventory').then((x) => x.json());
+    toast('Previews ready: ' + (r.summary || '').split('\n')[0]);
+  } else toast('Could not stage them: ' + (r.error || 'see the log'));
+  drawPicker(); if (step === 'screens') draw();
 }
 
 // 3 ─ Parts
@@ -364,6 +527,19 @@ function drawParts(c, side) {
     const b = B(`<button class="${(beat.move || 'lift') === id ? 'on' : ''}">${label}</button>`);
     b.onclick = () => change(() => (beat.move = id)); wrap.querySelector('.seg').appendChild(b);
   });
+  // Typing into one of the screen's fields, if it has any.
+  const fields = s.parts.filter((p) => /Editable|Field|Input|TextField/.test(p.name));
+  if (fields.length) {
+    const ty = B(`<div class="field" style="margin-top:16px"><span>Type into a field</span>
+      <select class="input"><option value="">No typing</option>${fields.map((p, i) => `<option value="${i}">${escB(p.name)}${p.text ? ' “' + escB(p.text) + '”' : ''}</option>`).join('')}</select>
+      <input class="input" placeholder="What is typed, e.g. 186" value="${escB(beat.type || '')}"></div>`);
+    const [sel, input] = [ty.querySelector('select'), ty.querySelector('input')];
+    const cur = beat.typeInto ? fields.findIndex((p) => p.name === beat.typeInto.type && (p.text || null) === (beat.typeInto.text || null)) : -1;
+    sel.value = cur >= 0 ? String(cur) : (beat.type ? '0' : '');
+    sel.onchange = () => change(() => { const p = fields[+sel.value]; beat.typeInto = sel.value === '' ? undefined : { type: p.name, text: p.text || null }; if (sel.value === '') beat.type = undefined; });
+    input.oninput = () => { beat.type = input.value || undefined; if (input.value && !beat.typeInto) { const p = fields[+(sel.value || 0)]; beat.typeInto = { type: p.name, text: p.text || null }; } save(); };
+    wrap.querySelector('.plist').parentElement.appendChild(ty);
+  }
   c.appendChild(wrap);
   const nb = B('<div class="row2" style="margin-top:22px"></div>');
   if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }

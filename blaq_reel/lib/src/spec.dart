@@ -187,11 +187,15 @@ class ReelSpec {
             : Offset(_num(framing[0], 0), _num(framing[1], 0)),
         scrolls: s.scrolls,
         typing: [
-          if (b['type'] is String)
+          if (b['type'] is String && '${b['type']}'.isNotEmpty)
             TypeText(
+              // Into the field the builder chose, or the screen's first.
+              where: b['typeInto'] is Map
+                  ? pick((b['typeInto']! as Map).cast<String, Object?>())
+                  : null,
               text: '${b['type']}',
               at: 700.ms,
-              perCharacter: 42.ms,
+              perCharacter: 60.ms,
               sound: 'tick',
             ),
         ],

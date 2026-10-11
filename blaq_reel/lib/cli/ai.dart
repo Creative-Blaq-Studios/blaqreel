@@ -128,4 +128,146 @@ Reply with one JSON object and nothing else:
     }
     return jsonDecode(result.substring(start, end + 1)) as Map<String, Object?>;
   }
+
+  /// Stages a screen the kit does not have yet, by asking Claude Code to
+  /// edit `app_reels/`: the screen [name] from [file], or one matching
+  /// [description]. Returns Claude's one-line summary.
+  ///
+  /// Claude may read anything, edit only with the file tools, and run only
+  /// `dart analyze` and `dart format`; it is told to touch nothing outside
+  /// `app_reels/`.
+  Future<String> stageScreen({
+    String? name,
+    String? file,
+    String? description,
+    List<Map<String, Object?>> items = const [],
+  }) async {
+    final list = [
+      for (final i in items)
+        '- ${i['name']} (${i['kind']}, ${i['file']}): ${i['description'] ?? ''}',
+    ].join('\n');
+    final wanted = items.isNotEmpty
+        ? "these from the app's inventory (app_reels/inventory.json):\n$list\n"
+        : name != null
+        ? 'the screen `$name`${file == null ? '' : ' (in `$file`)'}'
+        : 'the screen the person describes as: "$description"';
+    final prompt =
+        """
+Add $wanted to this Flutter app's BlaqReel kit, so the studio can use them in promo reels.
+
+1. Find each widget in lib/. If a description fits several, take the one a person would mean. A sheet or a dialog is staged open, the way the app shows it: over the screen it opens from, or on its own if that reads better.
+2. Stage it the way the other screens in app_reels/screens.dart and app_reels/kit.dart are staged: the real widget in a good demo moment, using the store-screenshot harnesses' demo data under app_shots/ if there is any (ids, fake data), the test fakes, and no network. If its constructor needs arguments, use the demo data's ids. If it needs a provider overridden to show something worth seeing, wrap it in a ProviderScope with that override, as sayItScreen does.
+3. Register each in the `screens` map in app_reels/kit.dart with a short lowercase id and a label people would recognise.
+4. Run `dart analyze app_reels` from this folder and fix what it reports.
+
+Edit only files under app_reels/. Never change lib/ or anything else.
+Reply with one line per screen: the id you used, and what it shows.
+""";
+    final ProcessResult r;
+    try {
+      r = await Process.run(
+        'claude',
+        [
+          '-p',
+          prompt,
+          '--output-format',
+          'json',
+          '--permission-mode',
+          'acceptEdits',
+          '--allowedTools',
+          'Read',
+          'Grep',
+          'Glob',
+          'Edit',
+          'Write',
+          'Bash(dart analyze:*)',
+          'Bash(dart format:*)',
+        ],
+        workingDirectory: project.root.path,
+      ).timeout(const Duration(minutes: 8));
+    } on ProcessException {
+      throw const CliError(
+        'Claude Code is not installed here (`claude` was not found). Stage '
+        'the screen in app_reels/kit.dart by hand.',
+      );
+    }
+    if (r.exitCode != 0) {
+      throw CliError('Claude could not stage it: ${r.stderr}'.trim());
+    }
+    final out = jsonDecode('${r.stdout}') as Map<String, Object?>;
+    return '${out['result'] ?? ''}'.trim();
+  }
+
+  /// Reads the app — its router, its screens, sheets and dialogs — and
+  /// lists the places worth showing in a reel, by name, without staging
+  /// any. With [lookFor], finds just what matches that description.
+  /// Read-only: Claude may read and search, nothing else.
+  Future<List<Map<String, Object?>>> inventory({String? lookFor}) async {
+    final ask = lookFor == null
+        ? 'List every place in this app a person can see that is worth showing in a promo reel: '
+              'screens (start from the router, then lib/ for widgets named …Screen or …Page), '
+              'bottom sheets and dialogs that do something a person would want to see. '
+              'Leave out pure plumbing: splash, error pages, loading states, settings sub-pages nobody films.'
+        : 'Find the place in this app the person describes as: "$lookFor". '
+              'It may be a screen, a sheet or a dialog. List just that (or the few that fit).';
+    final prompt =
+        '''
+$ask
+
+Reply with one JSON array and nothing else. Each item:
+{"name": "the widget class", "kind": "screen" | "sheet" | "dialog", "file": "lib/… path",
+ "route": "its router location, or null", "description": "what a person sees there, in under twelve words"}
+''';
+    final ProcessResult r;
+    try {
+      r = await Process.run(
+        'claude',
+        [
+          '-p',
+          prompt,
+          '--output-format',
+          'json',
+          '--allowedTools',
+          'Read',
+          'Grep',
+          'Glob',
+        ],
+        workingDirectory: project.root.path,
+      ).timeout(const Duration(minutes: 6));
+    } on ProcessException {
+      return _scan();
+    }
+    if (r.exitCode != 0) return _scan();
+    final result = '${(jsonDecode('${r.stdout}') as Map)['result'] ?? ''}';
+    final start = result.indexOf('[');
+    final end = result.lastIndexOf(']');
+    if (start < 0 || end <= start) return _scan();
+    return [
+      for (final i in jsonDecode(result.substring(start, end + 1)) as List)
+        (i as Map).cast<String, Object?>(),
+    ];
+  }
+
+  /// The inventory without the AI: every widget named …Screen in lib/.
+  List<Map<String, Object?>> _scan() {
+    final lib = Directory('${project.root.path}/lib');
+    if (!lib.existsSync()) return const [];
+    final pattern = RegExp(r'class (\w+(?:Screen|Sheet|Dialog))\b');
+    return [
+      for (final f in lib.listSync(recursive: true).whereType<File>())
+        if (f.path.endsWith('.dart'))
+          for (final m in pattern.allMatches(f.readAsStringSync()))
+            {
+              'name': m.group(1),
+              'kind': m.group(1)!.endsWith('Sheet')
+                  ? 'sheet'
+                  : m.group(1)!.endsWith('Dialog')
+                  ? 'dialog'
+                  : 'screen',
+              'file': f.path.substring(project.root.path.length + 1),
+              'route': null,
+              'description': null,
+            },
+    ];
+  }
 }

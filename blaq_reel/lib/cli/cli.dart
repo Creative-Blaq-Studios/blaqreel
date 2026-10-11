@@ -7,6 +7,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../src/sfx.dart';
+import 'ai.dart';
 import 'init.dart';
 import 'pages.dart';
 import 'project.dart';
@@ -29,7 +30,8 @@ Future<int> runCli(List<String> args) async {
         ..addCommand(_Voice())
         ..addCommand(_Map())
         ..addCommand(_Looks())
-        ..addCommand(_Storyboard());
+        ..addCommand(_Storyboard())
+        ..addCommand(_Inventory());
   try {
     return await runner.run(args) ?? 0;
   } on UsageException catch (e) {
@@ -53,11 +55,17 @@ Future<void> _open(String path) async {
 
 class _Init extends Command<int> {
   _Init() {
-    argParser.addFlag(
-      'force',
-      negatable: false,
-      help: 'Overwrite files that are already there.',
-    );
+    argParser
+      ..addFlag(
+        'force',
+        negatable: false,
+        help: 'Overwrite files that are already there.',
+      )
+      ..addFlag(
+        'ai',
+        defaultsTo: true,
+        help: 'Take the inventory of screens with Claude Code.',
+      );
   }
 
   @override
@@ -649,6 +657,39 @@ class _Storyboard extends _ReelCommand {
       );
     stdout.writeln('Storyboard: ${page.path}');
     await _open(page.path);
+    return 0;
+  }
+}
+
+class _Inventory extends Command<int> {
+  _Inventory() {
+    argParser.addOption(
+      'find',
+      help: 'Look for one place, described in words, and add it.',
+    );
+  }
+
+  @override
+  String get name => 'inventory';
+
+  @override
+  String get description =>
+      "List the app's screens, sheets and dialogs worth showing, with "
+      'Claude Code, into app_reels/inventory.json.';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final find = argResults!['find'] as String?;
+    stdout.writeln(find == null ? 'Reading the app…' : 'Looking for "$find"…');
+    final found = await Drafter(project).inventory(lookFor: find);
+    mergeInventory(project, found, replace: find == null);
+    for (final i in found) {
+      stdout.writeln(
+        '  ${'${i['kind']}'.padRight(7)} ${i['name']}  ${i['description'] ?? ''}',
+      );
+    }
+    stdout.writeln('${found.length} places → app_reels/inventory.json');
     return 0;
   }
 }
