@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'claude_run.dart';
 import 'project.dart';
 
 /// Drafts a reel with Claude Code (`claude -p`) on the person's machine:
@@ -11,8 +12,11 @@ class Drafter {
   /// The app.
   final Project project;
 
+  /// Told of every step of every Claude run, as it happens.
+  final void Function(ClaudeRun run)? onUpdate;
+
   /// A drafter.
-  Drafter(this.project);
+  Drafter(this.project, {this.onUpdate});
 
   static const _packRules = {
     'glass':
@@ -103,30 +107,29 @@ Reply with one JSON object and nothing else:
       all: all,
       catalogue: catalogue,
     );
-    final ProcessResult r;
-    try {
-      r = await Process.run(
-        'claude',
-        ['-p', text, '--output-format', 'json'],
-        workingDirectory: project.root.path,
-      ).timeout(const Duration(minutes: 3));
-    } on ProcessException {
-      throw const CliError(
-        'Claude Code is not installed here (`claude` was not found). Write '
-        'the story by hand, or install Claude Code.',
-      );
+    final run = await runClaude(
+      project,
+      task: all ? 'Drafting the whole reel' : 'Drafting the words',
+      prompt: text,
+      timeout: const Duration(minutes: 3),
+      onUpdate: onUpdate,
+    );
+    if (!run.ok) {
+      throw CliError('Claude did not answer: ${run.error ?? run.result}');
     }
-    if (r.exitCode != 0) {
-      throw CliError('Claude did not answer: ${r.stderr}'.trim());
-    }
-    final out = jsonDecode('${r.stdout}') as Map<String, Object?>;
-    final result = '${out['result'] ?? ''}';
+    final result = run.result ?? '';
     final start = result.indexOf('{');
     final end = result.lastIndexOf('}');
     if (start < 0 || end <= start) {
       throw CliError('Claude answered without a draft: $result');
     }
-    return jsonDecode(result.substring(start, end + 1)) as Map<String, Object?>;
+    final draft =
+        jsonDecode(result.substring(start, end + 1)) as Map<String, Object?>;
+    final beats = (draft['beats'] as List?)?.length ?? 0;
+    run.result = all ? 'Drafted $beats beats' : 'Drafted the words';
+    run.steps.add(ClaudeStep(run.result!, 'note'));
+    onUpdate?.call(run);
+    return draft;
   }
 
   /// Stages a screen the kit does not have yet, by asking Claude Code to
@@ -163,39 +166,30 @@ Add $wanted to this Flutter app's BlaqReel kit, so the studio can use them in pr
 Edit only files under app_reels/. Never change lib/ or anything else.
 Reply with one line per screen: the id you used, and what it shows.
 """;
-    final ProcessResult r;
-    try {
-      r = await Process.run(
-        'claude',
-        [
-          '-p',
-          prompt,
-          '--output-format',
-          'json',
-          '--permission-mode',
-          'acceptEdits',
-          '--allowedTools',
-          'Read',
-          'Grep',
-          'Glob',
-          'Edit',
-          'Write',
-          'Bash(dart analyze:*)',
-          'Bash(dart format:*)',
-        ],
-        workingDirectory: project.root.path,
-      ).timeout(const Duration(minutes: 8));
-    } on ProcessException {
-      throw const CliError(
-        'Claude Code is not installed here (`claude` was not found). Stage '
-        'the screen in app_reels/kit.dart by hand.',
-      );
+    final count = items.isNotEmpty ? items.length : 1;
+    final run = await runClaude(
+      project,
+      task:
+          'Staging ${count == 1 ? (items.isNotEmpty ? items.first['name'] : name ?? 'a screen') : '$count screens'}',
+      prompt: prompt,
+      args: const [
+        '--permission-mode',
+        'acceptEdits',
+        '--allowedTools',
+        'Read',
+        'Grep',
+        'Glob',
+        'Edit',
+        'Write',
+        'Bash(dart analyze:*)',
+        'Bash(dart format:*)',
+      ],
+      onUpdate: onUpdate,
+    );
+    if (!run.ok) {
+      throw CliError('Claude could not stage it: ${run.error ?? run.result}');
     }
-    if (r.exitCode != 0) {
-      throw CliError('Claude could not stage it: ${r.stderr}'.trim());
-    }
-    final out = jsonDecode('${r.stdout}') as Map<String, Object?>;
-    return '${out['result'] ?? ''}'.trim();
+    return run.result ?? '';
   }
 
   /// Reads the app — its router, its screens, sheets and dialogs — and
@@ -218,34 +212,44 @@ Reply with one JSON array and nothing else. Each item:
 {"name": "the widget class", "kind": "screen" | "sheet" | "dialog", "file": "lib/… path",
  "route": "its router location, or null", "description": "what a person sees there, in under twelve words"}
 ''';
-    final ProcessResult r;
+    final ClaudeRun run;
     try {
-      r = await Process.run(
-        'claude',
-        [
-          '-p',
-          prompt,
-          '--output-format',
-          'json',
-          '--allowedTools',
-          'Read',
-          'Grep',
-          'Glob',
-        ],
-        workingDirectory: project.root.path,
-      ).timeout(const Duration(minutes: 6));
-    } on ProcessException {
+      run = await runClaude(
+        project,
+        task: lookFor == null
+            ? 'Taking the inventory'
+            : 'Looking for "$lookFor"',
+        prompt: prompt,
+        args: const ['--allowedTools', 'Read', 'Grep', 'Glob'],
+        timeout: const Duration(minutes: 6),
+        onUpdate: onUpdate,
+      );
+    } on CliError {
       return _scan();
     }
-    if (r.exitCode != 0) return _scan();
-    final result = '${(jsonDecode('${r.stdout}') as Map)['result'] ?? ''}';
+    if (!run.ok) return _scan();
+    final result = run.result ?? '';
+    void say(String summary) {
+      run.result = summary;
+      run.steps.add(ClaudeStep(summary, 'note'));
+      onUpdate?.call(run);
+    }
+
     final start = result.indexOf('[');
     final end = result.lastIndexOf(']');
     if (start < 0 || end <= start) return _scan();
-    return [
+    final found = [
       for (final i in jsonDecode(result.substring(start, end + 1)) as List)
         (i as Map).cast<String, Object?>(),
     ];
+    say(
+      found.isEmpty
+          ? 'Found nothing that fits'
+          : lookFor == null
+          ? 'Listed ${found.length} places'
+          : 'Found ${found.map((i) => i['name']).join(', ')}',
+    );
+    return found;
   }
 
   /// The inventory without the AI: every widget named …Screen in lib/.

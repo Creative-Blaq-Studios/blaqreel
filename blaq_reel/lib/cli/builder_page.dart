@@ -115,6 +115,32 @@ h2 span { color: var(--muted); }
 .irow .ir { font: 400 11px var(--mono); color: var(--muted); }
 .irow .ir em { color: var(--ok); font-style: normal; }
 .pfoot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#agent { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(420px, calc(100vw - 32px));
+  z-index: 15; background: var(--deep); border: 1px solid var(--line2); box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  display: grid; grid-template-rows: auto 1fr auto; max-height: 62vh; }
+#agent.running { border-color: var(--accent); }
+#agent.failed { border-color: var(--bad); }
+#agent .ah { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line2); }
+#agent .ah .who { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+#agent .ah b { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#agent .ah .t { font: 400 11px var(--mono); color: var(--text2); }
+#agent .ah button { padding: 3px 8px; font-size: 11px; }
+#agent .asteps { overflow: auto; padding: 8px 12px; display: grid; gap: 3px; align-content: start; min-height: 0; }
+#agent .st { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font: 400 12px/1.45 var(--mono); color: var(--text2); }
+#agent .st i { font-style: normal; color: var(--muted); }
+#agent .st.edit span { color: var(--accent); }
+#agent .st.say span { color: var(--text); font-family: var(--display); font-size: 13px; }
+#agent .st.run span { color: var(--warn); }
+#agent .af { border-top: 1px solid var(--line2); padding: 10px 12px; display: grid; gap: 8px; }
+#agent .files { display: flex; flex-wrap: wrap; gap: 4px; }
+#agent .files code { font: 400 11px var(--mono); border: 1px solid var(--line2); padding: 2px 6px; color: var(--text); }
+#agent .res { font-size: 13px; color: var(--text); white-space: pre-wrap; max-height: 120px; overflow: auto; }
+#agent .err { font-size: 13px; color: var(--bad); white-space: pre-wrap; }
+#agent .sess { display: flex; gap: 8px; align-items: center; font: 400 11px var(--mono); color: var(--text2); }
+#agent .sess code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#agent.min { grid-template-rows: auto; }
+#agent.min .asteps, #agent.min .af { display: none; }
+.pulse { width: 8px; height: 8px; background: var(--accent); animation: pulse 1s infinite; flex: none; }
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
 .lk.on { border-color: var(--accent); }
@@ -141,6 +167,7 @@ h2 span { color: var(--muted); }
 
 /// The builder's markup.
 const builderHtml = r'''
+<aside id="agent" hidden aria-live="polite"></aside>
 <div id="build">
   <nav>
     <div class="field"><span>Reel</span>
@@ -191,6 +218,34 @@ function blank(name) {
     brief: '', beats: [], end: { logo: 'wordmark', line: '' } };
 }
 function screenOf(id) { return catalogue && catalogue.screens.find((s) => s.id === id); }
+
+// ── Claude Code, live ───────────────────────────────────────────────
+// Every headless Claude Code run the studio starts (drafts, inventory,
+// staging) shows here as it happens: its steps, the files it changed, and
+// the command that reopens the session in a terminal.
+let agentHidden = null, agentMin = false, agentSeen = null;
+function ago2(iso) { const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? Math.round(s) + 's' : Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's'; }
+window.onStudioState = (st) => {
+  const a = st.agent, box = $('agent');
+  if (!a || agentHidden === a.started) { box.hidden = true; return; }
+  if (agentSeen !== a.started) { agentSeen = a.started; agentMin = false; }
+  box.hidden = false;
+  box.className = (a.done ? (a.ok ? '' : 'failed') : 'running') + (agentMin ? ' min' : '');
+  const keepBottom = box.querySelector('.asteps') ? (box.querySelector('.asteps').scrollHeight - box.querySelector('.asteps').scrollTop - box.querySelector('.asteps').clientHeight < 30) : true;
+  box.innerHTML = `<div class="ah">${a.done ? (a.ok ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✕</span>') : '<span class="pulse"></span>'}
+      <span class="who">Claude Code</span><b>${escB(a.task)}</b><span class="t">${a.done ? (a.ok ? 'done' : 'failed') : ago2(a.started)}</span>
+      <button id="agMin" title="${agentMin ? 'Show' : 'Hide'} the steps">${agentMin ? '▴' : '▾'}</button>${a.done ? '<button id="agX" title="Dismiss">✕</button>' : ''}</div>
+    <div class="asteps">${a.steps.length ? a.steps.filter((x) => !/^[\[{]/.test(x.text)).map((x) => `<div class="st ${x.kind}"><i>${new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</i><span>${escB(x.text)}</span></div>`).join('') : '<div class="st"><i></i><span>Starting a session…</span></div>'}</div>
+    <div class="af">${a.files.length ? `<div class="files">${a.files.map((f) => `<code>${escB(f)}</code>`).join('')}</div>` : ''}
+      ${a.done && a.ok && a.result && !/^[\[{]/.test(a.result) ? `<div class="res">${escB(a.result)}</div>` : ''}
+      ${a.error ? `<div class="err">${escB(a.error)}</div>` : ''}
+      ${a.sessionId ? `<div class="sess"><code title="${escB(a.resume)}">session ${escB(a.sessionId)}</code><button id="agCopy">Copy resume command</button></div>` : ''}</div>`;
+  const steps = box.querySelector('.asteps'); if (keepBottom) steps.scrollTop = steps.scrollHeight;
+  box.querySelector('#agMin').onclick = () => { agentMin = !agentMin; window.onStudioState(st); };
+  const x = box.querySelector('#agX'); if (x) x.onclick = () => { agentHidden = a.started; box.hidden = true; };
+  const cp = box.querySelector('#agCopy');
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(a.resume); toast('Copied: ' + a.resume); } catch { toast(a.resume); } };
+};
 
 // ── Tabs ────────────────────────────────────────────────────────────
 function setTab(build) {

@@ -39,6 +39,8 @@ app.
 - Grounds per beat: `GlassBeat(look:, ground:)`, crossfading between beats;
   `GlassLayers(ground:)` for colours of your own; six looks (ink, mesh,
   butter, studio, grid, echo); `Backdrop(floor:)`; `Layer(ignoreFocus:)`.
+- Claude Code runs stream: every AI task the studio starts shows live in a
+  panel, with its steps, the files it changed, and its resumable session.
 - The studio's builder: Brief, Screens, Parts, Story, Ground, Preview,
   saving each change to `app_reels/specs/<name>.json`; `ReelSpec` builds
   any pack from that data, finding parts by the names the map gives them;

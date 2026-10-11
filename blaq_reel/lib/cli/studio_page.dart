@@ -472,6 +472,7 @@ document.addEventListener('keydown', (e) => {
 async function poll() {
   try {
     state = await fetch('/api/state').then((r) => r.json());
+    if (window.onStudioState) window.onStudioState(state);
     const dot = $('dot');
     dot.className = 'dot' + (state.job ? ' busy' : state.status.includes('failed') ? ' bad' : '');
     $('status').textContent = state.job ? state.job + '…' : state.status;

@@ -47,6 +47,13 @@ widget tests already has this.
    reel's own frames to compare.
 6. **Preview**, then **Render final** in the Library.
 
+Whenever the studio asks Claude Code for something (drafting, the
+inventory, staging screens) it runs a headless session (`claude -p`) in the
+app's folder, on the person's own Claude Code. A **Claude Code** panel shows
+it live: each step (reading, searching, editing, running `dart analyze`),
+the files it changed, its outcome, and the session id with the command that
+reopens it in a terminal (`claude --resume <id>`).
+
 Every change is saved to `app_reels/specs/<name>.json`, which renders like
 any reel. The app offers its screens to the builder with a `ReelKit`
 passed to `blaqReelMain` (see Khumio's `app_reels/kit.dart`).

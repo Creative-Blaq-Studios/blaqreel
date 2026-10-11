@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'ai.dart';
+import 'claude_run.dart';
 import 'project.dart';
 import 'studio_page.dart';
 
@@ -32,6 +33,11 @@ class Studio {
 
   /// Its format.
   String format;
+
+  /// The latest Claude Code run the studio started, live.
+  ClaudeRun? _agent;
+
+  Drafter get _drafter => Drafter(project, onUpdate: (run) => _agent = run);
 
   var _version = 0;
   var _library = 0;
@@ -442,6 +448,7 @@ class Studio {
             'reel': reel,
             'format': format,
             'preview': _json('$_dir/$reel-$format.json'),
+            'agent': _agent?.toJson(),
           });
         case '/api/catalogue' when req.method == 'GET':
           _sendJson(req, _json('$_dir/catalogue/map.json'));
@@ -482,7 +489,7 @@ class Studio {
           final body =
               jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
           try {
-            final draft = await Drafter(project).draft(
+            final draft = await _drafter.draft(
               spec: (body['spec'] as Map?)?.cast<String, Object?>() ?? {},
               brief: '${body['brief'] ?? ''}',
               all: body['all'] == true,
@@ -524,7 +531,7 @@ class Studio {
         case '/api/inventory/scan' when req.method == 'POST':
           await _serial('Taking the inventory with Claude', () async {
             _status = 'Claude is reading the app';
-            final found = await Drafter(project).inventory();
+            final found = await _drafter.inventory();
             mergeInventory(project, found, replace: true);
           });
           _sendJson(req, _inventory());
@@ -534,9 +541,9 @@ class Studio {
           var added = <Map<String, Object?>>[];
           await _serial('Looking for it with Claude', () async {
             _status = 'Claude is looking';
-            added = await Drafter(
-              project,
-            ).inventory(lookFor: '${body['description'] ?? ''}');
+            added = await _drafter.inventory(
+              lookFor: '${body['description'] ?? ''}',
+            );
             mergeInventory(project, added);
           });
           _sendJson(req, {..._inventory(), 'added': added});
@@ -548,7 +555,7 @@ class Studio {
           await _serial('Staging a screen with Claude', () async {
             _status = 'Claude is staging the screen';
             try {
-              summary = await Drafter(project).stageScreen(
+              summary = await _drafter.stageScreen(
                 name: body['name'] as String?,
                 file: body['file'] as String?,
                 description: body['description'] as String?,

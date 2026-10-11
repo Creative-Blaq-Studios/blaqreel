@@ -682,7 +682,20 @@ class _Inventory extends Command<int> {
     final project = Project.find();
     final find = argResults!['find'] as String?;
     stdout.writeln(find == null ? 'Reading the app…' : 'Looking for "$find"…');
-    final found = await Drafter(project).inventory(lookFor: find);
+    var shown = 0;
+    final found = await Drafter(
+      project,
+      onUpdate: (run) {
+        // Claude's steps as they happen.
+        for (final step in run.steps.skip(shown)) {
+          stdout.writeln('  · ${step.text}');
+        }
+        shown = run.steps.length;
+        if (run.sessionId != null && shown == 0) {
+          stdout.writeln('  session ${run.sessionId}');
+        }
+      },
+    ).inventory(lookFor: find);
     mergeInventory(project, found, replace: find == null);
     for (final i in found) {
       stdout.writeln(
