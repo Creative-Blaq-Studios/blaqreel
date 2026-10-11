@@ -467,7 +467,9 @@ async function still() {
 $('stillBtn').onclick = still;
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
+  // The Library's keys; the builder has its own.
+  if (document.body.classList.contains('building')) return;
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
   if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? (video.pause(), seek(video.currentTime - 1)) : stepFrames(-1); }
   else if (e.key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? (video.pause(), seek(video.currentTime + 1)) : stepFrames(1); }

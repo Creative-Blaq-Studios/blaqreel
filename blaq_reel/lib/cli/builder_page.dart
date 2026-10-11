@@ -99,7 +99,7 @@ textarea.input { min-height: 80px; resize: vertical; }
    Pick/Animate switch, and the way on. */
 .beatbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .beatbar > * { flex: none; }
-.beatbar .bnav { padding: 6px 11px; font-size: 14px; line-height: 1; }
+.beatbar .bnav { padding: 6px 10px; font-size: 11px; }
 .beatbar .beatSel { width: 260px; padding: 6px 8px; }
 .beatbar > .seg { margin-left: 8px; }
 body.fab-on .canvas.fixed { padding-bottom: 10px; }
@@ -363,6 +363,17 @@ function placeFab() {
 window.addEventListener('resize', placeFab);
 $('agentFab').onclick = () => { agentOpen = !agentOpen; window.onStudioState({ agent: agentLast }); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && agentOpen) { agentOpen = false; window.onStudioState({ agent: agentLast }); } });
+// The builder's keys: [ and ] step through the beats; Space plays or
+// pauses the editor.
+document.addEventListener('keydown', (e) => {
+  if (!document.body.classList.contains('building') || !spec) return;
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if ((e.key === '[' || e.key === ']') && spec.beats.length && (step === 'parts' || step === 'story')) {
+    const to = clampBeat(beatIndex + (e.key === ']' ? 1 : -1));
+    if (to !== beatIndex) { beatIndex = to; draw(); }
+  } else if (e.code === 'Space' && step === 'parts' && document.querySelector('.tled')) { e.preventDefault(); ed.playing = !ed.playing; }
+});
+function clampBeat(i) { return Math.max(0, Math.min(spec.beats.length - 1, i)); }
 window.onStudioState = (st) => {
   const a = st.agent, fab = $('agentFab'), box = $('agent');
   agentLast = a;
@@ -758,9 +769,10 @@ function drawParts(c, side) {
   beatIndex = Math.min(beatIndex, spec.beats.length - 1);
   const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
   // One slim row: which beat (step through, or jump), and Pick or Animate.
-  const prow = B(`<div class="beatbar"><button class="bnav" aria-label="Previous beat" ${beatIndex === 0 ? 'disabled' : ''}>‹</button>
-    <select class="input beatSel" aria-label="Beat">${spec.beats.map((b, i) => { const bs = screenOf(b.screen), ready = b.parts.length || isComp(b.screen); return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${i + 1} / ${spec.beats.length} · ${escB(b.word || (bs ? bs.label : b.screen))}${ready ? '' : ' · no parts yet'}</option>`; }).join('')}</select>
-    <button class="bnav" aria-label="Next beat" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''}>›</button></div>`);
+  const nameOf = (i) => { const b = spec.beats[i], bs = screenOf(b.screen); return b.word || (bs ? bs.label : b.screen); };
+  const prow = B(`<div class="beatbar"><button class="bnav" title="${beatIndex > 0 ? 'Previous: ' + escB(nameOf(beatIndex - 1)) + ' ([)' : ''}" ${beatIndex === 0 ? 'disabled' : ''}>‹ Prev</button>
+    <select class="input beatSel" aria-label="Beat">${spec.beats.map((b, i) => { const ready = b.parts.length || isComp(b.screen); return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${ready ? '' : '○ '}${i + 1}/${spec.beats.length} · ${escB(nameOf(i))}</option>`; }).join('')}</select>
+    <button class="bnav" title="${beatIndex < spec.beats.length - 1 ? 'Next: ' + escB(nameOf(beatIndex + 1)) + ' (])' : ''}" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''}>Next ›</button></div>`);
   const [prev, nextB] = prow.querySelectorAll('.bnav');
   prev.onclick = () => { beatIndex--; draw(); }; nextB.onclick = () => { beatIndex++; draw(); };
   prow.querySelector('.beatSel').onchange = (e) => { beatIndex = +e.target.value; draw(); };
