@@ -106,6 +106,7 @@ const _studioBase = r'''<!doctype html>
   .stage { display: grid; place-items: center; padding: 20px; min-height: 0; min-width: 0; position: relative; }
   /* A render under way, impossible to miss: over the player in the
      Library, and in the builder's Preview step. */
+  [hidden] { display: none !important; }
   .rcard { width: min(440px, 92%); background: rgba(8,8,8,.94); border: 1px solid var(--accent); box-shadow: 0 30px 90px rgba(0,0,0,.7);
     padding: 22px 24px; display: grid; gap: 10px; }
   .stage > .rcard { position: absolute; z-index: 5; }

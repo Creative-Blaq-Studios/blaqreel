@@ -58,6 +58,11 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- The editor's frame picker and safe-zone tick sit beside the frame (or
+  above it when the frame fills the width), so the toolbar keeps to one
+  row.
+- Fixed: anything hidden with `hidden` but given a display of its own
+  stayed on screen; the Render overlay darkened the editor's frame.
 - The safe zone is off by default, a small tick in the editor's toolbar,
   and shows by itself while the words are dragged.
 - The editor's toolbar labels the Ground and Move pickers, and says which

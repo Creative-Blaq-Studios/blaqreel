@@ -120,7 +120,7 @@ textarea.input { min-height: 80px; resize: vertical; }
    Pick/Animate switch, and the way on. */
 .beatbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .beatbar > * { flex: none; }
-.beatbar .bnav { padding: 6px 10px; font-size: 11px; }
+.beatbar .bnav { padding: 4px 10px; font-size: 15px; line-height: 1; }
 .beatbar .beatSel { width: 260px; padding: 6px 8px; }
 .beatbar > .seg { margin-left: 8px; }
 body.fab-on .canvas.fixed { padding-bottom: 10px; }
@@ -800,9 +800,9 @@ function drawParts(c, side) {
   const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
   // One slim row: which beat (step through, or jump), and Pick or Animate.
   const nameOf = (i) => { const b = spec.beats[i], bs = screenOf(b.screen); return b.word || (bs ? bs.label : b.screen); };
-  const prow = B(`<div class="beatbar"><button class="bnav" title="${beatIndex > 0 ? 'Previous: ' + escB(nameOf(beatIndex - 1)) + ' ([)' : ''}" ${beatIndex === 0 ? 'disabled' : ''}>‹ Prev</button>
+  const prow = B(`<div class="beatbar"><button class="bnav" title="${beatIndex > 0 ? 'Previous: ' + escB(nameOf(beatIndex - 1)) + ' ([)' : ''}" ${beatIndex === 0 ? 'disabled' : ''} aria-label="Previous beat">‹</button>
     <select class="input beatSel" aria-label="Beat">${spec.beats.map((b, i) => { const ready = b.parts.length || isComp(b.screen); return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${ready ? '' : '○ '}${i + 1}/${spec.beats.length} · ${escB(nameOf(i))}</option>`; }).join('')}</select>
-    <button class="bnav" title="${beatIndex < spec.beats.length - 1 ? 'Next: ' + escB(nameOf(beatIndex + 1)) + ' (])' : ''}" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''}>Next ›</button></div>`);
+    <button class="bnav" title="${beatIndex < spec.beats.length - 1 ? 'Next: ' + escB(nameOf(beatIndex + 1)) + ' (])' : ''}" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''} aria-label="Next beat">›</button></div>`);
   const [prev, nextB] = prow.querySelectorAll('.bnav');
   prev.onclick = () => { beatIndex--; draw(); }; nextB.onclick = () => { beatIndex++; draw(); };
   prow.querySelector('.beatSel').onchange = (e) => { beatIndex = +e.target.value; draw(); };

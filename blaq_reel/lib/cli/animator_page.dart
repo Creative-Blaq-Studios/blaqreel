@@ -23,7 +23,7 @@ const animatorCss = r'''
   background: var(--bg2, #0D0D0D) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center; }
 .tl-bar .tl-move:hover { border-color: var(--accent); }
 .tl-bar .tl-scope button { padding: 5px 9px; font-size: 10px; }
-.tl-bar .tl-frame-pick { width: 84px; padding: 5px 8px; }
+.tl-frame-pick { width: 84px; height: 28px; padding: 3px 8px; font-size: 13px; }
 .tl-bar .bnav { padding: 5px 8px !important; font-size: 10.5px !important; }
 .tl-pats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .tl-pats button { padding: 5px 6px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -37,6 +37,7 @@ const animatorCss = r'''
 .tl-bar .bnav { padding: 5px 10px; font-size: 14px; line-height: 1; }
 .tl-bar .beatSel { width: 136px !important; padding: 5px 8px; }
 .tl-bar .seg button { padding: 6px 9px; font-size: 10.5px; }
+.tl-view { position: absolute; top: 6px; right: 8px; z-index: 5; display: flex; gap: 8px; align-items: center; }
 .tl-stagebox { position: relative; min-height: 0; overflow: hidden; background: #050505; display: grid; place-items: center; }
 .tl-frame { position: relative; overflow: hidden; outline: 1px solid rgba(255,107,0,.5); box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.6); }
 .tl-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; user-select: none; touch-action: none; }
@@ -514,15 +515,15 @@ function timelineEditor(beat, s, index, side, lead) {
       <select class="input tl-move" id="tlGround" aria-label="Ground" title="What the screens sit on: a look, or a moving pattern (set it in the Ground panel)">
         <optgroup label="Looks">${LOOKS.map((g) => `<option value="look:${g.id}" ${!groundOf(beat) && look === g.id ? 'selected' : ''}>${escB(g.name)}</option>`).join('')}</optgroup>
         <optgroup label="Moving">${Object.entries(GROUND_NAMES).map(([id, n]) => `<option value="move:${id}" ${groundOf(beat) && groundOf(beat).pattern === id ? 'selected' : ''}>${escB(n)}</option>`).join('')}</optgroup></select>
-      <div class="seg tl-scope" role="radiogroup" aria-label="Which beats the ground is for" title="Every beat: the reel's ground. This beat: a ground of its own; the others keep the reel's."><button data-gown="0" class="${beat.look || beat.ground ? '' : 'on'}">Every beat</button><button data-gown="1" class="${beat.look || beat.ground ? 'on' : ''}">This beat</button></div>
+      <div class="seg tl-scope" role="radiogroup" aria-label="Which beats the ground is for" title="Every beat: the reel's ground. This beat: a ground of its own; the others keep the reel's."><button data-gown="0" class="${beat.look || beat.ground ? '' : 'on'}">All beats</button><button data-gown="1" class="${beat.look || beat.ground ? 'on' : ''}">This beat</button></div>
       <span class="tl-movel">Move</span>
       <select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
-      <button class="tl-render" id="tlRender" title="Render this beat alone with the real screens, to see what the editor only sketches: typing, taps, the app's own drawing">▶ Render beat</button>
-      <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
-      <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe zone</label>
+      <button class="tl-render" id="tlRender" title="Render this beat alone with the real screens, to see what the editor only sketches: typing, taps, the app's own drawing">▶ Render</button>
+
     </div>
-    <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div></div></div>
+    <div class="tl-stagebox"><div class="tl-view"><select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
+      <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe</label></div><div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div></div></div>
     <div class="tl-time">
       <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
       <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: TL / 1000 }, (_, i) => `<span style="left:${(i * 1000 / TL) * 100}%">${i}s</span>`).join('')}<div class="tl-after" style="left:${(l / TL) * 100}%"></div></div><div class="tl-rows"></div><div class="tl-ph"></div></div>
@@ -560,8 +561,13 @@ function timelineEditor(beat, s, index, side, lead) {
 
   function fit() {
     // As large as the space allows, with a hair of room round it.
-    const W = box.clientWidth - 12, H = box.clientHeight - 12;
+    // The frame picker sits beside the frame where there is room, else
+    // above it.
+    const W = box.clientWidth - 12, H = box.clientHeight - 12, view = root.querySelector('.tl-view');
     k = Math.max(0.1, Math.min(W / f.w, H / f.h));
+    const above = (box.clientWidth - f.w * k) / 2 < view.offsetWidth + 16;
+    if (above) k = Math.max(0.1, Math.min(W / f.w, (H - 36) / f.h));
+    box.style.paddingTop = above ? '36px' : '0';
     stage.style.transform = `scale(${k})`;
     frameEl.style.width = f.w * k + 'px'; frameEl.style.height = f.h * k + 'px';
   }
@@ -1034,7 +1040,7 @@ function timelineEditor(beat, s, index, side, lead) {
     if (!root.isConnected) return;
     lastSt = st;
     const b = mineOf(st), mine = !!b;
-    renderBtn.textContent = mine && (b.state === 'queued' || b.state === 'rendering') ? '● Rendering…' : mine && !ed.real && (b.state !== 'done' || ed.realKey === beatKey()) ? '▶ Show render' : '▶ Render beat';
+    renderBtn.textContent = mine && (b.state === 'queued' || b.state === 'rendering') ? '● Rendering…' : mine && !ed.real && (b.state !== 'done' || ed.realKey === beatKey()) ? '▶ Show render' : '▶ Render';
     if (!ed.real || !mine) { real.hidden = true; realShown = ''; return; }
     real.hidden = false;
     if (b.state === 'queued' || b.state === 'rendering') {
