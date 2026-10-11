@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'ground.dart';
 import 'time.dart';
 
 /// A soft light on the backdrop that drifts slowly.
@@ -53,6 +54,13 @@ class Backdrop {
   /// A floor the wall curves into, in this colour: a photo studio's sweep.
   final Color? floor;
 
+  /// How it moves: a pattern drawn over the gradient in place of [glows].
+  final GroundMotion? motion;
+
+  /// Whether it is light, so words on it go dark; null leaves it to the
+  /// pack's look.
+  final bool? light;
+
   /// A backdrop.
   const Backdrop({
     required this.top,
@@ -60,6 +68,8 @@ class Backdrop {
     this.glows = const [],
     this.vignette = 0.35,
     this.floor,
+    this.motion,
+    this.light,
   });
 
   /// A plain [base] with one [glow] of light behind the middle.
@@ -152,8 +162,31 @@ class BackdropPainter extends CustomPainter {
     }
 
     final seconds = secondsOf(t);
+    final motion = backdrop.motion;
+    if (motion != null) {
+      paintGround(
+        canvas,
+        size,
+        seconds * motion.speed,
+        motion,
+        backdrop.top,
+        backdrop.bottom,
+      );
+      // A soft pulse of the first colour on every beat.
+      final bpm = motion.bpm;
+      if (bpm != null && bpm > 0) {
+        final pulse = math.pow(
+          math.max(0, math.cos(2 * math.pi * seconds * bpm / 60)),
+          8,
+        );
+        canvas.drawRect(
+          rect,
+          Paint()..color = motion.colours.first.withValues(alpha: 0.12 * pulse),
+        );
+      }
+    }
     final longest = math.max(size.width, size.height);
-    for (final glow in backdrop.glows) {
+    for (final glow in motion == null ? backdrop.glows : const <Glow>[]) {
       final phase = 2 * math.pi * seconds / glow.period;
       final c = Alignment(
         glow.center.x + glow.drift.dx * math.sin(phase),

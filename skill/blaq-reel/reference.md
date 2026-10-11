@@ -94,6 +94,11 @@ Pick.key(ValueKey('x'))
 //   tilt:, turn: 12, roll:, delay: 400.ms, rise: 900.ms, scan: true), null, ...]): each
 //   part over the move. Specs: on each part, "to": [x, y] (from the screen's
 //   centre), "z", "scale", "tilt", "turn", "roll", "delay" (ms), "scan".
+// Backdrop(top:, bottom:, light: false, motion: GroundMotion(pattern:
+//   GroundPattern.aurora, colours: [...3], speed: 1, seed: 7, bpm: 120,
+//   grain: 0.6)): a moving ground. Specs: "ground": {"pattern", "speed",
+//   "seed", "beat", "grain", "palette": {"top", "bottom", "colours", "light"}}
+//   on the reel or a beat.
 // GlassBeat(words: GlassWords(color:, accent:, size: 96, weight:, reveal:,
 //   at:, until:, anchor: Alignment.topCenter, offset: Offset(0, .04),
 //   width: .7, plate: Color(...), plateBlur: 8, behind: true)), and

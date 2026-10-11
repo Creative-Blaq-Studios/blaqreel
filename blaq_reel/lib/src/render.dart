@@ -176,7 +176,9 @@ class ReelRenderer {
       if (blur > 1) 'tmix=frames=$blur,framestep=$blur',
       'scale=out_color_matrix=bt709:out_range=tv',
       'format=yuv420p',
-      'noise=alls=2:allf=t',
+      // A little noise always, against banding; more when the ground asks
+      // for film grain.
+      'noise=alls=${(2 + (reel.backdrop.motion?.grain ?? 0) * 10).round()}:allf=t',
     ].join(',');
     final process = (await tester.runAsync(() async {
       final p = await Process.start(ffmpeg, [

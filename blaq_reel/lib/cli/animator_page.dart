@@ -22,6 +22,13 @@ const animatorCss = r'''
 .tl-bar .tl-move { width: 140px; padding: 5px 8px; }
 .tl-bar .tl-frame-pick { width: 84px; padding: 5px 8px; }
 .tl-bar .bnav { padding: 5px 8px !important; font-size: 10.5px !important; }
+.tl-pats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.tl-pats button { padding: 5px 6px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-pats button.on { border-color: var(--accent); color: var(--accent); }
+.tl-gens { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.tl-gen { padding: 3px !important; display: grid; gap: 3px; }
+.tl-gen canvas { width: 100%; aspect-ratio: 9 / 16; display: block; max-width: 100%; }
+.tl-gen span { font: 400 9px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-own { display: flex; gap: 4px; align-items: center; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text2); white-space: nowrap; }
 .tl-own input { accent-color: var(--accent); margin: 0; }
 .tl-bar .bnav { padding: 5px 10px; font-size: 14px; line-height: 1; }
@@ -283,10 +290,11 @@ const POS_ALIGN = (pos) => [{ l: -1, c: 0, r: 1 }[pos[1]], { t: -1, m: 0, b: 1 }
 // under the beat's; placed for [frame]. Keep in step with _beatWords in
 // glass_layers.dart and _words in spec.dart.
 function wordsOf(beat, frame) {
-  const look = beat.look || spec.look, light = LIGHT_LOOKS.includes(look);
+  const look = beat.look || spec.look, moving = groundOf(beat), light = moving ? !!moving.palette.light : LIGHT_LOOKS.includes(look);
   const reel = spec.words || {}, own = beat.words || {};
   const pick = (k) => (own[k] ?? reel[k]);
-  const accentDefault = look === 'butter' ? BRAND.paper : look === 'mesh' || look === 'studio' ? hexMix(BRAND.accent, BRAND.ink, 0.35) : BRAND.accent;
+  const accentDefault = moving ? (light ? hexMix(BRAND.accent, BRAND.ink, 0.35) : BRAND.accent)
+    : look === 'butter' ? BRAND.paper : look === 'mesh' || look === 'studio' ? hexMix(BRAND.accent, BRAND.ink, 0.35) : BRAND.accent;
   const hasLift = beat.parts.length > 0, l = (beat.length || 5.6) * 1000;
   const place = (own.places || {})[frame] || null;
   return {
@@ -343,6 +351,99 @@ function scrubbable(input, step = 1, label = null) {
   }
 }
 
+// ── Moving grounds ──────────────────────────────────────────────────
+// A ground is a pattern, a palette and a speed. These draw it exactly as
+// lib/src/ground.dart does; keep the two in step.
+const GROUND_NAMES = { drift: 'Drift', aurora: 'Aurora', breathe: 'Breathe', orbit: 'Orbit', sweep: 'Light sweep', bokeh: 'Bokeh', grid: 'Grid flow', mesh: 'Liquid mesh', ribbons: 'Ribbons', rays: 'Light rays' };
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const rgbHex = (r) => '#' + r.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const grgba = (h, a) => { const [r, g, b] = hexRgb(h); return `rgba(${r},${g},${b},${a})`; };
+function hslHex(h, s, l) { s /= 100; l /= 100; const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l); const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return rgbHex([f(0) * 255, f(8) * 255, f(4) * 255]); }
+function hexHsl(h) { let [r, g, b] = hexRgb(h).map((v) => v / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let hh = 0, s = 0; const l = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); hh = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; hh *= 60; } return [hh, s * 100, l * 100]; }
+// The same random numbers as the renderer's, so a seed picks the same bokeh.
+function lcg(seed) { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); }
+// Palettes made from the brand.
+function brandPalettes() {
+  const { ink, accent, paper } = BRAND;
+  return {
+    'Butter light': { top: hexMix(paper, '#FFFFFF', 0.5), bottom: hexMix(paper, accent, 0.18), colours: [accent, hexMix(accent, '#FF8A65', 0.55), '#C9BCFF'], light: true },
+    'Butter field': { top: hexMix(accent, '#FFFFFF', 0.12), bottom: hexMix(accent, '#E0A800', 0.35), colours: ['#FFFFFF', '#FFF2C4', '#F5B83D'], light: true },
+    'Ink glow': { top: hexMix(ink, '#FFFFFF', 0.03), bottom: hexMix(ink, '#000000', 0.55), colours: [accent, '#FF8A3D', '#6C5BD4'], light: false },
+    'Night violet': { top: '#14121F', bottom: '#07060C', colours: ['#7B6CF6', accent, '#2E8BFF'], light: false },
+    'Studio white': { top: hexMix(paper, '#FFFFFF', 0.6), bottom: hexMix(paper, '#000000', 0.04), colours: ['#FFFFFF', accent, '#E9E4F7'], light: true },
+  };
+}
+// A palette in harmony with the brand's accent, from a random source.
+function harmonyPalette(r) {
+  const [h0, s0] = hexHsl(BRAND.accent);
+  const modes = ['tinted', 'warm', 'cool', 'complement', 'mono-dark', 'mono-light'];
+  const mode = modes[Math.floor(r() * modes.length)];
+  const jit = (v, d) => v + (r() * 2 - 1) * d;
+  const light = mode === 'mono-light' || mode === 'tinted' || (mode === 'warm' && r() > 0.4);
+  const hs = { tinted: [h0, h0 + 20, h0 - 25], warm: [h0 - 15, h0 - 35, h0 + 12], cool: [h0 + 160, h0 + 200, h0], complement: [h0 + 180, h0, h0 + 200], 'mono-dark': [h0, h0, h0 + 8], 'mono-light': [h0, h0 - 8, h0 + 8] }[mode].map((h) => jit(h, 10));
+  const colours = hs.map((h, i) => hslHex((h + 360) % 360, Math.max(30, Math.min(95, jit(s0, 15) - (mode.startsWith('mono') ? 20 * i : 0))), light ? jit(70, 8) : jit(58, 8)));
+  return { top: light ? hslHex(hs[0], 40, jit(95, 2)) : hslHex(hs[0], 25, jit(9, 2)), bottom: light ? hslHex(hs[1], 55, jit(86, 4)) : hslHex(hs[1], 30, jit(4, 2)), colours, light, mode };
+}
+// The ground [beat] sits on as a moving one, if it has one: its own, else
+// (unless it chose a look of its own) the reel's.
+function groundOf(beat) { return beat.ground || (beat.look ? null : spec.ground) || null; }
+
+function drawGround(ctx, w, h, sec, g, opts = {}) {
+  const p = g.palette, c = [0, 1, 2].map((i) => p.colours[i % p.colours.length]), light = !!p.light, big = Math.max(w, h), t = sec * (g.speed || 1);
+  const blur = (px) => { ctx.filter = `blur(${(px * w / 360).toFixed(1)}px)`; };
+  const glow = (x, y, r, col, a) => { const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, grgba(col, a)); gr.addColorStop(1, grgba(col, 0)); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h); };
+  const base = (a, b) => { const gr = ctx.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, a); gr.addColorStop(1, b); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h); };
+  ctx.save(); ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  base(p.top, p.bottom);
+  switch (g.pattern) {
+    case 'aurora':
+      ctx.save(); blur(34); ctx.globalCompositeOperation = light ? 'multiply' : 'screen';
+      for (let i = 0; i < 3; i++) { const y0 = h * (0.25 + 0.22 * i), amp = h * 0.08; ctx.beginPath(); ctx.moveTo(-w * 0.2, y0); for (let x = -0.2; x <= 1.2001; x += 0.05) ctx.lineTo(w * x, y0 + amp * Math.sin(x * 4 + t * 0.6 + i * 1.7) + amp * 0.5 * Math.sin(x * 9 - t * 0.9)); ctx.lineTo(w * 1.2, y0 + h * 0.18); ctx.lineTo(-w * 0.2, y0 + h * 0.18); ctx.closePath(); ctx.fillStyle = grgba(c[i], light ? 0.35 : 0.5); ctx.fill(); }
+      ctx.restore(); break;
+    case 'breathe': { const k = 0.5 + 0.5 * Math.sin(t * 1.1); glow(w * 0.5, h * 0.42, big * (0.32 + 0.16 * k), c[0], (light ? 0.55 : 0.35) + 0.3 * k); glow(w * 0.15, h * 0.85, big * (0.3 + 0.08 * (1 - k)), c[2], light ? 0.45 : 0.3); break; }
+    case 'orbit': [[0.42, 0.5, 0], [0.33, -0.7, 1.5], [0.25, 0.9, 3]].forEach(([r, sp, ph], i) => glow(w * 0.55 + Math.cos(t * sp + ph) * w * r * 1.1, h * 0.45 + Math.sin(t * sp + ph) * h * r * 0.7, big * 0.32, c[i], light ? 0.7 : 0.45)); break;
+    case 'sweep': {
+      glow(w * 0.5, -h * 0.05, big * 0.6, light ? '#FFFFFF' : c[0], light ? 0.7 : 0.25);
+      const u = ((t * 0.28) % 1.6) - 0.3; ctx.save(); ctx.translate(w * u, 0); ctx.rotate(-0.35);
+      const gr = ctx.createLinearGradient(-w * 0.18, 0, w * 0.18, 0); gr.addColorStop(0, grgba('#FFFFFF', 0)); gr.addColorStop(0.5, grgba(light ? '#FFFFFF' : c[0], light ? 0.55 : 0.22)); gr.addColorStop(1, grgba('#FFFFFF', 0));
+      ctx.fillStyle = gr; ctx.fillRect(-w * 0.18, -h, w * 0.36, h * 3); ctx.restore(); break; }
+    case 'bokeh': {
+      const r = lcg(g.seed ?? 7);
+      for (let i = 0; i < 22; i++) { const z = r(), x = r(), sp = 0.02 + z * 0.06, y = ((r() - t * sp) % 1 + 1) % 1; ctx.save(); blur(2 + (1 - Math.abs(z - 0.5) * 2) * 8); ctx.beginPath(); ctx.arc(w * (x + 0.02 * Math.sin(t + i)), h * (y * 1.2 - 0.1), (6 + z * 30) * w / 360, 0, Math.PI * 2); ctx.fillStyle = grgba(c[i % 3], light ? 0.35 : 0.3 + z * 0.25); ctx.fill(); ctx.restore(); }
+      break; }
+    case 'grid': {
+      if (light) base(hexMix(p.top, '#000000', 0.88), hexMix(p.bottom, '#000000', 0.92));
+      const hz = h * 0.58, vx = w * 0.5; glow(vx, hz, big * 0.45, c[0], 0.35);
+      ctx.save(); ctx.lineWidth = Math.max(1, w / 360);
+      for (let i = 0; i < 14; i++) { const d = (i + (t * 0.6) % 1) / 14, y = hz + (h - hz) * d * d; ctx.strokeStyle = grgba(c[0], 0.55 * d); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+      ctx.strokeStyle = grgba(c[0], 0.55 * 0.6); for (let i = -10; i <= 10; i++) { ctx.beginPath(); ctx.moveTo(vx, hz); ctx.lineTo(vx + i * w * 0.18, h); ctx.stroke(); }
+      ctx.restore(); break; }
+    case 'mesh': {
+      const cw = 18, ch = 32, pts = [[0.2, 0.2, c[0]], [0.85, 0.3, c[1]], [0.3, 0.85, c[2]], [0.8, 0.85, light ? p.top : p.bottom]].map(([x, y, col], i) => [x + 0.18 * Math.sin(t * 0.4 + i * 1.9), y + 0.14 * Math.cos(t * 0.33 + i * 1.3), hexRgb(col)]);
+      ctx.save(); blur(12); const cwid = w * 1.1 / cw, chgt = h * 1.1 / ch;
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { let sw = 0; const col = [0, 0, 0]; for (const [px, py, cc] of pts) { const d = Math.hypot(x / cw - px, (y / ch - py) * 1.6) + 0.02, k = 1 / (d * d * d); sw += k; cc.forEach((v, j) => (col[j] += v * k)); } ctx.fillStyle = `rgb(${col.map((v) => Math.round(v / sw)).join(',')})`; ctx.fillRect(-w * 0.05 + x * cwid, -h * 0.05 + y * chgt, cwid + 1, chgt + 1); }
+      ctx.restore(); break; }
+    case 'ribbons':
+      ctx.save(); blur(6);
+      for (let i = 0; i < 4; i++) { const y0 = h * (0.2 + 0.2 * i), th = h * 0.05; ctx.beginPath(); for (let x = 0; x <= 1.0001; x += 0.04) ctx.lineTo(w * x, y0 + h * 0.07 * Math.sin(x * 5 + t * 0.7 + i)); for (let x = 1; x >= -0.0001; x -= 0.04) ctx.lineTo(w * x, y0 + th + h * 0.07 * Math.sin(x * 5 + t * 0.7 + i + 0.6)); ctx.closePath(); ctx.fillStyle = grgba(c[i % 3], light ? 0.45 : 0.35); ctx.fill(); }
+      ctx.restore(); break;
+    case 'rays':
+      ctx.save(); blur(10); ctx.translate(w * 0.5, -h * 0.08);
+      for (let i = 0; i < 7; i++) { const a = -0.9 + i * 0.3 + 0.12 * Math.sin(t * 0.5 + i); ctx.save(); ctx.rotate(a); const gr = ctx.createLinearGradient(0, 0, 0, h * 1.2); gr.addColorStop(0, grgba(light ? '#FFFFFF' : c[i % 3], light ? 0.6 : 0.35)); gr.addColorStop(1, grgba(c[i % 3], 0)); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(-w * 0.02, 0); ctx.lineTo(w * 0.02, 0); ctx.lineTo(w * 0.12, h * 1.3); ctx.lineTo(-w * 0.12, h * 1.3); ctx.closePath(); ctx.fill(); ctx.restore(); }
+      ctx.restore(); break;
+    default:
+      [[0.25, 0.25, 0.62], [0.9, 0.5, 0.5], [0.3, 0.92, 0.55]].forEach(([x, y, r], i) => glow(w * (x + 0.12 * Math.sin(t * 0.31 + i * 2)), h * (y + 0.08 * Math.cos(t * 0.27 + i)), r * big, c[i], light ? 0.75 : 0.42));
+  }
+  ctx.filter = 'none'; ctx.globalCompositeOperation = 'source-over';
+  if (g.beat) { const pulse = Math.pow(Math.max(0, Math.cos(2 * Math.PI * sec * g.beat / 60)), 8); ctx.fillStyle = grgba(c[0], 0.12 * pulse); ctx.fillRect(0, 0, w, h); }
+  // The vignette, as the backdrop draws it.
+  // (RadialGradient's radius is a share of the shorter side.)
+  const v = light ? 0.12 : 0.45, vg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, 0.9 * Math.min(w, h));
+  vg.addColorStop(0.55, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${v})`); ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+  if (g.grain && !opts.still) { if (!drawGround.noise) { const n = document.createElement('canvas'); n.width = n.height = 128; const nc = n.getContext('2d'), im = nc.createImageData(128, 128); for (let i = 0; i < im.data.length; i += 4) { const q = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = q; im.data[i + 3] = 255; } nc.putImageData(im, 0, 0); drawGround.noise = n; } ctx.globalAlpha = light ? 0.05 : 0.07; ctx.globalCompositeOperation = 'overlay'; ctx.translate(-Math.random() * 128, -Math.random() * 128); ctx.fillStyle = ctx.createPattern(drawGround.noise, 'repeat'); ctx.fillRect(0, 0, w + 128, h + 128); }
+  ctx.restore();
+}
+
 // A look's ground as the renderer builds it (backdropOf in
 // glass_layers.dart), in the brand's colours: its gradient, its glows
 // (still, where the renderer lets them drift) and its vignette.
@@ -379,8 +480,10 @@ function timelineEditor(beat, s, index, side, lead) {
 
   const root = B(`<div class="tled">
     <div class="tl-bar">
-      <select class="input tl-move" id="tlGround" aria-label="Ground" title="What the screens sit on">${LOOKS.map((g) => `<option value="${g.id}" ${look === g.id ? 'selected' : ''}>Ground · ${escB(g.name)}</option>`).join('')}</select>
-      <label class="tl-own" title="Give this beat its own ground; the others keep the reel's"><input type="checkbox" id="tlGroundOwn" ${beat.look ? 'checked' : ''}> Beat</label><select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>Move · ${name}</option>`).join('')}</select>
+      <select class="input tl-move" id="tlGround" aria-label="Ground" title="What the screens sit on: a look, or a moving pattern (set it in the Ground panel)">
+        <optgroup label="Looks">${LOOKS.map((g) => `<option value="look:${g.id}" ${!groundOf(beat) && look === g.id ? 'selected' : ''}>Ground · ${escB(g.name)}</option>`).join('')}</optgroup>
+        <optgroup label="Moving">${Object.entries(GROUND_NAMES).map(([id, n]) => `<option value="move:${id}" ${groundOf(beat) && groundOf(beat).pattern === id ? 'selected' : ''}>Ground · ${escB(n)}</option>`).join('')}</optgroup></select>
+      <label class="tl-own" title="Give this beat its own ground; the others keep the reel's"><input type="checkbox" id="tlGroundOwn" ${beat.look || beat.ground ? 'checked' : ''}> Beat</label><select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>Move · ${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
       <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
       <button data-safe class="${ed.safe ? 'on' : ''}" title="Show the safe zone: what the platform's buttons and captions cover">Safe</button>
@@ -393,6 +496,12 @@ function timelineEditor(beat, s, index, side, lead) {
   </div>`);
   const stage = root.querySelector('.tl-stage'), frameEl = root.querySelector('.tl-frame'), box = root.querySelector('.tl-stagebox');
   stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px'; stage.style.background = groundCss(look, f.w, f.h);
+  // A moving ground draws on a canvas under everything, every frame.
+  const gcan = document.createElement('canvas'); gcan.className = 'tl-groundc';
+  // Grounds are soft, so three quarters of the stage's size is plenty.
+  gcan.width = Math.round(f.w * 0.75); gcan.height = Math.round(f.h * 0.75);
+  let groundKey = ''; gcan.style.width = f.w + 'px'; gcan.style.height = f.h + 'px';
+  stage.appendChild(gcan);
 
   // The screen, the holes its parts leave, the parts, the words, guides.
   const img = `/catalogue/${s.image}`;
@@ -491,6 +600,13 @@ function timelineEditor(beat, s, index, side, lead) {
 
   function render() {
     const t = ed.t, cam = cameraOf(beat, f, dir, l);
+    const moving = groundOf(beat);
+    gcan.hidden = !moving;
+    // Drawn again only when the moment or the ground changes.
+    if (moving) {
+      const key = `${Math.round(t)}|${JSON.stringify(moving)}`;
+      if (key !== groundKey) { groundKey = key; drawGround(gcan.getContext('2d'), gcan.width, gcan.height, t / 1000, moving); }
+    }
     const pose = { tilt: cam.tilt.at(t), turn: cam.turn.at(t), roll: cam.roll.at(t), zoom: cam.zoom.at(t), panX: cam.panX.at(t), panY: cam.panY.at(t) };
     const has = parts.length > 0;
     const sz = has ? trk(0).hold(SETTLE).to(SETTLE + RISE, -80).at(t) : 0;
@@ -638,15 +754,78 @@ function timelineEditor(beat, s, index, side, lead) {
   // What the inspector can show: the words, and each part; with none
   // picked yet, the way to pick some.
   function chooser() {
-    const bar = B(`<div class="tl-choose" role="tablist" aria-label="Edit"><button data-pick="words" class="${ed.sel === 'words' ? 'on' : ''}"><b>T</b> Words</button>${parts.map((p, i) => `<button data-pick="${i}" class="${ed.sel === i ? 'on' : ''}" title="${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}"><b>${i + 1}</b> ${escB(p.type.replace(/^_/, ''))}</button>`).join('')}<button class="tl-addparts" data-pickparts>${parts.length ? 'Pick parts' : '+ Pick parts'}</button></div>`);
-    bar.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => select(b.dataset.pick === 'words' ? 'words' : +b.dataset.pick)));
+    const bar = B(`<div class="tl-choose" role="tablist" aria-label="Edit"><button data-pick="ground" class="${ed.sel === 'ground' ? 'on' : ''}"><b>◐</b> Ground</button><button data-pick="words" class="${ed.sel === 'words' ? 'on' : ''}"><b>T</b> Words</button>${parts.map((p, i) => `<button data-pick="${i}" class="${ed.sel === i ? 'on' : ''}" title="${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}"><b>${i + 1}</b> ${escB(p.type.replace(/^_/, ''))}</button>`).join('')}<button class="tl-addparts" data-pickparts>${parts.length ? 'Pick parts' : '+ Pick parts'}</button></div>`);
+    bar.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => select(['words', 'ground'].includes(b.dataset.pick) ? b.dataset.pick : +b.dataset.pick)));
     bar.querySelector('[data-pickparts]').onclick = () => { partsMode[index] = 'pick'; draw(); };
     side.appendChild(bar);
+  }
+  // The ground: its pattern, palette, pace, grain and beat, and new ones
+  // generated from the brand.
+  function groundInspector() {
+    const g = groundOf(beat), own = !!(beat.ground || beat.look);
+    const scope = own ? 'This beat only' : 'Every beat (tick Beat in the toolbar for this beat alone)';
+    if (!g) {
+      const el = B(`<div class="tl-insp"><div class="tl-ih"><span class="lbl2">The ground</span><b>${escB((LOOKS.find((x) => x.id === look) || {}).name || look)}</b><span class="mono2">${scope}</span></div>
+        <div class="tl-sec"><div class="lbl2">Make it move</div><div class="tl-pats">${Object.entries(GROUND_NAMES).map(([id, n]) => `<button data-pat="${id}">${n}</button>`).join('')}</div><span class="hint" style="margin:0">A look drifts gently. A moving ground has a pattern, a palette and a pace of its own.</span></div></div>`);
+      el.querySelectorAll('[data-pat]').forEach((b) => (b.onclick = () => { setGround('move:' + b.dataset.pat, own); }));
+      side.appendChild(el); return;
+    }
+    const pals = brandPalettes(), p = g.palette;
+    const slots = [['top', 'Top', p.top], ['bottom', 'Bottom', p.bottom], ...p.colours.map((c, i) => [i, `Colour ${i + 1}`, c])];
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">The ground</span><b>${escB(GROUND_NAMES[g.pattern] || g.pattern)}</b><span class="mono2">${scope}</span></div>
+      <div class="tl-sec"><div class="lbl2">Pattern</div><div class="tl-pats">${Object.entries(GROUND_NAMES).map(([id, n]) => `<button data-pat="${id}" class="${g.pattern === id ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+      <div class="tl-sec"><div class="lbl2">Palette</div><div class="tl-pats">${Object.keys(pals).map((n) => `<button data-pal="${escB(n)}">${escB(n)}</button>`).join('')}</div>
+        <div class="tl-sws">${slots.map(([k, n, c]) => `<label title="${n}" style="display:grid;gap:2px;justify-items:center"><input type="color" class="tl-cc" data-slot="${k}" value="${c}" aria-label="${n}"><span class="lbl2" style="font-size:8px">${n.replace('Colour ', 'C')}</span></label>`).join('')}</div>
+        <label class="tl-chk"><input type="checkbox" id="gLight" ${p.light ? 'checked' : ''}> A light ground (words go dark)</label></div>
+      <div class="tl-sec"><div class="lbl2">Motion</div>${knob('gSpeed', 'Speed', 0.2, 3, 0.1, g.speed || 1, 'x', true)}
+        <label class="tl-chk"><input type="checkbox" id="gGrain" ${g.grain ? 'checked' : ''}> Film grain</label>
+        <div class="tl-row2"><label class="tl-chk"><input type="checkbox" id="gBeat" ${g.beat ? 'checked' : ''}> Pulse on the beat</label><span style="flex:1"></span><input class="input tl-num" id="gBpm" value="${g.beat || 120}" style="width:56px"><span class="lbl2">bpm</span></div></div>
+      <div class="tl-sec"><div class="lbl2"><span>Generate</span><span>from the brand</span></div><div class="tl-row2"><button id="gGen">Generate 6</button><button id="gLike">More like this</button></div><div class="tl-gens"></div>
+        <span class="hint" style="margin:0">A pattern, a palette in harmony with the brand, and a pace. Click one to use it.</span></div>
+    </div>`);
+    side.appendChild(el);
+    const redo = () => { save(); inspector(); const sel = root.querySelector('#tlGround'); if (sel) sel.value = 'move:' + g.pattern; };
+    el.querySelectorAll('[data-pat]').forEach((b) => (b.onclick = () => { g.pattern = b.dataset.pat; redo(); }));
+    el.querySelectorAll('[data-pal]').forEach((b) => (b.onclick = () => { g.palette = JSON.parse(JSON.stringify(pals[b.dataset.pal])); redo(); }));
+    el.querySelectorAll('[data-slot]').forEach((i) => (i.oninput = () => { const k = i.dataset.slot; if (k === 'top' || k === 'bottom') p[k] = i.value; else p.colours[+k] = i.value; save(); }));
+    el.querySelector('#gLight').onchange = (e) => { p.light = e.target.checked; save(); };
+    const sp = el.querySelector('#gSpeed'); sp.oninput = () => { g.speed = +sp.value; sp.nextElementSibling.textContent = fmtv('x', g.speed); save(); };
+    el.querySelector('#gGrain').onchange = (e) => { g.grain = e.target.checked; save(); };
+    const bpm = el.querySelector('#gBpm');
+    el.querySelector('#gBeat').onchange = (e) => { g.beat = e.target.checked ? (+bpm.value || 120) : null; save(); };
+    bpm.oninput = () => { if (g.beat) { g.beat = +bpm.value || 120; save(); } };
+    scrubbable(bpm, 1, bpm.previousElementSibling);
+    // Six new grounds at a time, drawn still; one click uses one.
+    const gens = el.querySelector('.tl-gens');
+    const show = () => {
+      gens.innerHTML = '';
+      (ed.gens || []).forEach((cand) => {
+        const b = B(`<button class="tl-gen" title="${escB(GROUND_NAMES[cand.pattern])} · ${escB(cand.palette.mode || '')} · ${cand.speed}×"><canvas width="90" height="160"></canvas><span>${escB(GROUND_NAMES[cand.pattern])}</span></button>`);
+        drawGround(b.querySelector('canvas').getContext('2d'), 90, 160, 2, cand, { still: true });
+        b.onclick = () => { Object.assign(g, JSON.parse(JSON.stringify(cand))); redo(); };
+        gens.appendChild(b);
+      });
+    };
+    const generate = (like) => {
+      const ids = Object.keys(GROUND_NAMES);
+      ed.genSeed = (ed.genSeed || Date.now() % 100000) + 1;
+      ed.gens = Array.from({ length: 6 }, (_, i) => {
+        const r = lcg((ed.genSeed * 7919 + i * 104729) >>> 0);
+        const pal = harmonyPalette(r);
+        return { pattern: like ? g.pattern : ids[Math.floor(r() * ids.length)], palette: like && r() < 0.3 ? JSON.parse(JSON.stringify(g.palette)) : pal, speed: Math.round((0.6 + r() * 1.2) * 10) / 10, seed: Math.floor(r() * 1e6), grain: g.grain, beat: g.beat };
+      });
+      show();
+    };
+    el.querySelector('#gGen').onclick = () => generate(false);
+    el.querySelector('#gLike').onclick = () => generate(true);
+    show();
   }
   function inspector() {
     side.innerHTML = '';
     chooser();
     if (ed.sel === 'words') return wordsInspector();
+    if (ed.sel === 'ground') return groundInspector();
     if (!parts.length) { side.appendChild(B('<div class="ai"><b>No parts yet</b><span>Pick parts of the screen to lift, or style the words.</span></div>')); return; }
     const i = ed.sel, p = beat.parts[i], plan = partPlan(beat, i, parts.length, dir), d = plan.defaults;
     const own = (key) => p[key] !== undefined && p[key] !== null;
@@ -742,8 +921,24 @@ function timelineEditor(beat, s, index, side, lead) {
   // Wiring.
   // The ground: the reel's, or with "this beat" ticked, this beat's own.
   const groundPick = root.querySelector('#tlGround'), groundOwn = root.querySelector('#tlGroundOwn');
-  groundPick.onchange = () => { if (groundOwn.checked) beat.look = groundPick.value; else { spec.look = groundPick.value; delete beat.look; } save(); draw(); };
-  groundOwn.onchange = () => { if (groundOwn.checked) beat.look = groundPick.value; else delete beat.look; save(); draw(); };
+  groundPick.onchange = () => { setGround(groundPick.value, groundOwn.checked); };
+  groundOwn.onchange = () => {
+    if (groundOwn.checked) { const g = groundOf(beat); if (g) beat.ground = JSON.parse(JSON.stringify(g)); else beat.look = look; }
+    else { delete beat.ground; delete beat.look; }
+    save(); draw();
+  };
+  // A look, or a moving pattern (keeping the palette and pace it had).
+  function setGround(value, own) {
+    const [kind, id] = value.split(':');
+    if (kind === 'look') {
+      if (own) { beat.look = id; delete beat.ground; } else { spec.look = id; delete spec.ground; delete beat.ground; delete beat.look; }
+    } else {
+      const cur = groundOf(beat), pals = brandPalettes();
+      const g = { pattern: id, palette: cur ? cur.palette : pals[{ butter: 'Butter field', studio: 'Studio white', mesh: 'Butter light' }[look] || (LIGHT_LOOKS.includes(look) ? 'Butter light' : 'Ink glow')], speed: cur ? cur.speed : 1, seed: cur ? cur.seed : 7, grain: cur ? !!cur.grain : false, beat: cur ? cur.beat || null : null };
+      if (own) { beat.ground = g; delete beat.look; } else { spec.ground = g; delete beat.ground; }
+    }
+    save(); draw();
+  }
   root.querySelector('#tlMove').onchange = (e) => { beat.move = e.target.value; beat.parts.forEach((p) => PART_KEYS.forEach((key) => delete p[key])); save(); ed.t = 0; ed.playing = true; rows(); inspector(); };
   // The beat picker and Pick/Animate lead the toolbar, so they take no row.
   if (lead) root.querySelector('.tl-bar').prepend(...lead);

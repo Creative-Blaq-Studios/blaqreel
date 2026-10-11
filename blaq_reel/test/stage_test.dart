@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PictureRecorder;
 
 import 'package:blaq_reel/blaq_reel.dart';
 import 'package:blaq_reel/packs.dart';
@@ -436,5 +437,33 @@ void main() {
     )..layout()).width;
     expect(sized.style.fontSize, lessThan(100));
     expect(widest, lessThanOrEqualTo(300));
+  });
+
+  test('Given a ground of each pattern, light and dark, when painted, then it '
+      'draws without error', () {
+    for (final pattern in GroundPattern.values) {
+      for (final light in [true, false]) {
+        final recorder = PictureRecorder();
+        BackdropPainter(
+          Backdrop(
+            top: const Color(0xFF14121F),
+            bottom: const Color(0xFF07060C),
+            light: light,
+            motion: GroundMotion(
+              pattern: pattern,
+              colours: const [
+                Color(0xFF7B6CF6),
+                Color(0xFFFFD97A),
+                Color(0xFF2E8BFF),
+              ],
+              light: light,
+              bpm: 120,
+            ),
+          ),
+          const Duration(milliseconds: 1500),
+        ).paint(Canvas(recorder), const Size(360, 640));
+        recorder.endRecording().dispose();
+      }
+    }
   });
 }

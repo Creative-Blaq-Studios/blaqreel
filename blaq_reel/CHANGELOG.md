@@ -26,6 +26,15 @@
   "dx", "dy", "width"}}`), so each format keeps its own. `Words` gained
   `offset`, `plate`, `plateBlur` and `behind`; a set width wraps the words,
   and a word longer than a line shrinks the type instead of breaking.
+- Moving grounds: `GroundMotion` on a `Backdrop` draws one of ten
+  patterns (`GroundPattern`: drift, aurora, breathe, orbit, sweep, bokeh,
+  grid, mesh, ribbons, rays) in a palette of its own, at a pace, with an
+  optional pulse on the beat and film grain; a ground says whether it is
+  light, and the words follow. Specs carry `"ground"` for the reel and any
+  beat. The editor draws the same patterns live, picks them from the Ground
+  list, and has a Ground panel: pattern, palette (brand presets or any
+  colour), light, speed, grain, beat, and Generate (six grounds from the
+  brand's colours, or more like the chosen one).
 - The Ground step comes before Parts, and the editor has a Ground picker
   that draws each look as the renderer builds it.
 - Renders show how far they are: a card over the Library's player and in

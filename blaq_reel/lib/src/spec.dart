@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import 'audio.dart';
+import 'backdrop.dart';
 import 'format.dart';
+import 'ground.dart';
 import 'layer.dart';
 import 'packs/brand.dart';
 import 'packs/dark_glow.dart';
@@ -220,6 +222,39 @@ class ReelSpec {
     );
   }
 
+  /// A ground as a spec writes it: `{"pattern": "aurora", "speed": 1,
+  /// "seed": 7, "beat": 120, "grain": true, "palette": {"top": "#…",
+  /// "bottom": "#…", "colours": ["#…", "#…", "#…"], "light": false}}`.
+  static Backdrop? _ground(Object? v) {
+    if (v is! Map) return null;
+    final j = v.cast<String, Object?>();
+    final pal = (j['palette'] as Map?)?.cast<String, Object?>() ?? const {};
+    final top = _color(pal['top']), bottom = _color(pal['bottom']);
+    if (top == null || bottom == null) return null;
+    final colours = [
+      for (final c in (pal['colours'] as List?) ?? const []) ?_color(c),
+    ];
+    final light = pal['light'] == true;
+    return Backdrop(
+      top: top,
+      bottom: bottom,
+      vignette: light ? 0.12 : 0.45,
+      light: light,
+      motion: GroundMotion(
+        pattern: GroundPattern.values.firstWhere(
+          (p) => p.name == j['pattern'],
+          orElse: () => GroundPattern.drift,
+        ),
+        colours: colours.isEmpty ? [top] : colours,
+        speed: j['speed'] is num ? (j['speed']! as num).toDouble() : 1,
+        seed: j['seed'] is num ? (j['seed']! as num).toInt() : 7,
+        bpm: j['beat'] is num ? (j['beat']! as num).toDouble() : null,
+        light: light,
+        grain: j['grain'] == true ? 0.6 : 0,
+      ),
+    );
+  }
+
   /// [a] over [b]: what [a] sets, else what [b] does.
   static GlassWords? _over(GlassWords? a, GlassWords? b) {
     if (a == null || b == null) return a ?? b;
@@ -259,7 +294,10 @@ class ReelSpec {
   }) {
     final brand = Brand.from(config);
     final look = _look(json['look']) ?? GlassLook.ink;
-    Color logoColor(GlassLook l) => l.isLight ? brand.ink : brand.paper;
+    // The reel's own ground, if it has one: it decides light and dark.
+    final reelGround = _ground(json['ground']);
+    Color logoColor(GlassLook l) =>
+        (reelGround?.light ?? l.isLight) ? brand.ink : brand.paper;
     Widget Function(Duration)? logo(Object? key, GlassLook l) {
       final b = key == null ? null : kit.logos['$key'];
       return b == null ? null : (t) => b(t, logoColor(l));
@@ -313,6 +351,7 @@ class ReelSpec {
         piece: s.size,
         taps: s.taps,
         words: _over(_words(b['words'], format), reelWords),
+        ground: _ground(b['ground']),
         // Each part's own landing place, height, size, turn, timing, scan.
         partMoves: [
           for (final p in (b['parts'] as List?) ?? const [])
@@ -348,6 +387,7 @@ class ReelSpec {
 
     return switch (_pack) {
       'glass' => GlassLayers(
+        ground: reelGround,
         brand: brand,
         format: format,
         fps: fps,

@@ -89,6 +89,7 @@ textarea.input { min-height: 80px; resize: vertical; }
    (the parts list, the timeline) scrolls inside itself. */
 .canvas.fixed { overflow: hidden; display: flex; flex-direction: column; padding: 10px 12px; }
 .canvas.fixed > * { flex: none; }
+.canvas.fixed > button { align-self: flex-start; }
 .canvas.fixed > .grow { flex: 1 1 auto; min-height: 0; }
 .canvas.fixed .pmode { margin-bottom: 10px; }
 .canvas.fixed .why { margin-bottom: 12px; }

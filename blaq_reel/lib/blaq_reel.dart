@@ -14,6 +14,7 @@ export 'src/audio.dart';
 export 'src/backdrop.dart';
 export 'src/camera.dart';
 export 'src/format.dart';
+export 'src/ground.dart';
 export 'src/layer.dart';
 export 'src/motion.dart';
 export 'src/reel.dart';

@@ -40,7 +40,11 @@ widget tests already has this.
 2. **Brief**: name, style pack, frame, what it should get across, sound,
    and who writes the story: the AI, you then the AI, or you.
 3. **Ground**: the reel's ground and any beat's own; render them on the
-   reel's own frames to compare. It comes before the parts, so they are
+   reel's own frames to compare. A ground can be a look, or move: one of
+   ten patterns (drift, aurora, breathe, orbit, light sweep, bokeh, grid
+   flow, liquid mesh, ribbons, light rays) in a palette, at a pace, with
+   film grain or a pulse on the beat. The editor's Ground panel sets all of
+   it and generates new grounds from the brand's colours. It comes before the parts, so they are
    animated on it; the editor also has a Ground picker.
 4. **Parts**, in two modes per beat. **Pick parts**: the screen with its
    cards, rows and photos numbered; click what it features, in order.

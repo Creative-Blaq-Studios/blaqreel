@@ -394,7 +394,28 @@ class GlassLayers {
     _ => const [],
   };
 
-  Color _wordColor(GlassLook l) => _isLight(l) ? brand.ink : brand.paper;
+  /// The ground [beat] sits on, if it is one of its own colours rather than
+  /// a look's: the beat's, else (unless the beat chose a look) the reel's.
+  Backdrop? _groundOf(GlassBeat? beat) {
+    if (_override != null) return null;
+    return beat?.ground ?? (beat?.look == null ? ground : null);
+  }
+
+  /// Whether [beat]'s ground is light, so its words go dark.
+  bool _lightOf(GlassBeat? beat) =>
+      _groundOf(beat)?.light ?? _isLight(beat == null ? _look : _lookOf(beat));
+
+  /// The words' colour and accent on [beat]'s ground.
+  Color _inkOn(GlassBeat? beat) => _lightOf(beat) ? brand.ink : brand.paper;
+  Color _accentOn(GlassBeat? beat) {
+    final g = _groundOf(beat);
+    if (g?.light == null) {
+      return _wordAccent(beat == null ? _look : _lookOf(beat));
+    }
+    return g!.light!
+        ? Color.lerp(brand.accent, brand.ink, 0.35)!
+        : brand.accent;
+  }
 
   /// The accent on words: on the brand's own colour it would vanish, so
   /// there it is the light colour; on light fields it deepens to read.
@@ -592,8 +613,8 @@ class GlassLayers {
     final own = beat.words, reel = words;
     T? pick<T>(T? Function(GlassWords w) get) =>
         (own == null ? null : get(own)) ?? (reel == null ? null : get(reel));
-    final light = _isLight(bl);
-    final color = pick((w) => w.color) ?? _wordColor(bl);
+    final light = _lightOf(beat);
+    final color = pick((w) => w.color) ?? _inkOn(beat);
     final anchor = pick((w) => w.anchor);
     final size = pick((w) => w.size);
     final weight = pick((w) => w.weight);
@@ -607,7 +628,7 @@ class GlassLayers {
       at: own?.at ?? at,
       until: own?.until ?? until,
       highlight: highlight,
-      accent: pick((w) => w.accent) ?? _wordAccent(bl),
+      accent: pick((w) => w.accent) ?? _accentOn(beat),
       align: anchor ?? f.wordAlign,
       textAlign: anchor == null
           ? TextAlign.left
@@ -735,7 +756,7 @@ class GlassLayers {
     final stage = f.stage;
     final tall = stage.height / stage.width > 1.1;
     final bl = _lookOf(beat);
-    final light = _isLight(bl);
+    final light = _lightOf(beat);
     final l = beat.length;
     final size = beat.piece!;
     const settle = Duration(milliseconds: 1300);
@@ -885,7 +906,7 @@ class GlassLayers {
             align: Alignment(0, wide ? 0.46 : 0.36),
             textAlign: TextAlign.center,
             maxWidth: wide ? 0.7 : 0.9,
-            style: brand.words(f.lineSize, _wordColor(_look), tracking: -0.02),
+            style: brand.words(f.lineSize, _inkOn(null), tracking: -0.02),
           ),
         if (end.url != null)
           Words(
@@ -898,13 +919,13 @@ class GlassLayers {
             style: brand
                 .small(
                   f.lineSize * 0.42,
-                  _isLight(_look) ? brand.ink : brand.accent,
+                  _lightOf(null) ? brand.ink : brand.accent,
                   weight: 600,
                 )
                 .copyWith(
                   shadows: [
                     Shadow(
-                      color: (_isLight(_look) ? brand.paper : brand.ink)
+                      color: (_lightOf(null) ? brand.paper : brand.ink)
                           .withValues(alpha: 0.9),
                       blurRadius: 12,
                     ),
