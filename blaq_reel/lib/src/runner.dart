@@ -6,10 +6,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'backdrop.dart';
 import 'format.dart';
 import 'reel.dart';
 import 'render.dart';
+import 'camera.dart';
+import 'layer.dart';
 import 'scene.dart';
+import 'spec.dart';
 import 'stage.dart';
 import 'time.dart';
 
@@ -37,7 +41,18 @@ void blaqReelMain({
   required ReelConfig config,
   required ReelHost host,
   required Map<String, ReelBuilder> reels,
+  ReelKit? kit,
+  String specs = 'app_reels/specs',
 }) {
+  // Reels the studio's builder wrote, as data, beside the ones in Dart.
+  if (kit != null) {
+    reels = {
+      ...reels,
+      for (final MapEntry(:key, :value) in ReelSpec.all(specs).entries)
+        key: (format) =>
+            value.build(name: key, kit: kit, config: config, format: format),
+    };
+  }
   const task = String.fromEnvironment('BLAQ_REEL_TASK');
   const name = String.fromEnvironment('BLAQ_REEL_NAME');
   const formats = String.fromEnvironment('BLAQ_REEL_FORMATS');
@@ -45,6 +60,14 @@ void blaqReelMain({
   const fps = int.fromEnvironment('BLAQ_REEL_FPS');
   const audio = String.fromEnvironment('BLAQ_REEL_AUDIO');
   const long = Timeout(Duration(minutes: 60));
+
+  if (task == 'catalogue') {
+    if (kit == null) throw StateError('The catalogue needs a ReelKit.');
+    testWidgets('catalogue', (tester) async {
+      await _catalogue(tester, host, kit, config);
+    }, timeout: long);
+    return;
+  }
 
   final chosen = name.isEmpty || name == 'all'
       ? reels.keys.toList()
@@ -189,4 +212,50 @@ Future<void> _map(
     }
   }
   _writeJson('$dir/map.json', {'reel': reel.name, 'screens': screens});
+}
+
+/// Every screen in [kit], drawn flat with its featurable parts listed, for
+/// the builder: `<out>/studio/catalogue/`.
+Future<void> _catalogue(
+  WidgetTester tester,
+  ReelHost host,
+  ReelKit kit,
+  ReelConfig config,
+) async {
+  final ids = kit.screens.keys.toList();
+  final reel = Reel(
+    name: 'catalogue',
+    backdrop: const Backdrop(top: Color(0xFF000000), bottom: Color(0xFF000000)),
+    scenes: [
+      for (final id in ids)
+        Scene(
+          name: id,
+          length: const Duration(seconds: 1),
+          camera: Camera.still(const CameraPose(zoom: 0.5)),
+          layers: [
+            Layer.screen(
+              kit.screens[id]!.widget,
+              statusBar: kit.statusBar,
+              scrolls: kit.screens[id]!.scrolls,
+            ),
+          ],
+        ),
+    ],
+  );
+  final dir = '${config.out}/studio/catalogue';
+  await _map(
+    tester,
+    (t, r) => ReelRenderer(t, r, host: host, ffmpeg: config.ffmpeg),
+    reel,
+    dir,
+  );
+  // Name each screen by its id and label rather than its scene.
+  final file = File('$dir/map.json');
+  final map = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+  for (final s in (map['screens']! as List).cast<Map<String, Object?>>()) {
+    final id = '${s['scene']}';
+    s['id'] = id;
+    s['label'] = kit.screens[id]?.label ?? id;
+  }
+  _writeJson(file.path, map);
 }

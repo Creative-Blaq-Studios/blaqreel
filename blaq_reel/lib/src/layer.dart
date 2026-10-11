@@ -267,6 +267,9 @@ class Lift {
   /// Thickness, so it reads as a slab when it turns.
   final Glass? glass;
 
+  /// A scan line passing over it, as if it were being read.
+  final Sweep? sweep;
+
   /// A lift.
   Lift({
     required this.where,
@@ -277,7 +280,28 @@ class Lift {
     this.shadowHeight = 140,
     this.carry = false,
     this.glass,
+    this.sweep,
   }) : motion = motion ?? Motion();
+}
+
+/// A scan line that passes down over a lifted widget from [at], taking
+/// [length], with a glow trailing behind it: the widget being read.
+class Sweep {
+  /// When the line starts at the top.
+  final Duration at;
+
+  /// How long it takes to reach the bottom.
+  final Duration length;
+
+  /// Its colour.
+  final Color color;
+
+  /// A sweep.
+  const Sweep({
+    required this.at,
+    this.length = const Duration(milliseconds: 1100),
+    this.color = const Color(0xFFFFD97A),
+  });
 }
 
 /// A fingertip touching a widget in a screen: it arrives, presses at [at],

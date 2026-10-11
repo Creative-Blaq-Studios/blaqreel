@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'ai.dart';
 import 'project.dart';
 import 'studio_page.dart';
 
@@ -52,6 +53,48 @@ class Studio {
 
   String get _dir => '${project.out}/studio';
 
+  String get _specs => '${project.reels}/specs';
+
+  /// Draws every screen the app's kit offers, with its parts, for the
+  /// builder's Screens and Parts steps.
+  Future<void> catalogue() => _serial('Drawing the screens', () async {
+    final code = await _run({'BLAQ_REEL_TASK': 'catalogue'}, log: false);
+    if (code == 0) _library++;
+  });
+
+  /// Renders [look]s of spec [name] at [at] seconds into
+  /// `studio/looks/<name>/`, one still each.
+  Future<bool> looks(
+    String name,
+    String format,
+    double at,
+    List<String> looks,
+  ) {
+    var ok = true;
+    return _serial('Rendering the grounds', () async {
+      final dir = Directory('$_dir/looks/$name')..createSync(recursive: true);
+      final stem = format == project.format ? name : '$name-$format';
+      for (final look in looks) {
+        _status = 'Rendering $name on $look';
+        final code = await _run({
+          'BLAQ_REEL_TASK': 'stills',
+          'BLAQ_REEL_NAME': name,
+          'BLAQ_REEL_FORMATS': format,
+          'BLAQ_REEL_AT': '$at',
+          'BLAQ_REEL_LOOK': look,
+        });
+        if (code != 0) {
+          ok = false;
+          return;
+        }
+        File(
+          '${project.out}/stills/$stem-${at}s.png',
+        ).renameSync('${dir.path}/$look.png');
+      }
+      _status = 'Grounds rendered';
+    }).then((_) => ok);
+  }
+
   /// Serves until the process is stopped.
   Future<Uri> serve({void Function(Uri)? onReady}) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
@@ -60,6 +103,7 @@ class Studio {
     onReady?.call(uri);
     if (watch) _watch();
     unawaited(_describe());
+    if (!File('$_dir/catalogue/map.json').existsSync()) unawaited(catalogue());
     // A preview from an earlier session is shown as it is; saving a file
     // renders a fresh one.
     if (!File('$_dir/$reel-$format.mp4').existsSync()) unawaited(preview());
@@ -291,6 +335,63 @@ class Studio {
             'format': format,
             'preview': _json('$_dir/$reel-$format.json'),
           });
+        case '/api/catalogue' when req.method == 'GET':
+          _sendJson(req, _json('$_dir/catalogue/map.json'));
+        case '/api/catalogue' when req.method == 'POST':
+          unawaited(catalogue());
+          _sendJson(req, {'ok': true});
+        case '/api/specs':
+          final dir = Directory(_specs);
+          _sendJson(req, [
+            if (dir.existsSync())
+              for (final f in dir.listSync().whereType<File>())
+                if (f.path.endsWith('.json'))
+                  {
+                    'name': f.uri.pathSegments.last.replaceAll('.json', ''),
+                    'spec': _json(f.path),
+                  },
+          ]);
+        case '/api/spec' when req.method == 'GET':
+          _sendJson(req, _json('$_specs/${_safe(q['name'])}.json'));
+        case '/api/spec' when req.method == 'PUT':
+          final body = await utf8.decodeStream(req);
+          final spec = jsonDecode(body);
+          Directory(_specs).createSync(recursive: true);
+          File('$_specs/${_safe(q['name'])}.json').writeAsStringSync(
+            '${const JsonEncoder.withIndent('  ').convert(spec)}\n',
+          );
+          _sendJson(req, {'ok': true});
+        case '/api/spec/preview' when req.method == 'POST':
+          // Read the reels again (a new spec is a new reel), then work on it.
+          reel = _safe(q['name']);
+          format = q['format'] ?? format;
+          unawaited(_describe());
+          unawaited(preview());
+          _version++;
+          _sendJson(req, {'ok': true});
+        case '/api/ai' when req.method == 'POST':
+          final body =
+              jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
+          try {
+            final draft = await Drafter(project).draft(
+              spec: (body['spec'] as Map?)?.cast<String, Object?>() ?? {},
+              brief: '${body['brief'] ?? ''}',
+              all: body['all'] == true,
+              catalogue: _json('$_dir/catalogue/map.json'),
+            );
+            _sendJson(req, {'ok': true, 'draft': draft});
+          } on CliError catch (e) {
+            _sendJson(req, {'ok': false, 'error': e.message});
+          }
+        case '/api/looks' when req.method == 'POST':
+          final name = _safe(q['name']);
+          final ok = await looks(
+            name,
+            q['format'] ?? project.format,
+            double.parse(q['at'] ?? '4.2'),
+            (q['looks'] ?? 'ink,mesh,butter,studio,grid').split(','),
+          );
+          _sendJson(req, {'ok': ok});
         case '/api/library':
           _sendJson(req, {'reels': _reels(), 'videos': _videos()});
         case '/api/meta':
@@ -341,6 +442,10 @@ class Studio {
               req,
               File('${project.out}/stills/${path.substring(8)}'),
             );
+          } else if (path.startsWith('/catalogue/')) {
+            await _file(req, File('$_dir/catalogue/${path.substring(11)}'));
+          } else if (path.startsWith('/looks/')) {
+            await _file(req, File('$_dir/looks/${path.substring(7)}'));
           } else if (path.startsWith('/thumbs/')) {
             await _thumb(req, path.substring(8));
           } else {
@@ -384,6 +489,17 @@ class Studio {
       ]);
     }
     await _file(req, thumb);
+  }
+
+  /// A name safe to use as a file name.
+  static String _safe(String? name) {
+    final n = (name ?? '').trim();
+    if (!RegExp(r'^[a-z0-9][a-z0-9_-]{0,60}$').hasMatch(n)) {
+      throw FormatException(
+        'A reel name is lowercase letters, digits, - and _.',
+      );
+    }
+    return n;
   }
 
   void _sendJson(HttpRequest req, Object? data) =>

@@ -28,6 +28,29 @@ Then fill in `app_reels/host.dart`, the one adapter: given a screen, return
 it ready to draw with the app's theme, fonts and demo data. An app with
 widget tests already has this.
 
+## The builder
+
+`blaq_reel studio`, then **Build**: a reel made step by step, in the page.
+
+1. **Brief**: name, style pack, frame, what it should get across, sound,
+   and who writes the story: the AI, you then the AI, or you.
+2. **Screens**: every screen the app's kit offers, drawn for real; each one
+   you add is a beat.
+3. **Parts**: each beat's screen with its cards, rows and photos numbered;
+   click what it features, in order, and choose the move (lift, or lift
+   with a scan line).
+4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
+   problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
+   using the brief, the parts and the app's own copy (`app_reels/copy.md`).
+   **Let the AI build it** does steps 2 to 4 from the brief alone.
+5. **Ground**: the reel's ground and any beat's own; render them on the
+   reel's own frames to compare.
+6. **Preview**, then **Render final** in the Library.
+
+Every change is saved to `app_reels/specs/<name>.json`, which renders like
+any reel. The app offers its screens to the builder with a `ReelKit`
+passed to `blaqReelMain` (see Khumio's `app_reels/kit.dart`).
+
 ## A guided reel, in five steps
 
 1. **Brief**: where it goes, what it says, which pack, what sound.

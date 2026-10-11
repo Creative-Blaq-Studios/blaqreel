@@ -407,9 +407,13 @@ class ReelStageState extends State<ReelStage> {
         (a.top - b.top).abs() < 14 &&
         (a.right - b.right).abs() < 14 &&
         (a.bottom - b.bottom).abs() < 14;
-    // A box the app did not name is kept only where no named one sits.
+    // A box the app did not name is kept only where no named one sits, and
+    // never when it spans the screen: that is a page or a band, not a part.
     byOwner.removeWhere(
-      (_, p) => _wrapper(p.name) && named.any((n) => near(n.rect, p.rect)),
+      (_, p) =>
+          (_wrapper(p.name) || p.name.startsWith('Physical')) &&
+          (named.any((n) => near(n.rect, p.rect)) ||
+              p.rect.width >= screen.width * 0.94),
     );
     final entries = byOwner.values.toList()
       ..sort((a, b) {
@@ -680,7 +684,9 @@ class ReelStageState extends State<ReelStage> {
             child: CustomPaint(painter: BackdropPainter(scene.backdrop!, t)),
           ),
         for (final (_, _, child) in world) child,
-        for (final (k, words) in scene.words.indexed)
+        for (final (k, words) in [
+          for (final w in scene.words) w.fitted(safeWidth * w.maxWidth),
+        ].indexed)
           Positioned.fill(
             key: ValueKey('words $k'),
             child: Padding(
@@ -824,7 +830,21 @@ class ReelStageState extends State<ReelStage> {
         glass: lift.glass,
         radius: lift.radius,
         inset: _liftPad,
-        child: lifted.content,
+        child: lift.sweep == null
+            ? lifted.content
+            : Stack(
+                children: [
+                  Positioned.fill(child: lifted.content),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(_liftPad),
+                      child: CustomPaint(
+                        painter: _SweepPainter(lift.sweep!, t, lift.radius),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
       ),
     ));
   }
@@ -1117,4 +1137,60 @@ class ScreenPart {
     'rect': [rect.left, rect.top, rect.width, rect.height],
     'pick': pick,
   };
+}
+
+class _SweepPainter extends CustomPainter {
+  final Sweep sweep;
+  final Duration t;
+  final double radius;
+
+  const _SweepPainter(this.sweep, this.t, this.radius);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = progress(t, sweep.at, sweep.at + sweep.length, curve: Ease.inOut);
+    if (p <= 0) return;
+    final fade =
+        1 -
+        progress(
+          t,
+          sweep.at + sweep.length,
+          sweep.at + sweep.length + const Duration(milliseconds: 350),
+        );
+    if (fade <= 0) return;
+    canvas.save();
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+    );
+    final y = size.height * p;
+    // The glow it leaves behind, fading upward.
+    final trail = Rect.fromLTRB(0, y - size.height * 0.35, size.width, y);
+    canvas.drawRect(
+      trail,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            sweep.color.withValues(alpha: 0),
+            sweep.color.withValues(alpha: 0.28 * fade),
+          ],
+        ).createShader(trail),
+    );
+    // The line itself, with a soft halo.
+    canvas.drawRect(
+      Rect.fromLTRB(0, y - 6, size.width, y + 6),
+      Paint()
+        ..color = sweep.color.withValues(alpha: 0.35 * fade)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(0, y - 1.5, size.width, y + 1.5),
+      Paint()..color = sweep.color.withValues(alpha: fade),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SweepPainter old) => old.t != t;
 }

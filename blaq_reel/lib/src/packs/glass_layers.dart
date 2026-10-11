@@ -64,6 +64,10 @@ class GlassBeat {
   /// look still decides the words' colours and anything behind the screen.
   final Backdrop? ground;
 
+  /// A scan line passes over the first lifted widget as it rises: the move
+  /// for a beat about reading something — a receipt, a document.
+  final bool sweep;
+
   /// A beat.
   const GlassBeat(
     this.word, {
@@ -81,6 +85,7 @@ class GlassBeat {
     this.framing = Offset.zero,
     this.look,
     this.ground,
+    this.sweep = false,
   });
 }
 
@@ -186,8 +191,7 @@ class GlassLayers {
   });
 
   /// Whether the ground is light, so words go dark on it.
-  static bool _isLight(GlassLook l) =>
-      l == GlassLook.mesh || l == GlassLook.butter || l == GlassLook.studio;
+  static bool _isLight(GlassLook l) => l.isLight;
 
   /// The look the whole reel uses: [look], unless a render asks for
   /// another with `--dart-define=BLAQ_REEL_LOOK=<name>` (the `looks`
@@ -508,6 +512,9 @@ class GlassLayers {
                 radius: beat.liftRadius,
                 hole: hole?.call(beat.liftRadius),
                 glass: const Glass(depth: 6, color: Color(0x30FFFFFF)),
+                sweep: beat.sweep && k == 0
+                    ? Sweep(at: settle + 600.ms, color: brand.accent)
+                    : null,
                 motion: Motion(
                   z: Track.from(0)
                       .hold(settle + 250.ms * k)
@@ -517,7 +524,12 @@ class GlassLayers {
                       .to(lifted + 250.ms * k, k == 0 ? 0 : 10.0 * dir * k),
                   scale: Track.from(1)
                       .hold(settle + 250.ms * k)
-                      .to(lifted + 250.ms * k, k == 0 ? 1.06 : 1.03),
+                      .to(
+                        lifted + 250.ms * k,
+                        // Something being read rises larger, so the scan
+                        // line over it reads at a glance.
+                        k == 0 ? (beat.sweep ? 1.45 : 1.06) : 1.03,
+                      ),
                 ),
               ),
           ],
@@ -526,6 +538,7 @@ class GlassLayers {
       words: [
         Words(
           beat.word,
+          fit: true,
           at: wordAt,
           until: l - 1100.ms,
           highlight: highlight,
@@ -724,6 +737,15 @@ class _Frame {
       lineSize: 28,
     );
   }
+}
+
+/// Whether a look's ground is light, so words and logos go dark on it.
+extension GlassLookTone on GlassLook {
+  /// Light grounds: mesh, butter, studio.
+  bool get isLight =>
+      this == GlassLook.mesh ||
+      this == GlassLook.butter ||
+      this == GlassLook.studio;
 }
 
 /// What [GlassLayers] screens sit on.

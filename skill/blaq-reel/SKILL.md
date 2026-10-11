@@ -12,6 +12,16 @@ Nothing ships in the app; `lib/` is never changed.
 
 Read `reference.md` beside this file for the API before writing scenes.
 
+## Two ways in
+
+- **The studio's builder** (`dart run blaq_reel studio`, then Build): the
+  person makes the reel themselves, step by step, with the AI drafting as
+  much or as little as they want. It saves `app_reels/specs/<name>.json`.
+  Offer this first to anyone who wants control. The app needs a `ReelKit`
+  of its staged screens (see Khumio's `app_reels/kit.dart`) and, for AI
+  drafts, an `app_reels/copy.md` of what the app really does.
+- **This conversation**: the five steps below, with a page at each.
+
 ## Guide the person through five steps
 
 The person decides what the video shows and how it looks; you do the rest.

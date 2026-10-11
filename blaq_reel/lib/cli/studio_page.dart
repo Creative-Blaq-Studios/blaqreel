@@ -1,5 +1,13 @@
-/// The studio's page: served by `blaq_reel studio`.
-const studioPage = r'''<!doctype html>
+import 'builder_page.dart';
+
+/// The studio's page: served by `blaq_reel studio`. The builder's own CSS,
+/// markup and script are spliced in where the markers are.
+final studioPage = _studioBase
+    .replaceFirst('/*BUILD_CSS*/', builderCss)
+    .replaceFirst('<!--BUILD_HTML-->', builderHtml)
+    .replaceFirst('/*BUILD_JS*/', builderJs);
+
+const _studioBase = r'''<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -130,11 +138,13 @@ const studioPage = r'''<!doctype html>
     nav { border-right: 0; border-bottom: 1px solid var(--line2); max-height: 40vh; }
     video { max-height: 60vh; }
   }
+/*BUILD_CSS*/
 </style>
 </head>
 <body>
 <header>
   <div class="brand">Blaq<b>Reel</b> Studio</div>
+  <div class="tabs" role="tablist"><button id="tabLibrary" class="tab on" role="tab">Library</button><button id="tabBuild" class="tab" role="tab">Build</button></div>
   <div class="now"><span class="mode" id="mode">Live preview</span><span class="nowname" id="nowName">—</span></div>
   <span class="tag" id="formatName">—</span>
   <div class="status"><span class="dot" id="dot"></span><span id="status">Starting</span></div>
@@ -196,6 +206,7 @@ const studioPage = r'''<!doctype html>
     <div class="hover" id="hover"></div>
   </div>
 </footer>
+<!--BUILD_HTML-->
 <div class="toast" id="toast"></div>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -480,6 +491,7 @@ async function poll() {
 }
 poll();
 setInterval(refreshLibrary, 15000);
+/*BUILD_JS*/
 </script>
 </body>
 </html>

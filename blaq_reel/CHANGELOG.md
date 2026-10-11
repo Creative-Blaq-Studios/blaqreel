@@ -39,6 +39,15 @@ app.
 - Grounds per beat: `GlassBeat(look:, ground:)`, crossfading between beats;
   `GlassLayers(ground:)` for colours of your own; six looks (ink, mesh,
   butter, studio, grid, echo); `Backdrop(floor:)`; `Layer(ignoreFocus:)`.
+- The studio's builder: Brief, Screens, Parts, Story, Ground, Preview,
+  saving each change to `app_reels/specs/<name>.json`; `ReelSpec` builds
+  any pack from that data, finding parts by the names the map gives them;
+  `ReelKit` and `ReelScreen` are how an app offers its screens and logos;
+  the `catalogue` task draws every kit screen with its parts; AI drafts of
+  the words, or of the whole reel, through Claude Code.
+- `Sweep`: a scan line over a lifted widget (`GlassBeat(sweep:)`), which
+  rises larger so the reading shows; `Words(fit:)` keeps a beat's word on
+  one line.
 - A depth band on the camera (`depth`): every lifted card stays sharp.
 
 ### Fixed

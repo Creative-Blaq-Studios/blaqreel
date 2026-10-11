@@ -71,6 +71,9 @@ class Words {
   /// A sound cue as they start to arrive, or null for none.
   final String? sound;
 
+  /// Keeps them on one line: the type shrinks until they fit the width.
+  final bool fit;
+
   /// Words.
   const Words(
     this.text, {
@@ -88,7 +91,43 @@ class Words {
     this.stagger = const Duration(milliseconds: 55),
     this.rise = const Duration(milliseconds: 700),
     this.sound,
+    this.fit = false,
   });
+
+  /// These words with their type shrunk, if need be, to fit [maxWidth] on
+  /// one line. Without [fit], unchanged.
+  Words fitted(double maxWidth) {
+    if (!fit) return this;
+    final one = TextPainter(
+      text: TextSpan(text: plain, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    if (one.width <= maxWidth) return this;
+    final size = (style.fontSize ?? 14) * maxWidth / one.width * 0.98;
+    return Words(
+      text,
+      at: at,
+      style: style.copyWith(
+        fontSize: size,
+        letterSpacing: style.letterSpacing == null
+            ? null
+            : style.letterSpacing! * size / (style.fontSize ?? 14),
+      ),
+      until: until,
+      highlight: highlight,
+      accent: accent,
+      marker: marker,
+      markerColor: markerColor,
+      align: align,
+      textAlign: textAlign,
+      maxWidth: this.maxWidth,
+      reveal: reveal,
+      stagger: stagger,
+      rise: rise,
+      sound: sound,
+    );
+  }
 
   /// The text with the braces taken out.
   String get plain => text.replaceAll('{', '').replaceAll('}', '');

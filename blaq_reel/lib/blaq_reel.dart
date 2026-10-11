@@ -20,6 +20,7 @@ export 'src/reel.dart';
 export 'src/render.dart';
 export 'src/runner.dart';
 export 'src/scene.dart';
+export 'src/spec.dart';
 export 'src/stage.dart';
 export 'src/time.dart';
 export 'src/words.dart';
