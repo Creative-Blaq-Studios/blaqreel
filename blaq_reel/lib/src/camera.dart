@@ -42,6 +42,10 @@ class Shot {
   /// Blur sigma per 100 units of depth away from [focus].
   final double? aperture;
 
+  /// How deep the sharp band around [focus] is, either side: everything
+  /// within it is in focus.
+  final double? depth;
+
   /// Blur on the whole world.
   final double? blur;
 
@@ -56,6 +60,7 @@ class Shot {
     this.pan,
     this.focus,
     this.aperture,
+    this.depth,
     this.blur,
   });
 }
@@ -83,6 +88,9 @@ class CameraPose {
   /// See [Shot.aperture].
   final double aperture;
 
+  /// See [Shot.depth].
+  final double depth;
+
   /// See [Shot.blur].
   final double blur;
 
@@ -95,11 +103,16 @@ class CameraPose {
     this.pan = Offset.zero,
     this.focus = 0,
     this.aperture = 0,
+    this.depth = 0,
     this.blur = 0,
   });
 
-  /// How soft a layer at depth [z] is from this pose.
-  double blurAt(double z) => blur + aperture * (z - focus).abs() / 100;
+  /// How soft a layer at depth [z] is from this pose: nothing inside the
+  /// sharp band, then more the further outside it.
+  double blurAt(double z) {
+    final outside = (z - focus).abs() - depth;
+    return blur + (outside > 0 ? aperture * outside / 100 : 0);
+  }
 
   /// This pose moved by a transition: angles, pan and blur add, zoom
   /// multiplies.
@@ -118,6 +131,7 @@ class CameraPose {
     pan: this.pan + pan,
     focus: focus,
     aperture: aperture,
+    depth: depth,
     blur: this.blur + blur,
   );
 }
@@ -160,6 +174,7 @@ class Camera {
     Track? panY,
     Track? focus,
     Track? aperture,
+    Track? depth,
     Track? blur,
     double distance = 1100,
   }) => Camera._(
@@ -172,6 +187,7 @@ class Camera {
       pan: Offset(panX?.at(t) ?? 0, panY?.at(t) ?? 0),
       focus: focus?.at(t) ?? 0,
       aperture: aperture?.at(t) ?? 0,
+      depth: depth?.at(t) ?? 0,
       blur: blur?.at(t) ?? 0,
     ),
   );
@@ -197,6 +213,7 @@ class Camera {
           pan: s.pan ?? pose.pan,
           focus: s.focus ?? pose.focus,
           aperture: s.aperture ?? pose.aperture,
+          depth: s.depth ?? pose.depth,
           blur: s.blur ?? pose.blur,
         ),
     ];
@@ -212,6 +229,7 @@ class Camera {
     pan: Offset.lerp(a.pan, b.pan, p)!,
     focus: _l(a.focus, b.focus, p),
     aperture: _l(a.aperture, b.aperture, p),
+    depth: _l(a.depth, b.depth, p),
     blur: _l(a.blur, b.blur, p),
   );
 

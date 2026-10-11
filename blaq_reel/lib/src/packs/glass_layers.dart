@@ -138,8 +138,8 @@ class GlassLayers {
   /// Drawn over the top of each screen.
   final Widget? statusBar;
 
-  /// Dark ground with the accent glowing, or the brand's light paper.
-  final bool dark;
+  /// What the screens sit on.
+  final GlassLook look;
 
   /// A music bed.
   final Music? music;
@@ -163,47 +163,176 @@ class GlassLayers {
     this.end,
     this.hole,
     this.statusBar,
-    this.dark = true,
+    this.look = GlassLook.ink,
     this.music,
     this.voice = const [],
     this.motionBlur = 1,
     this.fps = 30,
   });
 
+  /// Whether the ground is light, so words go dark on it.
+  bool get _light =>
+      look == GlassLook.mesh ||
+      look == GlassLook.butter ||
+      look == GlassLook.studio;
+
   /// The look's backdrop.
-  Backdrop get backdrop => dark
-      ? Backdrop(
-          top: Color.lerp(brand.ink, const Color(0xFFFFFFFF), 0.03)!,
-          bottom: Color.lerp(brand.ink, const Color(0xFF000000), 0.55)!,
-          vignette: 0.4,
-          glows: [
+  Backdrop get backdrop {
+    final ink = brand.ink, accent = brand.accent, paper = brand.paper;
+    Color mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
+    const white = Color(0xFFFFFFFF), black = Color(0xFF000000);
+    return switch (look) {
+      GlassLook.ink || GlassLook.echo => Backdrop(
+        top: mix(ink, white, 0.03),
+        bottom: mix(ink, black, 0.55),
+        vignette: look == GlassLook.echo ? 0.55 : 0.4,
+        glows: [
+          if (look == GlassLook.ink) ...[
             Glow(
-              brand.accent.withValues(alpha: 0.28),
+              accent.withValues(alpha: 0.28),
               center: const Alignment(0.4, -0.35),
               radius: 0.55,
             ),
             Glow(
-              brand.accent.withValues(alpha: 0.1),
+              accent.withValues(alpha: 0.1),
               center: const Alignment(-0.7, 0.75),
               radius: 0.45,
               period: 13,
             ),
           ],
-        )
-      : Backdrop(
-          top: brand.paper,
-          bottom: Color.lerp(brand.paper, const Color(0xFF000000), 0.1)!,
-          vignette: 0.12,
-          glows: [
-            Glow(
-              brand.accent.withValues(alpha: 0.7),
-              center: const Alignment(0.45, -0.3),
-              radius: 0.5,
-            ),
-          ],
-        );
+        ],
+      ),
+      // Soft fields of the accent and two neighbours of it, drifting on a
+      // light ground.
+      GlassLook.mesh => Backdrop(
+        top: mix(paper, white, 0.5),
+        bottom: mix(paper, accent, 0.18),
+        vignette: 0.06,
+        glows: [
+          Glow(
+            accent.withValues(alpha: 0.9),
+            center: const Alignment(-0.75, -0.55),
+            radius: 0.62,
+            drift: const Offset(0.18, 0.12),
+            period: 8,
+          ),
+          Glow(
+            mix(accent, const Color(0xFFFF8A65), 0.55).withValues(alpha: 0.55),
+            center: const Alignment(0.85, 0.05),
+            radius: 0.5,
+            drift: const Offset(0.14, 0.16),
+            period: 10.5,
+          ),
+          Glow(
+            const Color(0xFFC9BCFF).withValues(alpha: 0.55),
+            center: const Alignment(-0.35, 0.85),
+            radius: 0.55,
+            drift: const Offset(0.2, 0.1),
+            period: 12,
+          ),
+          Glow(
+            white.withValues(alpha: 0.7),
+            center: const Alignment(0.2, 0.1),
+            radius: 0.35,
+            period: 9,
+          ),
+        ],
+      ),
+      // The brand colour, whole: bold and flat, lit from above.
+      GlassLook.butter => Backdrop(
+        top: mix(accent, white, 0.12),
+        bottom: mix(accent, const Color(0xFFE0A800), 0.35),
+        vignette: 0.1,
+        glows: [
+          Glow(
+            white.withValues(alpha: 0.45),
+            center: const Alignment(0, -0.75),
+            radius: 0.55,
+            period: 11,
+          ),
+        ],
+      ),
+      // A photo studio's white sweep: a pale wall curving into a floor, a
+      // soft light from above, and the faintest warmth of the accent.
+      GlassLook.studio => Backdrop(
+        top: mix(paper, white, 0.6),
+        bottom: mix(paper, black, 0.04),
+        vignette: 0.14,
+        floor: mix(paper, black, 0.09),
+        glows: [
+          Glow(
+            white.withValues(alpha: 0.9),
+            center: const Alignment(0, -0.7),
+            radius: 0.55,
+            drift: const Offset(0.03, 0.02),
+            period: 14,
+          ),
+          Glow(
+            accent.withValues(alpha: 0.18),
+            center: const Alignment(0.6, 0.6),
+            radius: 0.45,
+            period: 11,
+          ),
+        ],
+      ),
+      GlassLook.grid => Backdrop(
+        top: mix(ink, black, 0.45),
+        bottom: mix(ink, black, 0.2),
+        vignette: 0.5,
+        glows: [
+          Glow(
+            accent.withValues(alpha: 0.16),
+            center: const Alignment(0, 0.35),
+            radius: 0.55,
+            period: 12,
+          ),
+        ],
+      ),
+    };
+  }
 
-  Color get _wordColor => dark ? brand.paper : brand.ink;
+  /// Layers the look adds behind a beat's screen.
+  List<Layer> _ambient(GlassBeat beat) => switch (look) {
+    // The beat's own screen, huge and out of focus behind it.
+    GlassLook.echo => [
+      Layer.screen(
+        beat.screen,
+        device: beat.device,
+        statusBar: statusBar,
+        motion: Motion(
+          z: Track.constant(-160),
+          scale: Track.constant(2.4),
+          blur: Track.constant(14),
+          opacity: Track.constant(0.32),
+        ),
+      ),
+    ],
+    // A floor of lines the phone stands over, in the world, so it moves
+    // with the camera.
+    GlassLook.grid => [
+      Layer(
+        CustomPaint(painter: _FloorGrid(brand.accent)),
+        // Near the focus, so depth of field softens it without wiping it
+        // out; small enough that its near edge stays in front of the eye.
+        size: const Size(1800, 1800),
+        position: const Offset(0, 560),
+        ignoreFocus: true,
+        motion: Motion(tilt: Track.constant(82), z: Track.constant(-60)),
+      ),
+    ],
+    _ => const [],
+  };
+
+  Color get _wordColor => _light ? brand.ink : brand.paper;
+
+  /// The accent on words: on the brand's own colour it would vanish, so
+  /// there it is the light colour; on light fields it deepens to read.
+  Color get _wordAccent => switch (look) {
+    GlassLook.butter => brand.paper,
+    GlassLook.mesh ||
+    GlassLook.studio => Color.lerp(brand.accent, brand.ink, 0.35)!,
+    _ => brand.accent,
+  };
 
   _Frame get _frame => _Frame.of(format);
 
@@ -272,7 +401,12 @@ class GlassLayers {
     const lifted = Duration(milliseconds: 3000);
     const heroHeight = 220.0;
     const fallBack = 80.0;
-    final heights = [heroHeight, 150.0, 95.0];
+    // Close enough together that one sharp band holds every lifted card:
+    // lifted means in focus. Only the screen behind softens.
+    final heights = [heroHeight, 180.0, 145.0];
+    final count = beat.lift.take(3).length;
+    final top = heroHeight - fallBack;
+    final bottom = (count == 0 ? heroHeight : heights[count - 1]) - fallBack;
 
     final hasLift = beat.lift.isNotEmpty;
     final camera = Camera.tracks(
@@ -293,9 +427,12 @@ class GlassLayers {
         f.pan.dy + 24,
       ).to(settle, f.pan.dy, Ease.arrive).to(l, f.pan.dy - 6, Ease.linear),
       focus: hasLift
-          ? Track.from(0).hold(settle).to(lifted, heroHeight - fallBack)
+          ? Track.from(0).hold(settle).to(lifted, (top + bottom) / 2)
           : null,
-      aperture: hasLift ? Track.from(0).hold(settle).to(lifted, 2.2) : null,
+      aperture: hasLift ? Track.from(0).hold(settle).to(lifted, 2.6) : null,
+      depth: hasLift
+          ? Track.from(0).hold(settle).to(lifted, (top - bottom) / 2 + 14)
+          : null,
     );
 
     final wordAt = hasLift ? 2.s : 1.2.s;
@@ -312,6 +449,7 @@ class GlassLayers {
                 .hold(lifted - 300.ms)
                 .to(lifted + 300.ms, 1),
       layers: [
+        ..._ambient(beat),
         Layer.screen(
           beat.screen,
           device: beat.device,
@@ -353,7 +491,7 @@ class GlassLayers {
           at: wordAt,
           until: l - 1100.ms,
           highlight: highlight,
-          accent: brand.accent,
+          accent: _wordAccent,
           align: f.wordAlign,
           maxWidth: f.wordWidth,
           style: brand
@@ -361,8 +499,8 @@ class GlassLayers {
               .copyWith(
                 shadows: [
                   Shadow(
-                    color: (dark ? brand.ink : brand.paper).withValues(
-                      alpha: 0.6,
+                    color: (_light ? brand.paper : brand.ink).withValues(
+                      alpha: _light ? 0.35 : 0.6,
                     ),
                     blurRadius: 24,
                   ),
@@ -451,11 +589,17 @@ class GlassLayers {
             align: Alignment(0, wide ? 0.74 : 0.6),
             textAlign: TextAlign.center,
             style: brand
-                .small(f.lineSize * 0.42, brand.accent, weight: 600)
+                .small(
+                  f.lineSize * 0.42,
+                  _light ? brand.ink : brand.accent,
+                  weight: 600,
+                )
                 .copyWith(
                   shadows: [
                     Shadow(
-                      color: brand.ink.withValues(alpha: 0.9),
+                      color: (_light ? brand.paper : brand.ink).withValues(
+                        alpha: 0.9,
+                      ),
                       blurRadius: 12,
                     ),
                   ],
@@ -543,4 +687,54 @@ class _Frame {
       lineSize: 28,
     );
   }
+}
+
+/// What [GlassLayers] screens sit on.
+enum GlassLook {
+  /// The brand's ink, with the accent glowing.
+  ink,
+
+  /// Light: soft fields of the accent and its neighbours, drifting.
+  mesh,
+
+  /// The accent, whole: the brand colour as the ground.
+  butter,
+
+  /// Dark, with the beat's own screen huge and out of focus behind it.
+  echo,
+
+  /// A lit sweep: a wall curving into a floor, a light from above.
+  studio,
+
+  /// Dark, with a floor of lines in the world under the phone.
+  grid,
+}
+
+class _FloorGrid extends CustomPainter {
+  final Color color;
+
+  const _FloorGrid(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const step = 90.0;
+    final c = size.center(Offset.zero);
+    final paint = Paint()..strokeWidth = 3;
+    for (var x = 0.0; x <= size.width; x += step) {
+      for (var y = 0.0; y <= size.height; y += step) {
+        // Lines fade toward the edges, so the floor has no hard end.
+        final d = ((Offset(x, y) - c).distance / (size.width / 2)).clamp(
+          0.0,
+          1.0,
+        );
+        paint.color = color.withValues(alpha: 0.55 * (1 - d) * (1 - d));
+        canvas
+          ..drawLine(Offset(x, y), Offset(x + step, y), paint)
+          ..drawLine(Offset(x, y), Offset(x, y + step), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FloorGrid old) => old.color != color;
 }

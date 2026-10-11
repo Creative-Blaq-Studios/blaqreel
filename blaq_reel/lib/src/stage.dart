@@ -518,7 +518,7 @@ class ReelStageState extends State<ReelStage> {
         key: ValueKey('layer ${key.$1}.${key.$2}'),
         matrix: m,
         size: layer.size,
-        sigma: pose.blurAt(motion.z) + motion.blur,
+        sigma: (layer.ignoreFocus ? 0 : pose.blurAt(motion.z)) + motion.blur,
         opacity: motion.opacity,
         glass: layer.glass,
         radius: layer.radius,

@@ -142,7 +142,7 @@ class DarkGlow {
           ? focus
           : focus
                 .hold(a + 300.ms)
-                .to(a + 1100.ms, 150)
+                .to(a + 1100.ms, 130)
                 .hold(a + stops[i].hold)
                 .to(a + stops[i].hold + travel ~/ 2, 0);
     }
@@ -212,7 +212,7 @@ class DarkGlow {
                     opacity: away,
                     z: Track.from(0)
                         .hold(a + 300.ms + 150.ms * k)
-                        .to(a + 1100.ms + 150.ms * k, k == 0 ? 150 : 90)
+                        .to(a + 1100.ms + 150.ms * k, k == 0 ? 150 : 110)
                         .hold(a + s.hold)
                         .to(a + s.hold + travel ~/ 2, 0, Ease.inOut),
                   ),
@@ -271,6 +271,8 @@ class DarkGlow {
           zoom: z,
           focus: focus,
           aperture: Track.constant(1.1),
+          // Both lifts sit inside the sharp band while the camera holds.
+          depth: Track.constant(36),
         ),
         layers: layers,
         words: words,

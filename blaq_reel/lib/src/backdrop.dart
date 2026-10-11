@@ -50,12 +50,16 @@ class Backdrop {
   /// How dark the corners go, 0 to 1.
   final double vignette;
 
+  /// A floor the wall curves into, in this colour: a photo studio's sweep.
+  final Color? floor;
+
   /// A backdrop.
   const Backdrop({
     required this.top,
     required this.bottom,
     this.glows = const [],
     this.vignette = 0.35,
+    this.floor,
   });
 
   /// A plain [base] with one [glow] of light behind the middle.
@@ -122,6 +126,30 @@ class BackdropPainter extends CustomPainter {
           colors: [backdrop.top, backdrop.bottom],
         ).createShader(rect),
     );
+
+    final floor = backdrop.floor;
+    if (floor != null) {
+      // The wall meets the floor in a soft curve two-thirds of the way down.
+      final horizon = size.height * 0.6;
+      canvas.drawRect(
+        Rect.fromLTRB(0, horizon - size.height * 0.12, size.width, size.height),
+        Paint()
+          ..shader =
+              LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [floor.withValues(alpha: 0), floor, floor],
+                stops: const [0, 0.35, 1],
+              ).createShader(
+                Rect.fromLTRB(
+                  0,
+                  horizon - size.height * 0.12,
+                  size.width,
+                  size.height,
+                ),
+              ),
+      );
+    }
 
     final seconds = secondsOf(t);
     final longest = math.max(size.width, size.height);

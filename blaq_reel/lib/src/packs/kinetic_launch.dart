@@ -157,8 +157,10 @@ class KineticLaunch {
         tilt: Track.constant(4),
         // Focus rises with the first lift, so it stays sharp and the
         // screen softens behind it.
-        focus: Track.from(0).hold(lands).to(lands + 900.ms, 160),
+        focus: Track.from(0).hold(lands).to(lands + 900.ms, 140),
         aperture: Track.from(0).hold(lands).to(lands + 900.ms, 1.4),
+        // Both lifts sit inside the sharp band.
+        depth: Track.from(0).hold(lands).to(lands + 900.ms, 34),
       ),
       layers: [
         if (beat.screen != null)
@@ -185,7 +187,7 @@ class KineticLaunch {
                   motion: Motion(
                     z: Track.from(0)
                         .hold(lands + 150.ms * k)
-                        .to(lands + 900.ms + 150.ms * k, k == 0 ? 160 : 100),
+                        .to(lands + 900.ms + 150.ms * k, k == 0 ? 160 : 120),
                   ),
                 ),
             ],

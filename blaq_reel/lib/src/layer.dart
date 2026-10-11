@@ -169,6 +169,10 @@ class Layer {
   /// that animate by a value — a logo assembling, a number counting up.
   final Widget Function(Duration t)? builder;
 
+  /// Stays out of the camera's depth of field: blurred only by its own
+  /// motion. For set pieces — a floor, a frame — that should stay crisp.
+  final bool ignoreFocus;
+
   /// A widget in 3D.
   Layer(
     this.child, {
@@ -178,6 +182,7 @@ class Layer {
     this.carry = false,
     this.glass,
     this.radius = 0,
+    this.ignoreFocus = false,
   }) : motion = motion ?? Motion(),
        builder = null,
        device = null,
@@ -196,6 +201,7 @@ class Layer {
     this.carry = false,
     this.glass,
     this.radius = 0,
+    this.ignoreFocus = false,
   }) : motion = motion ?? Motion(),
        child = const SizedBox.shrink(),
        device = null,
@@ -221,6 +227,7 @@ class Layer {
   }) : size = device!.size,
        radius = device.radius,
        builder = null,
+       ignoreFocus = false,
        motion = motion ?? Motion();
 
   /// Whether this is an app screen.
