@@ -73,6 +73,32 @@ class Backdrop {
       );
 }
 
+/// Slow coloured blobs drifting over [base]: the Kinetic Launch look on a
+/// light ground, or the Dark Glow look on a dark one.
+Backdrop blobs(Color base, List<Color> colors, {double strength = 0.45}) {
+  const spots = [
+    Alignment(-0.7, -0.6),
+    Alignment(0.75, -0.2),
+    Alignment(-0.4, 0.7),
+    Alignment(0.6, 0.8),
+  ];
+  return Backdrop(
+    top: base,
+    bottom: Color.lerp(base, const Color(0xFF000000), 0.12)!,
+    vignette: 0.15,
+    glows: [
+      for (var i = 0; i < colors.length; i++)
+        Glow(
+          colors[i].withValues(alpha: strength),
+          center: spots[i % spots.length],
+          radius: 0.55,
+          drift: const Offset(0.15, 0.1),
+          period: 7.0 + i * 2.3,
+        ),
+    ],
+  );
+}
+
 /// Paints a [Backdrop] at a moment.
 class BackdropPainter extends CustomPainter {
   /// The backdrop.

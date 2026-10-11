@@ -45,6 +45,22 @@ class Format {
   /// 1080×1080, 1:1.
   static const square = Format('square', Size(1080, 1080));
 
+  /// 1080×1350, 4:5: the Instagram and Facebook feed.
+  static const portrait = Format(
+    'portrait',
+    Size(1080, 1350),
+    safe: EdgeInsets.fromLTRB(0.06, 0.06, 0.06, 0.08),
+  );
+
+  /// Every format, by name.
+  static const all = [vertical, wide, square, portrait];
+
+  /// Taller than it is wide.
+  bool get isTall => pixels.height > pixels.width;
+
+  /// Wider than it is tall.
+  bool get isWide => pixels.width > pixels.height;
+
   /// The stage, in logical units.
   Size get logical => pixels / pixelRatio;
 
@@ -53,6 +69,7 @@ class Format {
     'vertical' => vertical,
     'wide' => wide,
     'square' => square,
+    'portrait' => portrait,
     _ => throw ArgumentError.value(name, 'format', 'not a known format'),
   };
 }
@@ -81,6 +98,12 @@ class ReelConfig {
   /// The FFmpeg binary.
   final String ffmpeg;
 
+  /// A music bed for every reel, unless a reel says otherwise.
+  final String? music;
+
+  /// Where synthesized sounds are kept.
+  final String sound;
+
   /// A config.
   const ReelConfig({
     required this.name,
@@ -90,6 +113,8 @@ class ReelConfig {
     this.fonts = const {},
     this.out = 'app_reels/out',
     this.ffmpeg = 'ffmpeg',
+    this.music,
+    this.sound = 'app_reels/sound',
   });
 
   /// Reads [path], usually `app_reels/reel.yaml`.
@@ -123,6 +148,8 @@ class ReelConfig {
       fonts: fonts,
       out: '${doc['out'] ?? 'app_reels/out'}',
       ffmpeg: '${doc['ffmpeg'] ?? 'ffmpeg'}',
+      music: doc['music'] == null ? null : '${doc['music']}',
+      sound: '${doc['sound'] ?? 'app_reels/sound'}',
     );
   }
 

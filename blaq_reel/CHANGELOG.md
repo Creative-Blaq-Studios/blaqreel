@@ -1,18 +1,45 @@
 # Changelog
 
+## 0.4.0 — 2026-10-11
+
+The whole plan: engine, tools, packs and skill. Not yet tried on a second
+app.
+
+### Added
+
+- Scenes on their own clocks, joined by transitions: cut, fade, swing,
+  zoom-through, wipe, rise; `carry` keeps a layer on course through one.
+- `Camera.tracks` for a track per property; `Camera.still`; `Track.from`,
+  `to`, `hold` and `shift`; `Ease`; `TimeWarp` for slow motion and speed
+  ramps; motion blur by frame blending.
+- `Motion` on every layer and lift (position, depth, tilt, turn, roll,
+  scale, opacity, blur); `Glass` slab edges; `Layer.timed`.
+- `Pick`: by type, type name, text, key, nth, innermost containing.
+- `Tap` (fingertip, ripple, real presses), `Scroll`, `TypeText`.
+- `Words`: letters, words, typewriter and fade reveals, `{accent}` markup,
+  marker sweep, wrapping, exits.
+- `Soundtrack`: music, voice-over with ducking, cues from taps, typing,
+  words and transitions, built-in sounds and a placeholder pad synthesized
+  by FFmpeg, loudness normalized to −16 LUFS.
+- Formats: portrait 4:5; every pack lays out for all four.
+- Style packs: `GlassLayers`, `KineticLaunch`, `DarkGlow`, `StoryAd`.
+- `blaqReelMain`, the app's test entry; `describeReel` for timelines.
+- The CLI: `init` (surveys the app: fonts, colours, screens, state
+  management), `doctor`, `list`, `stills`, `render`, `studio` (browser
+  scrubber with live re-render and stills), `sfx`, `voice`.
+- The `blaq-reel` Claude skill.
+
+### Fixed
+
+- A test pump draws only scheduled frames, so lifts could go unfound when
+  nothing else on screen was animating; the stage now asks for frames.
+
 ## 0.1.0 — 2026-10-11
 
 ### Added
 
-- The proof engine: `ReelClock`, `Track` and `Keyframe`; `Format` with
-  vertical, wide and square; `Camera` and `Shot` (tilt, turn, roll, zoom,
-  pan, focus, aperture, blur) with perspective; `Layer` and `Layer.screen`
-  on a `Device`; `Lift`, which clones a real widget out of a screen as drawn;
-  `Words` with letter-by-letter rise and an accent; `Backdrop` and `Glow`.
-- `ReelStage`, which draws a reel at a moment without rebuilding the app's
-  screens.
-- `ReelRenderer`: frames on a fixed clock inside `flutter test`, stills as
-  PNG, and video piped as raw RGBA to FFmpeg (H.264, bt709, light grain
-  against banding).
-- `ReelHost` and `ReelConfig` (`app_reels/reel.yaml`).
+- The proof engine: `ReelClock`, `Track` and `Keyframe`; `Format`;
+  `Camera` and `Shot` with perspective; `Layer` and `Layer.screen` on a
+  `Device`; `Lift`; `Words`; `Backdrop` and `Glow`; `ReelStage`;
+  `ReelRenderer` (stills, H.264 through FFmpeg); `ReelHost`, `ReelConfig`.
 - First use: Khumio's five-second proof.

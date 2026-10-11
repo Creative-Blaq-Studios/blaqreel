@@ -1,0 +1,134 @@
+# BlaqReel reference
+
+`import 'package:blaq_reel/blaq_reel.dart';` for the blocks,
+`import 'package:blaq_reel/packs.dart';` for the packs.
+
+## Time
+
+```dart
+1.5.s, 250.ms                       // Durations
+Track.from(0).to(1.s, 100, Ease.out).hold(2.s).to(3.s, 0)
+Track([Keyframe(0.s, 0), Keyframe(1.s, 1, ease: Ease.inOut)])
+Ease.out / arrive / inOut / leave / linear / drift
+progress(t, from, to, curve: Ease.out)  // 0..1
+Scene(speed: Track.from(1).hold(1.s).to(1.4.s, 0.4))  // slow motion
+Reel(motionBlur: 2)                    // frames blended per output frame
+```
+
+## A reel
+
+```dart
+Reel(
+  name: 'promo', format: Format.vertical, fps: 30,
+  backdrop: Backdrop(top:, bottom:, glows: [Glow(color, center:, radius:)]),
+  scenes: [Scene(...), ...],
+  transitions: [Transition.swing(direction: -1), Transition.zoomThrough(),
+                Transition.fade(), Transition.wipe(origin:), Transition.rise(),
+                Transition.cut],   // shorter lists repeat their last entry
+  soundtrack: Soundtrack(music: Music('pad'), voice: [VoiceLine(at, path, text)]),
+)
+Reel.single(name:, length:, backdrop:, camera:, layers:, words:)
+```
+
+Formats: `vertical` 1080×1920, `wide` 1920×1080, `square`, `portrait` 4:5.
+The stage is in logical units: vertical is 360×640 at 3×.
+
+## A scene
+
+```dart
+Scene(
+  name: 'Share.', length: 5.s,
+  camera: Camera([Shot(at: 0.s, tilt: 40, turn: -30, zoom: .4, blur: 4), ...])
+       // or Camera.tracks(tilt:, turn:, roll:, zoom:, panX:, panY:,
+       //                  focus:, aperture:, blur:)
+  layers: [...],
+  words: [Words('Share{.}', at: 2.s, until: 4.s, style:, accent:,
+                reveal: Reveal.letters|words|typewriter|fade,
+                align: Alignment.bottomLeft, maxWidth: 1, marker: true)],
+  cues: [Cue(1.5.s, 'rise')],   // tap tick pop rise whoosh chime, or a path
+)
+```
+
+Camera: `tilt` takes the top away, `turn` the right side away, `zoom` scales
+the world, `pan` moves it (stage units), `focus` is the sharp depth,
+`aperture` blur per 100 units from it.
+
+## Layers
+
+```dart
+Layer(widget, size: Size(200, 80), position: Offset(0, -100),
+      motion: Motion(x:, y:, z:, tilt:, turn:, roll:, scale:, opacity:, blur:),
+      glass: Glass(depth: 8), carry: true)
+Layer.timed((t) => KhumioMark(progress: progress(t, 0.s, 1.s)), size:)
+Layer.screen(HomeScreen(),            // drawn through host.wrap, on a Device
+  statusBar:, motion:,
+  lifts: [Lift(where: Pick..., motion: Motion(z: Track...), hole: Widget,
+               radius: 26, glass: Glass(), carry: false)],
+  taps: [Tap(where: Pick.text('Done'), at: 3.s, press: false)],
+  scrolls: [Scroll(offset: Track.from(0).to(2.s, 600))],
+  typing: [TypeText(text: '…', at: 1.s, perCharacter: 45.ms, sound: 'tick')])
+```
+
+`Lift` z is height above its screen. Lifts are found once, at the start, in
+the screen as drawn: lifts on a screen that scrolls later stay where they
+were found.
+
+## Pick
+
+```dart
+Pick((w) => w is WalletCard && w.shared)
+Pick.type<SayItRow>().nth(1)
+Pick.typeName('_Answer')
+Pick.text('Total', contains: true, anyCase: true)
+Pick.type<AppCard>().containing(Pick.text('Total'))   // innermost match
+Pick.key(ValueKey('x'))
+```
+
+## Packs
+
+```dart
+GlassLayers(brand:, format:, beats: [GlassBeat('Share.', screen:, lift: [Pick…],
+    liftRadius:, zoom:, framing:, taps:, scrolls:, typing:, slowLift: .5)],
+  open: (t) => mark, openSize:, end: GlassEnd(logo: (t) => …, logoSize:, line:, url:),
+  hole: (r) => …, statusBar:, dark: true, music:, motionBlur:).build('name')
+KineticLaunch(brand:, format: Format.wide, beats: [KineticBeat('Split the {bill}.', screen:, lift:)],
+  logo:, line:, url:).build('name')
+DarkGlow(brand:, format: Format.wide, stops: [GlowStop(screen:, title: 'Shared {money}', line:, lift:)],
+  logo:, url:, motionBlur: 2).build('name')
+StoryAd(brand:, hook: [...], problem: [...], meet: (t) => mark, meetLine:, beats: [GlassBeat…],
+  proof: [...], end: GlassEnd(...), voice: {'hook': StoryVoice(path, text)}).build('name')
+```
+
+## The app's side
+
+```dart
+// app_reels/host.dart
+final host = ReelHost(
+  wrap: (screen) => ProviderScope(overrides: demo, child: MaterialApp(theme:, home: screen)),
+  ready: (tester) async { await tester.runAsync(loadFonts); await tester.pumpAndSettle(); },
+  settle: (tester) async => …,   // after lifts are cloned: let images decode
+);
+// app_reels/render_test.dart
+void main() {
+  final config = ReelConfig.load('app_reels/reel.yaml');
+  blaqReelMain(config: config, host: host, reels: {'promo': (f) => promo(config, f)});
+}
+```
+
+reel.yaml: `name`, `fps`, `format`, `out`, `ffmpeg`, `music` (`pad` or a
+path), `sound`, `brand: {ink, accent, paper, fonts: {display, text}}`.
+
+## CLI (from the app root)
+
+```
+dart run blaq_reel init | doctor | list
+dart run blaq_reel stills <reel> --at 1,3.5 [--format wide] [--open]
+dart run blaq_reel render <reel> [--format vertical,wide|all] [--fps 60] [--no-audio] [--open]
+dart run blaq_reel studio <reel> [--format wide] [--port 4455]
+dart run blaq_reel sfx [--pad 30]
+dart run blaq_reel voice --script app_reels/voice/script.yaml [--voice Tessa]
+```
+
+Output: `out/<reel>.mp4` for the default format, `out/<reel>-<format>.mp4`
+otherwise; stills in `out/stills/`; the studio's previews in `out/studio/`;
+the last run's full log in `out/last.log`.
