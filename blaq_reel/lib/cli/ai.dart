@@ -68,6 +68,18 @@ class Drafter {
           ],
         },
     ];
+    // The person's own beats, each with its screen's parts to choose from.
+    final byId = {for (final sc in screens) '${sc['id']}': sc};
+    final chosen = [
+      for (final b
+          in (spec['beats'] as List? ?? const []).cast<Map<String, Object?>>())
+        {
+          'screen': b['screen'],
+          'kind': byId['${b['screen']}']?['kind'] ?? 'screen',
+          'partsChosen': b['parts'] ?? const [],
+          'partsToChooseFrom': byId['${b['screen']}']?['parts'] ?? const [],
+        },
+    ];
     return '''
 You are writing a promo reel for the Flutter app "${project.name}" with BlaqReel.
 Pack: $pack. Format: ${spec['format'] ?? 'vertical'}.
@@ -78,20 +90,28 @@ ${brief.isEmpty ? '(none given: make the strongest case for the app)' : brief}
 What the app really does, in its own words (use only claims found here):
 ${_copy()}
 
-${all ? '''Choose 4 to 6 beats. For each beat pick one screen by "id" from the screens below, and 1 to 3 of that screen's parts to feature, copying "type" and "text" exactly as listed. Each part should show what its beat is about; prefer cards, rows and photos over buttons and bars. A "component" is one piece of the app shown large on its own (a button going into its loading state, a loading placeholder): its beat has no parts, so leave "parts" empty, and use one only where the brief is about how the app feels.
+${all && chosen.isNotEmpty
+        ? '''The person chose these screens, in this order. Keep every beat: the same screen, in the same order, one answer per beat. For each, pick 1 to 3 of that screen's parts to feature (keep the parts already chosen, if any), copying "type" and "text" exactly as listed; choose a "move"; and write its words. A "component" beat has no parts: leave "parts" empty.
+
+Beats, each with its screen's parts:
+${const JsonEncoder.withIndent(' ').convert(chosen)}'''
+        : all
+        ? '''Choose 4 to 6 beats. For each beat pick one screen by "id" from the screens below, and 1 to 3 of that screen's parts to feature, copying "type" and "text" exactly as listed. Each part should show what its beat is about; prefer cards, rows and photos over buttons and bars. A "component" is one piece of the app shown large on its own (a button going into its loading state, a loading placeholder): its beat has no parts, so leave "parts" empty, and use one only where the brief is about how the app feels.
 
 Screens:
-${const JsonEncoder.withIndent(' ').convert(screens)}''' : '''The beats are chosen already (screens and parts below). Keep them, in order, and write their words.
+${const JsonEncoder.withIndent(' ').convert(screens)}'''
+        : '''The beats are chosen already (screens and parts below). Keep them, in order, and write their words.
 
 Beats:
 ${const JsonEncoder.withIndent(' ').convert(spec['beats'] ?? [])}'''}
 
 Rules: ${_packRules[pack] ?? _packRules['glass']}
+Each beat may have "move", how its parts leave the screen: "lift" (straight up), "sweep" (up, with a scan line reading the first: for a receipt or a document), "spread" (pulled apart round the phone: for showing several things at once), "fan" (gathered and fanned like cards: for a set of similar items), "zoom" (the first comes forward large: for one figure or answer), "tap" (a finger picks the first: for something you press), "pop" (one by one with a spring: for quick wins), "orbit" (the camera circles while they lift: for a big moment). Vary them; don't use one move for every beat.
 Also write "end": {"line": a closing line of at most six words}.
 No numbers, testimonials or claims the copy above does not make. Plain, warm, direct.
 
 Reply with one JSON object and nothing else:
-{"beats":[{"screen":"…","parts":[{"type":"…","text":"…"}],"word":"…","line":"…"}],"hook":[],"problem":[],"meetLine":"","proof":[],"end":{"line":"…"}}
+{"beats":[{"screen":"…","parts":[{"type":"…","text":"…"}],"move":"…","word":"…","line":"…"}],"hook":[],"problem":[],"meetLine":"","proof":[],"end":{"line":"…"}}
 ''';
   }
 

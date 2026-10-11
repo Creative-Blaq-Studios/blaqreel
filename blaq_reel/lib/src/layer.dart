@@ -308,6 +308,15 @@ class Lift {
   /// A scan line passing over it, as if it were being read.
   final Sweep? sweep;
 
+  /// A place on its screen to travel to, from the screen's centre, whatever
+  /// the place it was found at: for moves that rearrange parts (a spread, a
+  /// fan). Its [motion]'s `x` and `y` still add on top.
+  final Offset? to;
+
+  /// How far along the way to [to] it is, 0 to 1. Without one it is there
+  /// from the start.
+  final Track? travel;
+
   /// A lift.
   Lift({
     required this.where,
@@ -319,6 +328,8 @@ class Lift {
     this.carry = false,
     this.glass,
     this.sweep,
+    this.to,
+    this.travel,
   }) : motion = motion ?? Motion();
 }
 

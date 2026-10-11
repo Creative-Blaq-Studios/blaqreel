@@ -78,6 +78,43 @@ textarea.input { min-height: 80px; resize: vertical; }
 .prow b { font-weight: 600; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow span { color: var(--text2); font-size: 12px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow .o { font: 600 11px var(--mono); color: var(--ok); }
+.beatTabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.beatTabs button { padding: 6px 10px; font-size: 11px; display: inline-flex; gap: 6px; align-items: center; }
+.beatTabs button.on { border-color: var(--accent); color: var(--accent); }
+.beatTabs button i { font-style: normal; color: var(--ok); }
+.beatTabs button i.no { color: var(--muted); }
+.moves { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 22px; }
+.mv { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line2); background: var(--surface); }
+.mv:hover { border-color: var(--text2); }
+.mv.on { border-color: var(--accent); }
+.mv b { font-weight: 600; font-size: 13px; }
+.mv.on b { color: var(--accent); }
+.mv span { font-size: 11.5px; color: var(--text2); line-height: 1.35; }
+.mv .mvst { height: 96px; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #241F1A, #101010 75%); perspective: 260px; overflow: hidden; }
+.mv .mvph { position: relative; width: 44px; height: 84px; border: 1.5px solid #3A3A3A; border-radius: 9px; background: #1B1B1B; transform-style: preserve-3d; }
+.mv .mvbar { position: absolute; left: 4px; width: 33px; height: 15px; border-radius: 3px; background: #F2F2F2; box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  --x: 0px; --y: 0px; --r: 0deg; --s: 1; --d: 0s; animation: mvgo 2.6s var(--ease, cubic-bezier(.45,0,.25,1)) var(--d) infinite; }
+.mv .mvbar:nth-child(1) { top: 9px; background: #FFD97A; }
+.mv .mvbar:nth-child(2) { top: 34px; }
+.mv .mvbar:nth-child(3) { top: 59px; }
+@keyframes mvgo { 0%, 12% { transform: none; } 40%, 82% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(var(--s)); } 100% { transform: none; } }
+.mv-lift .mvbar, .mv-orbit .mvbar, .mv-tap .mvbar { --s: 1.14; --y: -3px; }
+.mv-lift .mvbar:nth-child(2), .mv-orbit .mvbar:nth-child(2) { --d: .12s; } .mv-lift .mvbar:nth-child(3), .mv-orbit .mvbar:nth-child(3) { --d: .24s; }
+.mv-sweep .mvbar:nth-child(1) { --s: 1.45; --y: 4px; z-index: 2; } .mv-sweep .mvbar { --s: 1.08; }
+.mv-sweep .mvbar:nth-child(1)::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: mvscan 2.6s linear infinite; }
+@keyframes mvscan { 0%, 35% { top: 0; opacity: 0; } 40% { opacity: 1; } 75% { top: 100%; opacity: 1; } 80%, 100% { top: 100%; opacity: 0; } }
+.mv-spread .mvbar:nth-child(1) { --x: -24px; --y: -6px; --r: -9deg; } .mv-spread .mvbar:nth-child(2) { --x: 25px; --r: 9deg; --d: .1s; } .mv-spread .mvbar:nth-child(3) { --x: -22px; --y: 8px; --r: -7deg; --d: .2s; }
+.mv-fan .mvbar:nth-child(1) { --x: -9px; --y: 27px; --r: -14deg; } .mv-fan .mvbar:nth-child(2) { --y: 6px; --s: 1.05; --d: .1s; z-index: 2; } .mv-fan .mvbar:nth-child(3) { --x: 9px; --y: -16px; --r: 14deg; --d: .2s; z-index: 3; }
+.mv-zoom .mvbar:nth-child(1) { --y: 24px; --s: 1.9; z-index: 2; } .mv-zoom .mvph { animation: mvdim 2.6s ease infinite; }
+@keyframes mvdim { 0%, 15%, 100% { opacity: 1; } 40%, 82% { opacity: .55; } }
+.mv-tap .mvbar { --d: .55s; }
+.mv-tap .mvph::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.85); left: 15px; top: 10px; animation: mvtap 2.6s ease infinite; }
+@keyframes mvtap { 0%, 4% { opacity: 0; transform: translate(10px, 14px) scale(1.3); } 14% { opacity: 1; transform: none; } 20% { transform: scale(.8); } 28%, 100% { opacity: 0; transform: scale(1.4); } }
+.mv-pop .mvbar { --s: 1.16; --y: -3px; --ease: cubic-bezier(.34, 1.56, .64, 1); }
+.mv-pop .mvbar:nth-child(2) { --d: .3s; } .mv-pop .mvbar:nth-child(3) { --d: .6s; }
+.mv-orbit .mvph { animation: mvorbit 2.6s ease-in-out infinite alternate; }
+@keyframes mvorbit { from { transform: rotateY(-38deg); } to { transform: rotateY(38deg); } }
+@media (prefers-reduced-motion: reduce) { .mv * , .mv *::after { animation: none !important; } }
 .seg { display: inline-flex; border: 1px solid var(--line2); }
 .seg button { border: 0; border-right: 1px solid var(--line2); }
 .seg button:last-child { border-right: 0; }
@@ -193,7 +230,7 @@ h2 span { color: var(--muted); }
 .hint { color: var(--text2); font-size: 13px; }
 .row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 @media (max-width: 1100px) { #build { grid-template-columns: 220px minmax(0, 1fr); } #build aside { display: none; } }
-@media (max-width: 760px) { #build { grid-template-columns: 1fr; } .picker { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { #build { grid-template-columns: 1fr; } .picker { grid-template-columns: 1fr; } .moves { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 ''';
 
 /// The builder's markup.
@@ -229,6 +266,17 @@ const LOOKS = [
   { id: 'grid', name: 'Grid floor', blurb: 'Dark, with a floor of lines in 3D.' },
   { id: 'ink', name: 'Ink glow', blurb: 'Dark ink with the accent glowing.' },
   { id: 'echo', name: 'Screen echo', blurb: 'The screen, huge and blurred behind.' },
+];
+// How a beat's parts leave its screen (Glass Layers and Story Ad).
+const MOVES = [
+  ['lift', 'Lift', 'Straight up off the screen.'],
+  ['sweep', 'Lift + scan', 'Up, with a scan line reading the first.'],
+  ['spread', 'Spread', 'Pulled apart round the phone, past its sides.'],
+  ['fan', 'Fan', 'Gathered in the middle, fanned like cards.'],
+  ['zoom', 'Zoom in', 'The first comes forward, large; the rest dims.'],
+  ['tap', 'Tap', 'A finger picks the first, then they lift.'],
+  ['pop', 'Pop', 'One by one, each with a spring.'],
+  ['orbit', 'Orbit', 'They lift while the camera circles the phone.'],
 ];
 const FORMATS = ['vertical', 'wide', 'square', 'portrait'];
 const STEPS = [
@@ -362,7 +410,10 @@ async function openBuilder() {
   const specs = await fetch('/api/specs').then((r) => r.json());
   const pick = $('specPick');
   pick.innerHTML = specs.length ? specs.map((s) => `<option value="${escB(s.name)}">${escB(s.name)}</option>`).join('') : '<option value="">No reels yet</option>';
-  if (!spec && specs.length) { spec = whole({ ...blank(specs[0].name), ...specs[0].spec, name: specs[0].name }); }
+  // The reel worked on last, else the one changed most recently.
+  let last = null; try { last = localStorage.getItem('blaqreel-reel'); } catch {}
+  const first = specs.find((x) => x.name === last) || specs[0];
+  if (!spec && first) { spec = whole({ ...blank(first.name), ...first.spec, name: first.name }); }
   if (spec) pick.value = spec.name;
   if (!spec) { newSpec(); return; }
   draw();
@@ -370,7 +421,8 @@ async function openBuilder() {
 $('specPick').onchange = async (e) => {
   const name = e.target.value; if (!name) return;
   const s = await fetch('/api/spec?name=' + encodeURIComponent(name)).then((r) => r.json());
-  spec = whole({ ...blank(name), ...s, name }); step = 'screens'; beatIndex = 0; groundShots = null; draw();
+  spec = whole({ ...blank(name), ...s, name }); step = 'screens';
+  try { localStorage.setItem('blaqreel-reel', name); } catch {} beatIndex = 0; groundShots = null; draw();
 };
 $('newSpec').onclick = () => newSpec();
 function newSpec() {
@@ -383,6 +435,7 @@ function newSpec() {
 
 // ── Saving ──────────────────────────────────────────────────────────
 function save() {
+  try { localStorage.setItem('blaqreel-reel', spec.name); } catch {}
   clearTimeout(saving);
   saving = setTimeout(async () => {
     const body = { ...spec }; delete body.name;
@@ -421,7 +474,7 @@ function beatList(side, opts = {}) {
   spec.beats.forEach((b, i) => {
     const s = screenOf(b.screen);
     const el = B(`<div class="beat${opts.select && i === beatIndex ? ' on' : ''}" data-i="${i}"><button class="grip" title="Drag to reorder (or use the arrow keys)" aria-label="Move beat ${i + 1}">⠿</button>
-      <div class="t"><b><span class="n">${i + 1}</span> ${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${isComp(b.screen) ? 'component' : `${b.parts.length} part${b.parts.length === 1 ? '' : 's'}`}</span></div>
+      <div class="t"><b><span class="n">${i + 1}</span> ${escB(b.word || b.line || (s ? s.label : b.screen))}</b><span>${escB(s ? s.label : b.screen)} · ${isComp(b.screen) ? 'component' : `${b.parts.length} part${b.parts.length === 1 ? '' : 's'}${b.parts.length && b.move && b.move !== 'lift' ? ' · ' + (MOVES.find((m) => m[0] === b.move) || [, b.move])[1].toLowerCase() : ''}`}</span></div>
       <button class="rm" title="Remove" aria-label="Remove beat ${i + 1}">✕</button></div>`);
     el.querySelector('.rm').onclick = () => change(() => { spec.beats.splice(i, 1); beatIndex = Math.max(0, Math.min(beatIndex, spec.beats.length - 1)); });
     el.querySelector('.t').onclick = () => { beatIndex = i; if (opts.select) draw(); else { step = 'parts'; draw(); } };
@@ -522,7 +575,7 @@ function drawBrief(c, side) {
   [['Placeholder pad', null], ['No music', 'none']].forEach(([label, v]) => { const b = B(`<button class="${spec.music === v ? 'on' : ''}">${label}</button>`); b.onclick = () => change(() => (spec.music = v)); sound.querySelector('.seg').appendChild(b); });
   c.appendChild(sound);
   const who = B('<div class="field"><span>Who writes the story?</span><div class="cards"></div></div>');
-  [['all', 'The AI, all of it', 'It picks the screens, the parts and the words from your brief. You review and change anything.'],
+  [['all', 'The AI, all of it', 'It picks the parts, the moves and the words for your screens (and the screens too, if you have not chosen any). You review and change anything.'],
    ['words', 'Me, then the AI', 'You pick the screens and parts; the AI drafts the words for you to edit.'],
    ['me', 'Me, all of it', 'You pick everything and write every word.']].forEach(([id, t, d]) => {
     const b = B(`<button class="card${spec.storyBy === id ? ' on' : ''}"><b>${t}</b><span>${d}</span></button>`);
@@ -667,6 +720,15 @@ function drawParts(c, side) {
   if (!spec.beats.length) { c.appendChild(B('<div><h1>Parts</h1><p class="why">Add screens first.</p></div>')); return; }
   beatIndex = Math.min(beatIndex, spec.beats.length - 1);
   const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
+  // Every beat, so any of them is a click away.
+  const tabs = B('<div class="beatTabs" role="tablist" aria-label="Beats"></div>');
+  spec.beats.forEach((b, i) => {
+    const bs = screenOf(b.screen), ready = b.parts.length || isComp(b.screen);
+    const t = B(`<button role="tab" aria-selected="${i === beatIndex}" class="${i === beatIndex ? 'on' : ''}"><i class="${ready ? '' : 'no'}">${ready ? '✓' : '○'}</i>${i + 1} · ${escB(b.word || (bs ? bs.label : b.screen))}</button>`);
+    t.onclick = () => { beatIndex = i; draw(); };
+    tabs.appendChild(t);
+  });
+  c.appendChild(tabs);
   c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: what does it feature?</h1><p class="why">Click the parts of <b>${escB(s ? s.label : beat.screen)}</b> to feature, in order: the first rises highest. One to three reads best. Pick what shows the beat's point.</p></div>`));
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
   if (s.kind === 'component') {
@@ -674,7 +736,7 @@ function drawParts(c, side) {
     c.appendChild(B(`<div class="scr" style="max-width:320px;cursor:default"><span class="pic"><img src="/catalogue/${s.image}" alt="${escB(s.label)}"></span></div>`));
     return;
   }
-  const wrap = B('<div class="picker"><div class="shot2"></div><div><div class="plist"></div><div class="field" style="margin-top:16px"><span>Move</span><div class="seg"></div></div></div></div>');
+  const wrap = B('<div class="picker"><div class="shot2"></div><div><div class="plist"></div></div></div>');
   const shot = wrap.querySelector('.shot2'); shot.appendChild(B(`<img src="/catalogue/${s.image}" alt="${escB(s.label)}">`));
   const isOn = (p) => beat.parts.findIndex((x) => x.type === p.name && (x.text || null) === (p.text || null));
   s.parts.forEach((p, n) => {
@@ -684,10 +746,6 @@ function drawParts(c, side) {
     const toggle = () => change(() => { const j = isOn(p); if (j >= 0) beat.parts.splice(j, 1); else beat.parts.push({ type: p.name, text: p.text || null }); });
     box.onclick = toggle; row.onclick = toggle;
     shot.appendChild(box); wrap.querySelector('.plist').appendChild(row);
-  });
-  [['lift', 'Lift'], ['sweep', 'Lift + scan line']].forEach(([id, label]) => {
-    const b = B(`<button class="${(beat.move || 'lift') === id ? 'on' : ''}">${label}</button>`);
-    b.onclick = () => change(() => (beat.move = id)); wrap.querySelector('.seg').appendChild(b);
   });
   // Typing into one of the screen's fields, if it has any.
   const fields = s.parts.filter((p) => /Editable|Field|Input|TextField/.test(p.name));
@@ -703,6 +761,17 @@ function drawParts(c, side) {
     wrap.querySelector('.plist').parentElement.appendChild(ty);
   }
   c.appendChild(wrap);
+  // How the chosen parts leave the screen, each move drawn as it plays.
+  const moving = spec.pack === 'glass' || spec.pack === 'story';
+  c.appendChild(B(`<div class="field" style="margin-top:26px;margin-bottom:0"><span>Move${moving ? '' : ` · ${escB(PACKS.find((p) => p.id === spec.pack).name)} has its own motion; these apply to Glass Layers and Story Ad`}</span></div>`));
+  const moves = B('<div class="moves" role="radiogroup" aria-label="Move"></div>');
+  MOVES.forEach(([id, name, blurb]) => {
+    const on = (beat.move || 'lift') === id;
+    const b = B(`<button class="mv mv-${id}${on ? ' on' : ''}" role="radio" aria-checked="${on}"><div class="mvst"><div class="mvph"><div class="mvbar"></div><div class="mvbar"></div><div class="mvbar"></div></div></div><b>${name}</b><span>${blurb}</span></button>`);
+    b.onclick = () => change(() => (beat.move = id));
+    moves.appendChild(b);
+  });
+  c.appendChild(moves);
   const nb = B('<div class="row2" style="margin-top:22px"></div>');
   if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }
   else { nb.appendChild(next('On to the story')); }
@@ -753,13 +822,25 @@ function drawStory(c, side) {
 async function aiDraft(all, button) {
   if (!all && !spec.beats.length) return toast('Pick screens first, or let the AI build it all.');
   const label = button.textContent; button.textContent = 'Asking Claude… about a minute'; button.classList.add('busy');
+  const hadScreens = spec.beats.length > 0;
   try {
     const r = await fetch('/api/ai', { method: 'POST', body: JSON.stringify({ spec, brief: spec.brief, all }) }).then((x) => x.json());
     if (!r.ok) { toast(r.error || 'The AI did not answer'); return; }
     const d = r.draft;
     change(() => {
-      if (all && Array.isArray(d.beats)) {
-        spec.beats = d.beats.filter((b) => screenOf(b.screen)).map((b) => ({ screen: b.screen, parts: (b.parts || []).map((p) => ({ type: p.type, text: p.text || null })), word: b.word || '', line: b.line || '' }));
+      const valid = (b) => (b.parts || []).filter((p) => p && p.type).map((p) => ({ type: p.type, text: p.text || null }));
+      const move = (m) => (MOVES.some(([id]) => id === m) ? m : undefined);
+      if (all && Array.isArray(d.beats) && hadScreens) {
+        // The screens are the person's: keep every one, in order, and fill
+        // in only what they have not chosen.
+        d.beats.forEach((b, i) => {
+          const mine = spec.beats[i]; if (!mine) return;
+          if (!mine.parts.length && !isComp(mine.screen)) mine.parts = valid(b);
+          if (!mine.move && move(b.move)) mine.move = move(b.move);
+          mine.word = b.word || mine.word; mine.line = b.line || mine.line;
+        });
+      } else if (all && Array.isArray(d.beats)) {
+        spec.beats = d.beats.filter((b) => screenOf(b.screen)).map((b) => ({ screen: b.screen, parts: valid(b), move: move(b.move), word: b.word || '', line: b.line || '' }));
       } else if (Array.isArray(d.beats)) {
         d.beats.forEach((b, i) => { if (spec.beats[i]) { spec.beats[i].word = b.word || spec.beats[i].word; spec.beats[i].line = b.line || spec.beats[i].line; } });
       }

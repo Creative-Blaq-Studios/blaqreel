@@ -458,8 +458,13 @@ class Studio {
         case '/api/specs':
           final dir = Directory(_specs);
           _sendJson(req, [
+            // The most recently changed first.
             if (dir.existsSync())
-              for (final f in dir.listSync().whereType<File>())
+              for (final f
+                  in dir.listSync().whereType<File>().toList()..sort(
+                    (a, b) =>
+                        b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+                  ))
                 if (f.path.endsWith('.json') &&
                     !f.uri.pathSegments.last.startsWith('_'))
                   {

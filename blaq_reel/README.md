@@ -39,9 +39,10 @@ widget tests already has this.
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
-3. **Parts**: each beat's screen with its cards, rows and photos numbered;
-   click what it features, in order, and choose the move (lift, or lift
-   with a scan line).
+3. **Parts**: every beat in a strip along the top; each beat's screen with
+   its cards, rows and photos numbered. Click what it features, in order,
+   and choose how they leave the screen: Lift, Lift + scan, Spread, Fan,
+   Zoom in, Tap, Pop or Orbit, each drawn playing on its card.
 4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).

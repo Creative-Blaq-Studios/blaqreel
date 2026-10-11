@@ -90,6 +90,10 @@ Pick.key(ValueKey('x'))
 ## Packs
 
 ```dart
+// GlassBeat(move: GlassMove.spread): lift, scan, spread, fan, zoom, tap,
+// pop, orbit. Specs: "move": "spread" ("sweep" is scan).
+// Lift(to: Offset(-120, -230), travel: Track…) sends a part to a place on
+// its screen (from the screen's centre), wherever it was found.
 // GlassBeat(piece: Size(320, 80)) makes a beat about one component: `screen`
 // is then the component, shown large on the ground, pressed by `taps`.
 GlassLayers(brand:, format:, beats: [GlassBeat('Share.', screen:, lift: [Pick…],

@@ -76,8 +76,12 @@ class GlassBeat {
   final Backdrop? ground;
 
   /// A scan line passes over the first lifted widget as it rises: the move
-  /// for a beat about reading something — a receipt, a document.
+  /// for a beat about reading something — a receipt, a document. The same
+  /// as [move] [GlassMove.scan].
   final bool sweep;
+
+  /// How the lifted parts leave the screen.
+  final GlassMove move;
 
   /// A beat.
   const GlassBeat(
@@ -97,6 +101,7 @@ class GlassBeat {
     this.look,
     this.ground,
     this.sweep = false,
+    this.move = GlassMove.lift,
     this.piece,
   });
 }
@@ -445,27 +450,42 @@ class GlassLayers {
   /// alternating so consecutive beats mirror each other.
   Scene beatScene(GlassBeat beat, double dir) {
     if (beat.piece != null) return _pieceScene(beat, dir);
-    final f = _frame.adjusted(beat.zoom, beat.framing);
+    final move = beat.sweep ? GlassMove.scan : beat.move;
+    final f = _frame.adjusted(
+      // A spread reaches past the phone's sides, so it stands back a little.
+      beat.zoom * (move == GlassMove.spread ? 0.86 : 1),
+      beat.framing,
+    );
     final bl = _lookOf(beat);
     final light = _isLight(bl);
     final l = beat.length;
     const settle = Duration(milliseconds: 1500);
-    const lifted = Duration(milliseconds: 3000);
-    const heroHeight = 220.0;
+    const rise = Duration(milliseconds: 1500);
     const fallBack = 80.0;
     // Close enough together that one sharp band holds every lifted card:
     // lifted means in focus. Only the screen behind softens.
-    final heights = [heroHeight, 180.0, 145.0];
+    final heights = switch (move) {
+      GlassMove.spread => [190.0, 170.0, 150.0],
+      GlassMove.fan => [160.0, 185.0, 210.0],
+      GlassMove.zoom => [240.0, 150.0, 130.0],
+      _ => [220.0, 180.0, 145.0],
+    };
     final count = beat.lift.take(3).length;
-    final top = heroHeight - fallBack;
-    final bottom = (count == 0 ? heroHeight : heights[count - 1]) - fallBack;
+    final used = heights.take(math.max(count, 1));
+    final top = used.reduce(math.max) - fallBack;
+    final bottom = used.reduce(math.min) - fallBack;
+    final lifted = settle + rise;
 
     final hasLift = beat.lift.isNotEmpty;
+    final orbit = move == GlassMove.orbit;
     final camera = Camera.tracks(
       tilt: Track.from(15).to(settle, 6, Ease.arrive).to(l, 9, Ease.linear),
-      turn: Track.from(
-        -19 * dir,
-      ).to(settle, -7 * dir, Ease.arrive).to(l, -13 * dir, Ease.linear),
+      // An orbit swings right round the phone; every other move drifts.
+      turn: orbit
+          ? Track.from(-34 * dir).to(l, 26 * dir, Ease.inOut)
+          : Track.from(
+              -19 * dir,
+            ).to(settle, -7 * dir, Ease.arrive).to(l, -13 * dir, Ease.linear),
       roll: Track.from(
         -4 * dir,
       ).to(settle, -2 * dir, Ease.arrive).to(l, -3 * dir, Ease.linear),
@@ -509,42 +529,25 @@ class GlassLayers {
           beat.screen,
           device: beat.device,
           statusBar: statusBar,
-          taps: beat.taps,
+          taps: [
+            ...beat.taps,
+            // A finger picks the part out before it rises.
+            if (move == GlassMove.tap && hasLift)
+              Tap(where: beat.lift.first, at: settle + 100.ms),
+          ],
           scrolls: beat.scrolls,
           typing: beat.typing,
           motion: hasLift
               ? Motion(
                   z: Track.from(0).hold(settle).to(lifted, -fallBack),
-                  opacity: Track.from(1).hold(settle).to(lifted, 0.76),
+                  opacity: Track.from(1)
+                      .hold(settle)
+                      .to(lifted, move == GlassMove.zoom ? 0.5 : 0.76),
                 )
               : null,
           lifts: [
             for (final (k, where) in beat.lift.take(3).indexed)
-              Lift(
-                where: where,
-                radius: beat.liftRadius,
-                hole: hole?.call(beat.liftRadius),
-                glass: const Glass(depth: 6, color: Color(0x30FFFFFF)),
-                sweep: beat.sweep && k == 0
-                    ? Sweep(at: settle + 600.ms, color: brand.accent)
-                    : null,
-                motion: Motion(
-                  z: Track.from(0)
-                      .hold(settle + 250.ms * k)
-                      .to(lifted + 250.ms * k, heights[k]),
-                  x: Track.from(0)
-                      .hold(settle + 250.ms * k)
-                      .to(lifted + 250.ms * k, k == 0 ? 0 : 10.0 * dir * k),
-                  scale: Track.from(1)
-                      .hold(settle + 250.ms * k)
-                      .to(
-                        lifted + 250.ms * k,
-                        // Something being read rises larger, so the scan
-                        // line over it reads at a glance.
-                        k == 0 ? (beat.sweep ? 1.45 : 1.06) : 1.03,
-                      ),
-                ),
-              ),
+              _lift(beat, move, where, k, count, heights[k], dir, settle, rise),
           ],
         ),
       ],
@@ -573,6 +576,86 @@ class GlassLayers {
         ),
       ],
       cues: [if (hasLift) Cue(settle, 'rise')],
+    );
+  }
+
+  /// The [k]th of [count] parts lifting off in [move], to [height].
+  Lift _lift(
+    GlassBeat beat,
+    GlassMove move,
+    Pick where,
+    int k,
+    int count,
+    double height,
+    double dir,
+    Duration settle,
+    Duration rise,
+  ) {
+    final start =
+        settle +
+        (move == GlassMove.pop ? 320.ms : 250.ms) * k +
+        (move == GlassMove.tap ? 450.ms : Duration.zero);
+    final end = start + rise;
+    Track up(double to, [Curve ease = Curves.easeInOutCubic]) =>
+        Track.from(0).hold(start).to(end, to, ease);
+    Track grow(double to) => Track.from(1).hold(start).to(end, to);
+    // Where it sits in a fan or a spread, from the middle one.
+    final side = k - (count - 1) / 2;
+    final travel = Track.from(0).hold(start).to(end, 1, Ease.inOut);
+    final (motion, to) = switch (move) {
+      // Pulled apart round the phone, each turned toward the middle.
+      GlassMove.spread => (
+        Motion(
+          z: up(height),
+          turn: up([14.0, -14.0, 12.0][k] * dir),
+          scale: grow(1.02),
+        ),
+        Offset([-118.0, 128.0, -104.0][k] * dir, [-230.0, 20.0, 260.0][k]),
+      ),
+      // Gathered in the middle, overlapping, fanned like a hand of cards.
+      GlassMove.fan => (
+        Motion(z: up(height), roll: up(8 * side * dir), scale: grow(1.04)),
+        Offset(78 * side * dir, 40.0 + 30 * side.abs()),
+      ),
+      // The first part comes forward to the middle of the screen, large.
+      GlassMove.zoom when k == 0 => (
+        Motion(z: up(height), scale: grow(1.38)),
+        const Offset(0, -30),
+      ),
+      // Up with a spring: past its place and back.
+      GlassMove.pop => (
+        Motion(
+          z: Track.from(0).hold(start).to(start + 650.ms, height, Ease.pop),
+          scale: Track.from(
+            1,
+          ).hold(start).to(start + 650.ms, k == 0 ? 1.08 : 1.04, Ease.pop),
+        ),
+        null,
+      ),
+      _ => (
+        Motion(
+          z: up(height),
+          x: up(k == 0 ? 0 : 10.0 * dir * k),
+          scale: grow(
+            // Something being read rises larger, so the scan line over it
+            // reads at a glance.
+            k == 0 ? (move == GlassMove.scan ? 1.45 : 1.06) : 1.03,
+          ),
+        ),
+        null,
+      ),
+    };
+    return Lift(
+      where: where,
+      radius: beat.liftRadius,
+      hole: hole?.call(beat.liftRadius),
+      glass: const Glass(depth: 6, color: Color(0x30FFFFFF)),
+      sweep: move == GlassMove.scan && k == 0
+          ? Sweep(at: settle + 600.ms, color: brand.accent)
+          : null,
+      motion: motion,
+      to: to,
+      travel: to == null ? null : travel,
     );
   }
 
@@ -874,6 +957,34 @@ extension GlassLookTone on GlassLook {
       this == GlassLook.mesh ||
       this == GlassLook.butter ||
       this == GlassLook.studio;
+}
+
+/// How a [GlassBeat]'s parts leave its screen.
+enum GlassMove {
+  /// Straight up off the screen, toward the camera.
+  lift,
+
+  /// Up, the first larger, with a scan line passing over it: reading.
+  scan,
+
+  /// Pulled apart round the phone, past its sides, each turned to the
+  /// middle: an exploded view.
+  spread,
+
+  /// Gathered in the middle, overlapping, fanned like a hand of cards.
+  fan,
+
+  /// The first part comes forward to the middle, large; the screen dims.
+  zoom,
+
+  /// A finger taps the first part, then they lift.
+  tap,
+
+  /// One after another, each springing up past its place and back.
+  pop,
+
+  /// Up as in [lift], while the camera swings right round the phone.
+  orbit,
 }
 
 /// What [GlassLayers] screens sit on.

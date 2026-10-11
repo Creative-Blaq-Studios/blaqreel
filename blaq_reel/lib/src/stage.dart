@@ -795,6 +795,11 @@ class ReelStageState extends State<ReelStage> {
     final own = lift.motion.at(t);
     final box = lifted.rect.inflate(_liftPad);
     const rad = math.pi / 180;
+    // Toward a place on the screen, from wherever it was found.
+    final shift = lift.to == null
+        ? Offset.zero
+        : (layer.size.center(Offset.zero) + lift.to! - lifted.rect.center) *
+              (lift.travel?.at(t) ?? 1);
     final m =
         camera.project(
             pose: pose,
@@ -805,8 +810,8 @@ class ReelStageState extends State<ReelStage> {
           )
           ..multiply(
             Matrix4.translationValues(
-              lifted.rect.center.dx + own.x,
-              lifted.rect.center.dy + own.y,
+              lifted.rect.center.dx + own.x + shift.dx,
+              lifted.rect.center.dy + own.y + shift.dy,
               -own.z,
             ),
           )

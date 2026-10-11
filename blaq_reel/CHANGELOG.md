@@ -4,6 +4,21 @@
 
 ### Added
 
+- Moves: `GlassMove` on every Glass Layers (and Story Ad) beat. `lift`,
+  `scan`, and six new ones: `spread` (pulled apart round the phone, an
+  exploded view), `fan` (gathered and fanned like cards), `zoom` (the first
+  part comes forward large), `tap` (a finger picks it first), `pop` (one by
+  one with a spring, `Ease.pop`) and `orbit` (the camera circles the
+  phone). `Lift.to` and `travel` send a part to a place on its screen,
+  wherever it was found. Specs take `"move"`; the builder shows each move
+  as a small animation to choose from, and the AI picks moves when it
+  drafts.
+- The builder's Parts step lists every beat along the top.
+- "The AI, all of it" keeps the screens the person chose, in order, and
+  fills in only the parts, moves and words they left; it chooses screens
+  only when none are chosen. It used to replace them.
+- The builder reopens the reel worked on last.
+
 - Components: one piece of the app shown on its own, large on the ground
   with no phone around it. `Layer.component` and `Device.bare` draw it
   through the host like a screen, so a `Tap` with `press` really presses it

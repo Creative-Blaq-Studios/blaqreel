@@ -203,7 +203,12 @@ class ReelSpec {
         liftRadius: kit.liftRadius,
         length: _num(b['length'], 5.6).s,
         look: _look(b['look']),
+        // 'sweep' is what the builder first called the scan.
         sweep: b['move'] == 'sweep',
+        move: GlassMove.values.firstWhere(
+          (m) => m.name == b['move'],
+          orElse: () => GlassMove.lift,
+        ),
         zoom: _num(b['zoom'], 1),
         framing: framing == null
             ? Offset.zero

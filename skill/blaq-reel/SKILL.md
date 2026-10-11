@@ -56,6 +56,11 @@ Tell them to click the parts they want, in order, and paste the note back.
 Translate their picks into `lift:` / `Tap(where:)` / `Scroll` using the
 `Pick` the page gives for each number.
 
+Each beat also takes a move (`GlassMove`): lift, scan (reading a receipt
+or document), spread (several things at once), fan (a set of similar
+items), zoom (one figure or answer), tap (something pressed), pop (quick
+wins), orbit (a big moment). Vary them across the reel.
+
 Push back when a pick won't read: a feature should show the thing it is
 about (a scan beat shows the receipt being read, not a totals table), and a
 tall part lifted low on the screen runs into the word.

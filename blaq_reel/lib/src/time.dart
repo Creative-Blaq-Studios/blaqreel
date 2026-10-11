@@ -50,6 +50,9 @@ abstract final class Ease {
 
   /// A gentle drift that slows to a stop.
   static const Curve drift = Curves.easeOutSine;
+
+  /// Past the mark and back: something popping into place.
+  static const Curve pop = Cubic(0.34, 1.56, 0.64, 1);
 }
 
 /// A value at a moment, reached from the keyframe before it along [ease].
