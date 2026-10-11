@@ -1,0 +1,25 @@
+name: blaq_reel
+description: "Promo videos made from a Flutter app's real screens: layers in 3D, a keyframed camera, moving type, rendered frame by frame in flutter test and encoded by FFmpeg."
+version: 0.1.0
+publish_to: none
+topics:
+  - video
+  - animation
+  - marketing
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+# The renderer drives frames through a WidgetTester, so flutter_test is a real
+# dependency, not a dev one. Apps add blaq_reel as a dev_dependency: it never
+# ships inside the app.
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  yaml: ^3.1.2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
