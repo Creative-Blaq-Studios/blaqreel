@@ -41,6 +41,11 @@
   the Preview step (frames drawn, time left, then the sound), a bar under
   the header, and the figure in the status. Preview renders in place and
   plays when done.
+- The Preview step is a theatre: the reel centred at its own shape, a
+  scrub bar marked at each beat, a chip per beat (click to jump,
+  double-click to edit it), and an Export panel that renders finals in any
+  set of formats, full or quick. `/api/final` takes `reel`, `formats` and
+  `quality`.
 - Number fields scrub like a design tool's; `[` and `]` step through
   beats and Space plays or pauses in the builder (the Library's keys no
   longer act while building); chips at the top of the inspector switch

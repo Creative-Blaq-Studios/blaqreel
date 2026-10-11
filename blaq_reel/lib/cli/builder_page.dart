@@ -90,6 +90,23 @@ textarea.input { min-height: 80px; resize: vertical; }
 .canvas.fixed { overflow: hidden; display: flex; flex-direction: column; padding: 10px 12px; }
 .canvas.fixed > * { flex: none; }
 .canvas.fixed > button { align-self: flex-start; }
+/* The Preview step's theatre. */
+.th-top { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.th { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.th-stage { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
+.th-player { position: relative; height: 100%; max-width: 100%; background: #000; border: 1px solid var(--line2); display: grid; place-items: center; }
+.th-player video { width: 100%; height: 100%; display: block; object-fit: contain; }
+.th-player .th-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, 92%); z-index: 2; }
+.th-empty { color: var(--text2); padding: 24px; text-align: center; max-width: 260px; }
+.th-scrub { position: relative; height: 22px; width: min(720px, 100%); margin: 0 auto; background: var(--deep); border: 1px solid var(--line2); cursor: pointer; flex: none; }
+.th-scrub i { position: absolute; top: 0; bottom: 0; border-left: 1px solid #3A3A3A; }
+.th-scrub .th-ph { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); left: 0; }
+.th-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 760px; margin: 0 auto; flex: none; }
+.th-chips button { padding: 4px 8px; font-size: 10px; }
+.th-chips button.on { border-color: var(--accent); color: var(--accent); }
+.th-export { display: grid; gap: 12px; }
+.panel2 { display: grid; gap: 8px; border: 1px solid var(--line2); background: var(--surface); padding: 12px; }
+.panel2 b { font-size: 14px; }
 .canvas.fixed > .grow { flex: 1 1 auto; min-height: 0; }
 .canvas.fixed .pmode { margin-bottom: 10px; }
 .canvas.fixed .why { margin-bottom: 12px; }
@@ -1006,45 +1023,97 @@ function drawGround(c, side) {
   });
 }
 
-// 6 ─ Preview
-// Renders in place: the render card while it renders, then the video here.
+// 6 ─ Preview: the theatre. The video in the middle, the beats under it
+// (click to jump, double-click to edit), an Export panel beside it. It
+// renders in place, the render card over the video.
 let pvKey = null;
 function drawPreview(c, side) {
   pvKey = null;
+  c.classList.add('fixed');
   const missing = spec.beats.filter((b) => !b.parts.length && !isComp(b.screen)).length;
-  c.appendChild(B(`<div><h1>Preview it</h1><p class="why">${spec.beats.length} beat${spec.beats.length === 1 ? '' : 's'}, ${escB(PACKS.find((p) => p.id === spec.pack).name)}, ${spec.format}, on ${escB((LOOKS.find((l) => l.id === spec.look) || {}).name || spec.look)}.${missing ? ` ${missing} beat${missing === 1 ? ' has' : 's have'} no parts chosen yet: ${missing === 1 ? 'it' : 'they'} will show the screen alone.` : ''} A preview is half size, with sound, and takes a minute or two; it plays here when it is done.</p></div>`));
-  const row = B('<div class="row2"></div>');
-  const go = B('<button class="primary" id="pvGo">Render the preview</button>');
-  go.onclick = async () => {
-    go.disabled = true;
+  c.appendChild(B(`<div class="th-top"><div><h1 style="font-size:24px;margin:0">Preview</h1><span class="hint" style="margin:0">${spec.beats.length} beats · ${escB(PACKS.find((p) => p.id === spec.pack).name)} · ${spec.format}${missing ? ` · ${missing} beat${missing === 1 ? '' : 's'} with nothing lifting` : ''}</span></div><span style="flex:1"></span><button class="primary" id="pvGo">Render the preview</button></div>`));
+  c.appendChild(B(`<div class="th grow"><div class="th-stage"><div class="th-player" id="pvArea"></div></div>
+    <div class="th-scrub" id="pvScrub"></div><div class="th-chips" id="pvChips"></div>
+    <span class="hint" style="margin:0;text-align:center">Click a beat to jump to it · double-click to edit it</span></div>`));
+  c.querySelector('#pvGo').onclick = async (e) => {
+    e.target.disabled = true;
     await new Promise((r) => setTimeout(r, 600));   // let the last edit save
     await fetch(`/api/spec/preview?name=${encodeURIComponent(spec.name)}&format=${spec.format}`, { method: 'POST' });
     pvKey = null;
   };
-  row.appendChild(go);
-  c.appendChild(row);
-  c.appendChild(B('<div id="pvArea" style="margin-top:18px"></div>'));
-  c.appendChild(B(`<details style="margin-top:22px"><summary class="hint" style="cursor:pointer">The reel as data</summary><pre class="mono" style="font-size:12px;color:var(--text2);white-space:pre-wrap;border:1px solid var(--line2);padding:12px;background:var(--deep)">${escB(JSON.stringify((({ name, ...rest }) => rest)(spec), null, 2))}</pre></details>`));
-  side.appendChild(B(`<div class="ai"><b>Where it lives</b><span><code>app_reels/specs/${escB(spec.name)}.json</code>. It renders like any reel: <code>dart run blaq_reel render ${escB(spec.name)}</code>, or Render final in the Library.</span></div>`));
+  // Export: every format at once, full or quick.
+  const fmts = [['vertical', 'Vertical 9:16', 'Shorts · Reels · TikTok'], ['wide', 'Wide 16:9', 'YouTube · site'], ['square', 'Square 1:1', 'Feeds'], ['portrait', 'Portrait 4:5', 'Instagram feed']];
+  const ex = B(`<div class="th-export"><div class="lbl2">Export</div>
+    <div class="panel2"><b>Formats</b>${fmts.map(([id, n, w]) => `<label class="tl-chk"><input type="checkbox" data-fmt="${id}" ${id === spec.format ? 'checked' : ''}> ${n}<span class="mono2" style="margin-left:auto">${w}</span></label>`).join('')}</div>
+    <div class="panel2"><b>Quality</b><label class="tl-chk"><input type="radio" name="pvq" value="full" checked> Full · 1080p, motion blur</label><label class="tl-chk"><input type="radio" name="pvq" value="quick"> Quick · half size</label></div>
+    <button class="primary" id="pvFinal"></button>
+    <button id="pvAgain">Preview again</button>
+    <span class="mono2" id="pvMeta"></span>
+    <span class="hint" style="margin:0">Finals land in the Library, one per format. The reel is <code>app_reels/specs/${escB(spec.name)}.json</code>.</span></div>`);
+  side.appendChild(ex);
+  const count = () => ex.querySelectorAll('[data-fmt]:checked').length;
+  const label = () => { const n = count(); ex.querySelector('#pvFinal').textContent = n ? `Render ${n} final${n === 1 ? '' : 's'} →` : 'Choose a format'; ex.querySelector('#pvFinal').disabled = !n; };
+  ex.querySelectorAll('[data-fmt]').forEach((i) => (i.onchange = label)); label();
+  ex.querySelector('#pvFinal').onclick = async () => {
+    const formats = [...ex.querySelectorAll('[data-fmt]:checked')].map((i) => i.dataset.fmt).join(',');
+    const quality = ex.querySelector('[name=pvq]:checked').value;
+    await new Promise((r) => setTimeout(r, 600));
+    await fetch(`/api/final?reel=${encodeURIComponent(spec.name)}&formats=${formats}&quality=${quality}`, { method: 'POST' });
+    toast(`Rendering ${count()} final${count() === 1 ? '' : 's'} of ${spec.name}: they land in the Library`);
+  };
+  ex.querySelector('#pvAgain').onclick = () => c.querySelector('#pvGo').click();
   if (state) previewState(state);
 }
-// The Preview step follows the studio: a render under way shows its card;
-// a finished preview of this reel plays.
+// The Preview step follows the studio: a render under way shows its card
+// over the video; a finished preview of this reel plays, its beats under it.
 function previewState(st) {
   const area = document.getElementById('pvArea'), go = document.getElementById('pvGo');
   if (!area) return;
   const rendering = st.job && /^Rendering/.test(st.job);
   if (go) { go.disabled = !!rendering; go.textContent = rendering ? 'Rendering…' : 'Render the preview'; }
-  if (rendering) { pvKey = 'job'; area.innerHTML = `<div class="rcard">${renderCardHtml(st)}</div>`; return; }
-  const p = st.preview, mine = p && p.name === spec.name && st.reel === spec.name;
+  const again = document.getElementById('pvAgain'); if (again) again.disabled = !!rendering;
+  const p = st.preview, mine = p && p.name === spec.name && st.reel === spec.name && p.format === spec.format;
+  const meta = document.getElementById('pvMeta');
+  if (meta) meta.textContent = mine ? `${p.format} ${p.width}×${p.height} · ${p.fps} fps · ${(+p.length).toFixed(1)} s${st.renderedAt ? ' · ' + new Date(st.renderedAt).toLocaleTimeString() : ''}` : 'No preview of this reel yet';
+  area.style.aspectRatio = mine ? `${p.width} / ${p.height}` : spec.format === 'wide' ? '16 / 9' : spec.format === 'square' ? '1 / 1' : spec.format === 'portrait' ? '4 / 5' : '9 / 16';
+  // The card goes over whatever is there; the video stays put underneath.
+  let card = area.querySelector('.rcard');
+  if (rendering) {
+    if (!card) { card = B('<div class="rcard th-card"></div>'); area.appendChild(card); }
+    card.innerHTML = renderCardHtml(st);
+    const v = area.querySelector('video'); if (v) { v.pause(); v.style.opacity = 0.3; }
+  } else if (card) { card.remove(); }
   const key = mine ? `v${st.version}` : 'none';
   if (key === pvKey) return;
   pvKey = key;
-  area.innerHTML = mine
-    ? `<div class="pv-done"><video src="/files/${p.video}?v=${st.version}" controls autoplay playsinline style="max-height:62vh;max-width:100%;display:block;border:1px solid var(--line2);background:#000"></video>
-       <div class="row2" style="margin-top:10px"><span class="hint" style="margin:0">${escB(p.format)} ${p.width}×${p.height} · ${p.fps} fps · ${(+p.length).toFixed(1)} s${st.renderedAt ? ' · rendered ' + new Date(st.renderedAt).toLocaleTimeString() : ''}</span><span style="flex:1"></span><button id="pvLib">Open in the Library</button></div></div>`
-    : '<p class="hint">No preview of this reel yet.</p>';
-  const lib = document.getElementById('pvLib');
-  if (lib) lib.onclick = () => { setTab(false); history.replaceState(null, '', '#'); showLive(false); };
+  area.querySelectorAll('video, .th-empty').forEach((x) => x.remove());
+  if (!mine) {
+    area.prepend(B('<div class="th-empty">No preview yet. Render the preview to watch it here.</div>'));
+    document.getElementById('pvScrub').innerHTML = ''; document.getElementById('pvChips').innerHTML = '';
+    return;
+  }
+  const video = B(`<video src="/files/${p.video}?v=${st.version}" controls playsinline></video>`);
+  area.prepend(video);
+  video.play().catch(() => { video.muted = true; video.play().catch(() => {}); });
+  // The beats, from the preview's own timeline.
+  const scenes = (p.scenes || []).filter((x) => x.name !== 'open' && x.name !== 'end');
+  const total = +p.length || 1;
+  const scrub = document.getElementById('pvScrub'), chips = document.getElementById('pvChips');
+  scrub.innerHTML = scenes.map((x) => `<i style="left:${(x.start / total) * 100}%"></i>`).join('') + '<b class="th-ph"></b>';
+  // A beat with no words is named by its screen.
+  const nameOf = (x, i) => x.name || (spec.beats[i] && (screenOf(spec.beats[i].screen) || {}).label) || 'Beat ' + (i + 1);
+  chips.innerHTML = scenes.map((x, i) => `<button data-i="${i}" title="${escB(nameOf(x, i))} · ${(+x.start).toFixed(1)} s">${i + 1} ${escB(nameOf(x, i))}</button>`).join('');
+  scrub.onpointerdown = (e) => { const r = scrub.getBoundingClientRect(); video.currentTime = ((e.clientX - r.left) / r.width) * total; };
+  chips.querySelectorAll('button').forEach((b) => {
+    const i = +b.dataset.i;
+    b.onclick = () => { video.currentTime = scenes[i].start + 0.05; video.play().catch(() => {}); };
+    b.ondblclick = () => { if (i < spec.beats.length) { beatIndex = i; partsMode[i] = 'animate'; step = 'parts'; draw(); } };
+  });
+  video.ontimeupdate = () => {
+    const t = video.currentTime;
+    scrub.querySelector('.th-ph').style.left = (t / total) * 100 + '%';
+    let on = -1; scenes.forEach((x, i) => { if (t >= x.start) on = i; });
+    chips.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === on));
+  };
 }
 ''';

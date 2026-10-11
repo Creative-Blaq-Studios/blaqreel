@@ -70,10 +70,13 @@ widget tests already has this.
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).
    **Let the AI build it** does the screens, parts and words from the brief alone.
-6. **Preview**: renders in place, with a card showing how far it is (the
-   frames drawn, the time left, then the sound), and plays it there when it
-   is done; any render in the Library shows the same card over the player.
-   Then **Render final** in the Library.
+6. **Preview**: a theatre. The reel plays centred at its own shape, with
+   a card over it while it renders (the frames drawn, the time left, then
+   the sound); any render in the Library shows the same card over the
+   player. Under it, a scrub bar marked at each beat and a chip per beat:
+   click to jump there, double-click to edit that beat. Beside it,
+   **Export**: tick the formats, choose Full or Quick, and **Render N
+   finals**; they land in the Library under Rendered videos.
 
 Whenever the studio asks Claude Code for something (drafting, the
 inventory, staging screens) it runs a headless session (`claude -p`) in the

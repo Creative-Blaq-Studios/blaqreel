@@ -59,6 +59,9 @@ void blaqReelMain({
   const at = String.fromEnvironment('BLAQ_REEL_AT');
   const fps = int.fromEnvironment('BLAQ_REEL_FPS');
   const audio = String.fromEnvironment('BLAQ_REEL_AUDIO');
+  // A quick final: half size, as previews are, for a look before the real
+  // one.
+  const quick = bool.fromEnvironment('BLAQ_REEL_QUICK');
   const long = Timeout(Duration(minutes: 60));
 
   if (task == 'catalogue') {
@@ -106,7 +109,11 @@ void blaqReelMain({
         testWidgets('$label video', (tester) async {
           final r = renderer(tester, reels[n]!(f));
           await r.mount();
-          await r.video(file(n, f, 'mp4'), audio: audio != 'off');
+          if (quick) {
+            await r.preview(file(n, f, 'mp4'));
+          } else {
+            await r.video(file(n, f, 'mp4'), audio: audio != 'off');
+          }
           await r.close();
         }, timeout: long);
       }

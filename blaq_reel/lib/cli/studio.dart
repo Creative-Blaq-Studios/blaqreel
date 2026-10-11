@@ -304,8 +304,8 @@ class Studio {
   }
 
   /// Renders the finished video of the reel being worked on.
-  Future<void> finalRender() {
-    final r = reel, f = format;
+  Future<void> finalRender({String? name, String? at, bool quick = false}) {
+    final r = name ?? reel, f = at ?? format;
     return _serial('Rendering $r · $f final', () async {
       _status = 'Rendering the final $r · $f';
       _log.clear();
@@ -314,6 +314,7 @@ class Studio {
         'BLAQ_REEL_TASK': 'video',
         'BLAQ_REEL_NAME': r,
         'BLAQ_REEL_FORMATS': f,
+        if (quick) 'BLAQ_REEL_QUICK': 'true',
       });
       _status = code == 0
           ? 'Final $r · $f rendered in ${watch.elapsed.inSeconds}s'
@@ -639,7 +640,17 @@ class Studio {
           unawaited(preview());
           _sendJson(req, {'ok': true});
         case '/api/final' when req.method == 'POST':
-          unawaited(finalRender());
+          // Any reel, in one or more formats (`formats=vertical,wide`),
+          // full or quick; each a job of its own, one after another.
+          for (final f in (q['formats'] ?? format).split(',')) {
+            unawaited(
+              finalRender(
+                name: q['reel'],
+                at: f.trim(),
+                quick: q['quality'] == 'quick',
+              ),
+            );
+          }
           _sendJson(req, {'ok': true});
         case '/api/still' when req.method == 'POST':
           final t = double.parse(q['t'] ?? '0').toStringAsFixed(2);
