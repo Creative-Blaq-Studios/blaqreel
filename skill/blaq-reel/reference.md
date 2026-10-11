@@ -68,6 +68,8 @@ Layer.screen(HomeScreen(),            // drawn through host.wrap, on a Device
   taps: [Tap(where: Pick.text('Done'), at: 3.s, press: false)],
   scrolls: [Scroll(offset: Track.from(0).to(2.s, 600))],
   typing: [TypeText(text: '…', at: 1.s, perCharacter: 45.ms, sound: 'tick')])
+  // Keyed as a keyboard would: each character through the field's input
+  // formatters, then its onChanged, so the app reacts (a search filters).
 Layer.component(AppButton(...), size: Size(320, 80),   // through host.wrap, no phone
   taps: [Tap(where: Pick.type<AppButton>(), at: 2.s, press: true)])
 ```
@@ -94,6 +96,11 @@ Pick.key(ValueKey('x'))
 //   tilt:, turn: 12, roll:, delay: 400.ms, rise: 900.ms, scan: true), null, ...]): each
 //   part over the move. Specs: on each part, "to": [x, y] (from the screen's
 //   centre), "z", "scale", "tilt", "turn", "roll", "delay" (ms), "scan".
+// PartMove(typing: PartTyping('186', at: 3700.ms, every: 90.ms)): keys typed
+//   into the field in a lifted part once it lands (or at `at`, from the
+//   beat's start), through the field's own formatters, so "186" in a money
+//   field shows R186.00; the lifted copy shows it. Specs: on the part,
+//   "typing": {"text", "at" (ms), "every" (ms), "sound": false}.
 // Backdrop(top:, bottom:, light: false, motion: GroundMotion(pattern:
 //   GroundPattern.aurora, colours: [...3], speed: 1, seed: 7, bpm: 120,
 //   grain: 0.6)): a moving ground. Specs: "ground": {"pattern", "speed",

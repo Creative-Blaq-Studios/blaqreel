@@ -19,7 +19,10 @@ const animatorCss = r'''
 .tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
 .tl-movel { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 6px; }
 .tl-bar > * { flex: none; }
-.tl-bar .tl-move { width: 140px; padding: 5px 8px; }
+.tl-bar .tl-move { width: auto; min-width: 120px; padding: 5px 28px 5px 9px; appearance: none; -webkit-appearance: none; cursor: pointer;
+  background: var(--bg2, #0D0D0D) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center; }
+.tl-bar .tl-move:hover { border-color: var(--accent); }
+.tl-bar .tl-scope button { padding: 5px 9px; font-size: 10px; }
 .tl-bar .tl-frame-pick { width: 84px; padding: 5px 8px; }
 .tl-bar .bnav { padding: 5px 8px !important; font-size: 10.5px !important; }
 .tl-pats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
@@ -69,6 +72,10 @@ const animatorCss = r'''
 .tl-bar2 { position: absolute; top: 6px; height: 18px; background: #3A2410; border: 1px solid #E06000; cursor: ew-resize; display: flex; align-items: center; padding: 0 6px; font: 600 9.5px var(--mono); color: #FFB37A; white-space: nowrap; overflow: hidden; }
 .tl-row.on .tl-bar2 { background: var(--accent); color: #0A0A0A; }
 .tl-bar2.words { background: #14243A; border-color: #4A7BD0; color: #9DC0FF; }
+.tl-bar2.typing { top: auto; bottom: 1px; height: 12px; font-size: 8.5px; background: #2A2410; border-color: #FBBF24; color: #FCD97A; cursor: grab; z-index: 1; }
+.tl-row.on .tl-bar2.typing { background: #FBBF24; color: #0A0A0A; }
+.tl-part .tl-keys { position: absolute; right: 8px; bottom: 8px; background: #0A0A0A; color: #F5F5F5; border: 1px solid #FBBF24; font: 600 22px var(--mono); padding: 4px 12px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
+.tl-part .tl-keys i { font-style: normal; color: #FBBF24; }
 .tl-row.on .tl-bar2.words { background: #4A7BD0; color: #0A0A0A; }
 .tl-ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); pointer-events: none; }
 .tl-insp { display: grid; gap: 0; border: 1px solid var(--line2); background: var(--surface); }
@@ -233,8 +240,12 @@ function partPlan(beat, k, count, dir) {
   else scale = scanned ? 1.45 : (k === 0 ? 1.06 : 1.03);
   const lands = Array.isArray(own.to) ? own.to : to;
   const up = (v) => trk(0).hold(start).to(arrive, v, e);
+  // Typing into its field: once it is in place, unless told when.
+  const ty = own.typing && own.typing.text ? own.typing : null;
+  const typing = ty && { text: ty.text, at: ty.at ?? arrive + 250, every: ty.every ?? 90, sound: ty.sound !== false };
+  if (typing) typing.end = typing.at + typing.every * typing.text.length;
   return {
-    start, end, height, scanned, lands,
+    start, end, arrive, height, scanned, lands, typing,
     z: up(height),
     x: lands == null && !pop && k > 0 ? up(10 * dir * k) : trk(0),
     scale: trk(1).hold(start).to(arrive, own.scale ?? scale, e),
@@ -480,10 +491,13 @@ function timelineEditor(beat, s, index, side, lead) {
 
   const root = B(`<div class="tled">
     <div class="tl-bar">
+      <span class="tl-movel">Ground</span>
       <select class="input tl-move" id="tlGround" aria-label="Ground" title="What the screens sit on: a look, or a moving pattern (set it in the Ground panel)">
-        <optgroup label="Looks">${LOOKS.map((g) => `<option value="look:${g.id}" ${!groundOf(beat) && look === g.id ? 'selected' : ''}>Ground · ${escB(g.name)}</option>`).join('')}</optgroup>
-        <optgroup label="Moving">${Object.entries(GROUND_NAMES).map(([id, n]) => `<option value="move:${id}" ${groundOf(beat) && groundOf(beat).pattern === id ? 'selected' : ''}>Ground · ${escB(n)}</option>`).join('')}</optgroup></select>
-      <label class="tl-own" title="Give this beat its own ground; the others keep the reel's"><input type="checkbox" id="tlGroundOwn" ${beat.look || beat.ground ? 'checked' : ''}> Beat</label><select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>Move · ${name}</option>`).join('')}</select>
+        <optgroup label="Looks">${LOOKS.map((g) => `<option value="look:${g.id}" ${!groundOf(beat) && look === g.id ? 'selected' : ''}>${escB(g.name)}</option>`).join('')}</optgroup>
+        <optgroup label="Moving">${Object.entries(GROUND_NAMES).map(([id, n]) => `<option value="move:${id}" ${groundOf(beat) && groundOf(beat).pattern === id ? 'selected' : ''}>${escB(n)}</option>`).join('')}</optgroup></select>
+      <div class="seg tl-scope" role="radiogroup" aria-label="Which beats the ground is for" title="Every beat: the reel's ground. This beat: a ground of its own; the others keep the reel's."><button data-gown="0" class="${beat.look || beat.ground ? '' : 'on'}">Every beat</button><button data-gown="1" class="${beat.look || beat.ground ? 'on' : ''}">This beat</button></div>
+      <span class="tl-movel">Move</span>
+      <select class="input tl-move" id="tlMove" aria-label="Move" title="Where every part starts from; choosing one resets each part's own settings">${MOVES.map(([id, name]) => `<option value="${id}" ${(beat.move || 'lift') === id ? 'selected' : ''}>${name}</option>`).join('')}</select>
       <span style="flex:1"></span>
       <select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
       <button data-safe class="${ed.safe ? 'on' : ''}" title="Show the safe zone: what the platform's buttons and captions cover">Safe</button>
@@ -511,10 +525,10 @@ function timelineEditor(beat, s, index, side, lead) {
     const sp = partOf(p), r = sp ? sp.rect : [0, 0, 0, 0];
     const hole = B(`<div class="tl-hole" style="left:${r[0]}px;top:${r[1]}px;width:${r[2]}px;height:${r[3]}px"></div>`);
     scr.appendChild(hole);
-    const el = B(`<div class="tl-part" style="width:${r[2]}px;height:${r[3]}px;background-image:url('${img}');background-size:${SCREEN[0]}px ${SCREEN[1]}px;background-position:${-r[0]}px ${-r[1]}px"><div class="tl-sweep"></div><span class="tl-tag">${k + 1}</span></div>`);
+    const el = B(`<div class="tl-part" style="width:${r[2]}px;height:${r[3]}px;background-image:url('${img}');background-size:${SCREEN[0]}px ${SCREEN[1]}px;background-position:${-r[0]}px ${-r[1]}px"><div class="tl-sweep"></div><span class="tl-tag">${k + 1}</span><span class="tl-keys" hidden></span></div>`);
     el.onpointerdown = (e) => dragPart(e, k);
     stage.appendChild(el);
-    return { el, hole, rect: r, sweep: el.querySelector('.tl-sweep') };
+    return { el, hole, rect: r, sweep: el.querySelector('.tl-sweep'), keys: el.querySelector('.tl-keys') };
   });
   const word = B('<div class="tl-word" tabindex="0" aria-label="The words: drag to place"></div>');
   word.onpointerdown = (e) => dragWords(e);
@@ -626,6 +640,11 @@ function timelineEditor(beat, s, index, side, lead) {
       x.hole.style.opacity = z > 2 ? 1 : 0;
       const sw = plan.scanned ? clamp((t - plan.start - 600) / 1100, 0, 1) : 0;
       x.sweep.style.opacity = sw > 0 && sw < 1 ? 1 : 0; x.sweep.style.top = EASE.inOutCubic(sw) * 100 + '%';
+      // The keys typed so far: the render types them into the real field,
+      // which formats them; the shot here is of the field empty.
+      const ty = plan.typing, n = ty && t >= ty.at ? Math.min(ty.text.length, Math.floor((t - ty.at) / ty.every) + 1) : 0;
+      x.keys.hidden = !n;
+      if (n) x.keys.innerHTML = `${escB(ty.text.slice(0, n))}<i>${n < ty.text.length || Math.floor(t / 450) % 2 ? '▍' : '&nbsp;'}</i>`;
       order.push([sz + z, i]);
     });
     order.sort((a, b) => a[0] - b[0]).forEach(([, i], j) => (els[i].el.style.zIndex = 3 + j));
@@ -648,6 +667,7 @@ function timelineEditor(beat, s, index, side, lead) {
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
       if (b.dataset.k === 'beat') { b.style.left = '0%'; b.style.width = ((beat.length || 5.6) * 1000 / TL) * 100 + '%'; b.firstChild.textContent = `${(beat.length || 5.6).toFixed(1)}s`; }
       else if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / TL) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / TL) * 100 + '%'; }
+      else if (b.dataset.k[0] === 't') { const ty = partPlan(beat, +b.dataset.k.slice(1), parts.length, dir).typing; if (ty) { b.style.left = (ty.at / TL) * 100 + '%'; b.style.width = 'max(' + (Math.max(ty.end - ty.at, 120) / TL) * 100 + '%, ' + (ty.text.length + 6) + 'ch)'; } }
       else { const plan = partPlan(beat, +b.dataset.k, parts.length, dir); b.style.left = (plan.start / TL) * 100 + '%'; b.style.width = ((plan.end - plan.start) / TL) * 100 + '%'; }
     });
   }
@@ -660,7 +680,7 @@ function timelineEditor(beat, s, index, side, lead) {
       + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
     root.querySelector('.tl-rows').innerHTML = `<div class="tl-row tl-beatrow"><div class="tl-bar2 beat" data-k="beat" title="Drag the end to make the beat longer or shorter"><span></span><i class="tl-r"></i></div></div>`
       + `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words" title="Drag to move; drag an end to change when they come in or go"><i class="tl-l"></i>${escB(w.reveal)} in<i class="tl-r"></i></div></div>`
-      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div></div>`; }).join('');
+      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div>${plan.typing ? `<div class="tl-bar2 typing" data-k="t${i}" title="Typing “${escB(plan.typing.text)}”: drag to move when it starts">type ${escB(plan.typing.text)}</div>` : ''}</div>`; }).join('');
     root.querySelector('.tl-play').onclick = () => (ed.playing = !ed.playing);
     root.querySelectorAll('[data-sel]').forEach((d) => (d.onclick = () => select(d.dataset.sel === 'words' ? 'words' : +d.dataset.sel)));
     root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k, e.target.classList.contains('tl-r') ? 'end' : e.target.classList.contains('tl-l') ? 'start' : 'move')));
@@ -719,7 +739,7 @@ function timelineEditor(beat, s, index, side, lead) {
   // takes to rise; the words' ends, when they come in and go.
   function dragBar(e, key, how) {
     e.preventDefault();
-    if (key !== 'beat') select(key === 'words' ? 'words' : +key);
+    if (key !== 'beat') select(key === 'words' ? 'words' : +String(key).replace('t', ''));
     ed.playing = false;
     const x0 = e.clientX, w = root.querySelector('.tl-rows').getBoundingClientRect().width;
     const ms = (ev) => ((ev.clientX - x0) / w) * TL;
@@ -737,6 +757,9 @@ function timelineEditor(beat, s, index, side, lead) {
         else { beat.words.at = clamp(a0 + d, 0, end - (u0 - a0)); beat.words.until = beat.words.at + (u0 - a0); }
         ed.t = how === 'end' ? beat.words.until * 1000 - 100 : beat.words.at * 1000 + 700;
       };
+    } else if (key[0] === 't') {
+      const i = +key.slice(1), a0 = partPlan(beat, i, parts.length, dir).typing.at, end = (beat.length || 5.6) * 1000;
+      mv = (ev) => { beat.parts[i].typing.at = clamp(Math.round((a0 + ms(ev)) / 50) * 50, 0, end - 200); ed.t = beat.parts[i].typing.at + 400; };
     } else {
       const i = +key, plan = partPlan(beat, i, parts.length, dir), d0 = plan.start - SETTLE - (moveOf(beat) === 'tap' ? 450 : 0), r0 = plan.end - plan.start;
       mv = how === 'end'
@@ -838,6 +861,11 @@ function timelineEditor(beat, s, index, side, lead) {
       <div class="tl-sec"><div class="lbl2">Rotation</div>${knob('ptilt', 'Tilt', -45, 45, 1, p.tilt ?? 0, 'deg', own('tilt'))}${knob('pturn', 'Turn', -45, 45, 1, p.turn ?? d.turn, 'deg', own('turn'))}${knob('proll', 'Roll', -45, 45, 1, p.roll ?? d.roll, 'deg', own('roll'))}</div>
       <div class="tl-sec"><div class="lbl2">Timing</div>${knob('pdelay', 'Starts', 0, 2500, 50, p.delay ?? d.delay, 's', own('delay'))}${knob('prise', 'Rise', 300, 4000, 50, p.rise ?? d.rise, 's', own('rise'))}<span class="hint" style="margin:0">Starts after the screen settles; Rise is how long it takes. Or drag its bar, or the bar's end, on the timeline.</span></div>
       <div class="tl-sec"><div class="lbl2">Effects</div><label class="tl-chk"><input type="checkbox" id="pscan" ${plan.scanned ? 'checked' : ''}> A scan line reads it as it rises</label></div>
+      ${isField(p) ? `<div class="tl-sec"><div class="lbl2"><span>Typing</span><span class="${plan.typing ? 'set' : ''}">${plan.typing ? 'on' : 'none'}</span></div>
+        <input class="input" id="pType" value="${escB(p.typing?.text || '')}" placeholder="What is typed, e.g. 186">
+        ${plan.typing ? `${knob('ptAt', 'Starts', 0, Math.round((beat.length || 5.6) * 1000) - 200, 50, plan.typing.at, 's', p.typing.at != null)}${knob('ptEvery', 'Each key', 30, 400, 10, plan.typing.every, 'n', p.typing.every != null)}
+        <label class="tl-chk"><input type="checkbox" id="ptSound" ${plan.typing.sound ? 'checked' : ''}> A soft tick for each key</label>` : ''}
+        <span class="hint" style="margin:0">Typed as keys are pressed, into the real field, so it formats them as the app does: 186 in a money field shows R186.00. Starts once the part is in place, or drag its bar.</span></div>` : ''}
       <div class="tl-sec"><button id="pReset">Reset to ${escB((MOVES.find((m) => m[0] === (beat.move || 'lift')) || MOVES[0])[1])}</button></div>
     </div>`);
     side.appendChild(el);
@@ -850,7 +878,23 @@ function timelineEditor(beat, s, index, side, lead) {
     el.querySelector('#pIn').onclick = () => { delete p.to; save(); inspector(); };
     el.querySelector('#pscan').onchange = (e) => { p.scan = e.target.checked; save(); ed.t = SETTLE; ed.playing = true; rows(); };
     el.querySelector('#pReset').onclick = () => { PART_KEYS.forEach((key) => delete p[key]); save(); inspector(); rows(); };
+    const pType = el.querySelector('#pType');
+    if (pType) {
+      // Typing what is typed plays it from just before it starts.
+      pType.oninput = () => { const v = pType.value; if (v) p.typing = { ...(p.typing || {}), text: v }; else delete p.typing; save(); rows(); const ty = partPlan(beat, i, parts.length, dir).typing; if (ty) { ed.t = Math.max(0, ty.at - 300); ed.playing = true; } };
+      pType.onchange = () => inspector();
+      const at = el.querySelector('#ptAt'), every = el.querySelector('#ptEvery');
+      if (at) at.oninput = () => { p.typing.at = +at.value; at.nextElementSibling.textContent = fmtv('s', +at.value); at.nextElementSibling.classList.add('set'); ed.playing = false; ed.t = +at.value + 400; save(); };
+      if (every) every.oninput = () => { p.typing.every = +every.value; every.nextElementSibling.textContent = Math.round(+every.value) + ' ms'; every.nextElementSibling.classList.add('set'); save(); };
+      if (every) every.nextElementSibling.textContent = Math.round(+every.value) + ' ms';
+      if (at) at.onchange = rows; if (every) every.onchange = () => { rows(); ed.t = partPlan(beat, i, parts.length, dir).typing.at - 300; ed.playing = true; };
+      const snd = el.querySelector('#ptSound');
+      if (snd) snd.onchange = () => { if (snd.checked) delete p.typing.sound; else p.typing.sound = false; save(); };
+    }
   }
+  // Whether a part holds a text field: as the catalogue found it, or by its
+  // name where the catalogue is older than that.
+  function isField(p) { const sp = partOf(p); return !!(sp && sp.field) || /TextField|Editable|Field|Input/.test(p.type); }
   function wordsInspector() {
     const w = wordsOf(beat, ed.frame), pl = w.place;
     const swatches = (key) => [BRAND.ink, BRAND.paper, BRAND.accent, '#FFFFFF', '#000000', '#FF6B00'].filter((c, j, a) => a.indexOf(c) === j)
@@ -920,13 +964,15 @@ function timelineEditor(beat, s, index, side, lead) {
 
   // Wiring.
   // The ground: the reel's, or with "this beat" ticked, this beat's own.
-  const groundPick = root.querySelector('#tlGround'), groundOwn = root.querySelector('#tlGroundOwn');
-  groundPick.onchange = () => { setGround(groundPick.value, groundOwn.checked); };
-  groundOwn.onchange = () => {
-    if (groundOwn.checked) { const g = groundOf(beat); if (g) beat.ground = JSON.parse(JSON.stringify(g)); else beat.look = look; }
+  const groundPick = root.querySelector('#tlGround'), ownNow = () => !!(beat.look || beat.ground);
+  groundPick.onchange = () => { setGround(groundPick.value, ownNow()); };
+  root.querySelectorAll('[data-gown]').forEach((b) => (b.onclick = () => {
+    const own = b.dataset.gown === '1';
+    if (own === ownNow()) return;
+    if (own) { const g = groundOf(beat); if (g) beat.ground = JSON.parse(JSON.stringify(g)); else beat.look = look; }
     else { delete beat.ground; delete beat.look; }
     save(); draw();
-  };
+  }));
   // A look, or a moving pattern (keeping the palette and pace it had).
   function setGround(value, own) {
     const [kind, id] = value.split(':');

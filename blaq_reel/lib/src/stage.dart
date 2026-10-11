@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' hide Layer;
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:flutter/widgets.dart';
 
 import 'backdrop.dart';
@@ -71,7 +72,15 @@ class ReelStageState extends State<ReelStage> {
   final Map<PartKey, _Lifted> _lifted = {};
   final Map<PartKey, Rect> _tapRects = {};
   final Map<PartKey, ScrollPosition> _scrolls = {};
-  final Map<PartKey, TextEditingController> _fields = {};
+  final Map<PartKey, Element> _fields = {};
+
+  /// The lifted copies as built, by part, to type into a copy whose field
+  /// keeps its own text.
+  final Map<PartKey, Element> _copies = {};
+
+  /// Each field typed into: what it held before, and how many characters
+  /// have been keyed in since.
+  final Map<TextEditingController, (TextEditingValue, int)> _keyed = {};
 
   Size get _stage => widget.reel.format.logical;
 
@@ -350,13 +359,22 @@ class ReelStageState extends State<ReelStage> {
           final full = _rectIn((i, j), match);
           final rect = _visibleIn((i, j), match);
           if (full == null || rect == null) continue;
-          _lifted[(i, j, k)] = _Lifted(
+          final media = layer.device?.media ?? MediaQuery.of(context);
+          final key = (i, j, k);
+          _lifted[key] = _Lifted(
             rect,
             full,
-            MediaQuery(
-              data: layer.device?.media ?? MediaQuery.of(context),
+            match,
+            // Built from the screen's widget as it is now, so a copy shows
+            // what the screen does after it was found: text typed, a figure
+            // that changed.
+            (w) => MediaQuery(
+              data: media,
               child: widget.host.wrap(
-                SizedBox.fromSize(size: full.size, child: match.widget),
+                _CopyProbe(
+                  onBuilt: (e) => _copies[key] = e,
+                  child: SizedBox.fromSize(size: full.size, child: w),
+                ),
               ),
             ),
           );
@@ -394,16 +412,23 @@ class ReelStageState extends State<ReelStage> {
         if (target != position.pixels) position.jumpTo(target);
       }
       for (var k = 0; k < layer.typing.length; k++) {
-        final controller =
-            _fields[(i, j, k)] ?? _field((i, j), layer.typing[k].where);
-        if (controller == null) continue;
-        _fields[(i, j, k)] = controller;
-        final text = layer.typing[k].typedAt(local);
-        if (controller.text != text) {
-          controller.value = TextEditingValue(
-            text: text,
-            selection: TextSelection.collapsed(offset: text.length),
-          );
+        final typing = layer.typing[k];
+        final field = _fields[(i, j, k)] ?? _field((i, j), typing.where);
+        if (field == null) continue;
+        _fields[(i, j, k)] = field;
+        _keyInto(field, typing.typedAt(local));
+        // A lifted copy of the field shows what the screen's holds, where
+        // it keeps its own text rather than sharing the screen's.
+        final shown = (field.widget as EditableText).controller.value;
+        for (var m = 0; m < layer.lifts.length; m++) {
+          if (!identical(layer.lifts[m].where, typing.where)) continue;
+          final copy = _copies[(i, j, m)];
+          final inCopy = copy == null || !copy.mounted
+              ? null
+              : _editableIn(copy)?.widget;
+          if (inCopy is EditableText && inCopy.controller.text != shown.text) {
+            inCopy.controller.value = shown;
+          }
         }
       }
       for (var k = 0; k < layer.taps.length; k++) {
@@ -424,17 +449,28 @@ class ReelStageState extends State<ReelStage> {
     return null;
   }
 
-  TextEditingController? _field(LayerKey key, Pick where) {
+  Element? _field(LayerKey key, Pick where) {
     final e = _find(key, where);
-    if (e == null) return null;
-    final w = e.widget;
-    if (w is EditableText) return w.controller;
-    TextEditingController? found;
+    return e == null ? null : _editableIn(e);
+  }
+
+  /// The first `EditableText` at or under [e], or the one [e] is a piece
+  /// of: the text a field paints can be lifted on its own.
+  static Element? _editableIn(Element e) {
+    if (e.widget is EditableText) return e;
+    Element? around;
+    var up = 0;
+    e.visitAncestorElements((a) {
+      if (a.widget is EditableText) around = a;
+      // A field wraps its text in a scrollable: a few dozen widgets.
+      return around == null && ++up < 40;
+    });
+    if (around != null) return around;
+    Element? found;
     void visit(Element c) {
       if (found != null) return;
-      final cw = c.widget;
-      if (cw is EditableText) {
-        found = cw.controller;
+      if (c.widget is EditableText) {
+        found = c;
         return;
       }
       c.visitChildren(visit);
@@ -442,6 +478,39 @@ class ReelStageState extends State<ReelStage> {
 
     e.visitChildren(visit);
     return found;
+  }
+
+  /// Brings the field [e] to [typed] keyed in, a character at a time as a
+  /// keyboard sends them: each through the field's input formatters, then
+  /// its `onChanged`. Typed less than before (the clock went back), the
+  /// field goes back to what it held and is typed again.
+  void _keyInto(Element e, String typed) {
+    final field = e.widget;
+    if (!e.mounted || field is! EditableText) return;
+    final c = field.controller;
+    var (before, count) = _keyed[c] ?? (c.value, 0);
+    if (typed.length < count) {
+      c.value = before;
+      count = 0;
+    }
+    while (count < typed.length) {
+      final old = c.value;
+      final sel = old.selection.isValid
+          ? old.selection
+          : TextSelection.collapsed(offset: old.text.length);
+      final key = typed[count];
+      var next = TextEditingValue(
+        text: old.text.replaceRange(sel.start, sel.end, key),
+        selection: TextSelection.collapsed(offset: sel.start + key.length),
+      );
+      for (final f in field.inputFormatters ?? const <TextInputFormatter>[]) {
+        next = f.formatEditUpdate(old, next);
+      }
+      c.value = next;
+      if (next.text != old.text) field.onChanged?.call(next.text);
+      count++;
+    }
+    _keyed[c] = (before, count);
   }
 
   /// The presses whose moment falls after [from] and at or before [to], on
@@ -520,6 +589,7 @@ class ReelStageState extends State<ReelStage> {
                 rect: shows,
                 full: part.rect,
                 pick: part.pick,
+                field: _editableIn(owner) != null,
               );
             }
           }
@@ -1326,9 +1396,36 @@ class _Lifted {
 
   /// All of it, laid out as on the screen.
   final Rect full;
-  final Widget content;
 
-  const _Lifted(this.rect, this.full, this.content);
+  /// Where it was found in the screen.
+  final Element source;
+
+  /// The copy, around a widget.
+  final Widget Function(Widget) build;
+
+  /// The widget as the screen first had it, for when it has gone.
+  final Widget first;
+
+  _Lifted(this.rect, this.full, this.source, this.build)
+    : first = source.widget;
+
+  /// The copy of the widget as the screen has it now.
+  Widget get content => build(source.mounted ? source.widget : first);
+}
+
+/// Hands its element to [onBuilt] whenever it builds: how the stage finds a
+/// lifted copy's own fields.
+class _CopyProbe extends StatelessWidget {
+  final ValueChanged<Element> onBuilt;
+  final Widget child;
+
+  const _CopyProbe({required this.onBuilt, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    onBuilt(context as Element);
+    return child;
+  }
 }
 
 class _Circle extends CustomClipper<Path> {
@@ -1365,6 +1462,9 @@ class ScreenPart {
   /// Dart that picks it: paste into a `lift:` or `Tap(where:)`.
   final String pick;
 
+  /// Whether it holds a text field, which a reel can type into.
+  final bool field;
+
   /// An entry.
   const ScreenPart({
     required this.name,
@@ -1372,6 +1472,7 @@ class ScreenPart {
     required this.rect,
     required this.pick,
     this.full,
+    this.field = false,
   });
 
   /// As JSON.
@@ -1382,6 +1483,7 @@ class ScreenPart {
     if (full != null && full != rect)
       'full': [full!.left, full!.top, full!.width, full!.height],
     'pick': pick,
+    if (field) 'field': true,
   };
 }
 

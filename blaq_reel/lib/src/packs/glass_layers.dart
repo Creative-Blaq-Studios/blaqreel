@@ -578,7 +578,21 @@ class GlassLayers {
               Tap(where: beat.lift.first, at: settle + 100.ms),
           ],
           scrolls: beat.scrolls,
-          typing: beat.typing,
+          typing: [
+            ...beat.typing,
+            // A lifted field types once it is in place, unless told when.
+            for (final (k, where) in beat.lift.take(GlassBeat.maxParts).indexed)
+              if (beat.partMoves.elementAtOrNull(k)?.typing case final typing?)
+                TypeText(
+                  where: where,
+                  text: typing.text,
+                  at:
+                      typing.at ??
+                      _timing(beat, move, k, settle, rise).$3 + 250.ms,
+                  perCharacter: typing.every,
+                  sound: typing.sound ? 'tick' : null,
+                ),
+          ],
           motion: hasLift
               ? Motion(
                   z: Track.from(0).hold(settle).to(lifted, -fallBack),
@@ -667,6 +681,26 @@ class GlassLayers {
 
   /// The [k]th of [count] parts lifting off in [move], to [height]: the
   /// move decides, and the part's own [PartMove] overrides what it sets.
+  /// When part [k] starts to rise, when its rise ends, and when it is in
+  /// place (sooner than the end for a pop's spring).
+  static (Duration, Duration, Duration) _timing(
+    GlassBeat beat,
+    GlassMove move,
+    int k,
+    Duration settle,
+    Duration rise,
+  ) {
+    final own = k < beat.partMoves.length ? beat.partMoves[k] : null;
+    final start =
+        settle +
+        (own?.delay ?? (move == GlassMove.pop ? 320.ms : 250.ms) * k) +
+        (move == GlassMove.tap ? 450.ms : Duration.zero);
+    // How long it takes to rise: its own, or the beat's.
+    final end = start + (own?.rise ?? rise);
+    final arrive = move == GlassMove.pop ? start + (own?.rise ?? 650.ms) : end;
+    return (start, end, arrive);
+  }
+
   Lift _lift(
     GlassBeat beat,
     GlassMove move,
@@ -679,14 +713,8 @@ class GlassLayers {
     Duration rise,
   ) {
     final own = k < beat.partMoves.length ? beat.partMoves[k] : null;
-    final start =
-        settle +
-        (own?.delay ?? (move == GlassMove.pop ? 320.ms : 250.ms) * k) +
-        (move == GlassMove.tap ? 450.ms : Duration.zero);
-    // How long it takes to rise: its own, or the beat's.
-    final end = start + (own?.rise ?? rise);
+    final (start, end, arrive) = _timing(beat, move, k, settle, rise);
     final ease = move == GlassMove.pop ? Ease.pop : Curves.easeInOutCubic;
-    final arrive = move == GlassMove.pop ? start + (own?.rise ?? 650.ms) : end;
     Track up(double to) => Track.from(0).hold(start).to(arrive, to, ease);
     // Where it sits in a fan or a spread, from the middle one.
     final side = k - (count - 1) / 2;
@@ -1119,6 +1147,9 @@ class PartMove {
   /// A scan line passes over it as it rises.
   final bool? scan;
 
+  /// Text typed into the field in it.
+  final PartTyping? typing;
+
   /// A part's move.
   const PartMove({
     this.to,
@@ -1130,10 +1161,13 @@ class PartMove {
     this.delay,
     this.rise,
     this.scan,
+    this.typing,
   });
 
   /// From a spec's part: `{"to": [x, y], "z", "scale", "tilt", "turn",
-  /// "roll", "delay" (ms), "scan"}`; null if it sets none of them.
+  /// "roll", "delay" (ms), "rise" (ms), "scan", "typing": {"text", "at"
+  /// (ms into the beat), "every" (ms a character), "sound"}}`; null if it
+  /// sets none of them.
   static PartMove? fromJson(Map<String, Object?> j) {
     double? n(String k) => j[k] is num ? (j[k]! as num).toDouble() : null;
     final to = j['to'];
@@ -1153,6 +1187,7 @@ class PartMove {
           ? null
           : Duration(milliseconds: n('rise')!.round()),
       scan: j['scan'] is bool ? j['scan']! as bool : null,
+      typing: PartTyping.fromJson(j['typing']),
     );
     final any =
         m.to != null ||
@@ -1163,8 +1198,49 @@ class PartMove {
         m.roll != null ||
         m.delay != null ||
         m.rise != null ||
-        m.scan != null;
+        m.scan != null ||
+        m.typing != null;
     return any ? m : null;
+  }
+}
+
+/// Text typed into a lifted part's field, as a keyboard would.
+class PartTyping {
+  /// What is typed: the keys pressed, which the field formats as it would
+  /// for a person ("186" in a money field shows R186.00).
+  final String text;
+
+  /// When typing starts, from the beat's start; null for just after the
+  /// part is in place.
+  final Duration? at;
+
+  /// Time between keys.
+  final Duration every;
+
+  /// A soft tick for each key.
+  final bool sound;
+
+  /// Typing.
+  const PartTyping(
+    this.text, {
+    this.at,
+    this.every = const Duration(milliseconds: 90),
+    this.sound = true,
+  });
+
+  /// From a spec: `{"text", "at", "every", "sound"}`; null without text.
+  static PartTyping? fromJson(Object? v) {
+    if (v is! Map || v['text'] is! String || '${v['text']}'.isEmpty) {
+      return null;
+    }
+    Duration? ms(Object? n) =>
+        n is num ? Duration(milliseconds: n.round()) : null;
+    return PartTyping(
+      '${v['text']}',
+      at: ms(v['at']),
+      every: ms(v['every']) ?? const Duration(milliseconds: 90),
+      sound: v['sound'] != false,
+    );
   }
 }
 

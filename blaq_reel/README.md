@@ -166,7 +166,7 @@ transitions and layout for whichever format it is built for.
 | `Layer`, `Layer.screen`, `Layer.component`, `Layer.timed`, `Motion`, `Glass` | Any widget in 3D; an app screen through the host, on a `Device`; a piece of the app through the host with no phone around it (`Device.bare`), which can be tapped and typed into like a screen; a widget rebuilt from the clock each frame. Each moves on its own tracks; `Glass` gives it a slab edge. |
 | `Lift` | Part of a screen that comes off toward the camera: the real widget, found as drawn, cloned over where it was, leaving a hole and a shadow that spreads as it rises. |
 | `Pick` | Finds widgets in a screen: by type, by type name (private ones too), by text, the nth, the innermost one containing another. |
-| `Tap`, `Scroll`, `TypeText` | A fingertip with a ripple (and, with `press`, a real tap); the real scrollable scrolled; text typed into the real field. |
+| `Tap`, `Scroll`, `TypeText` | A fingertip with a ripple (and, with `press`, a real tap); the real scrollable scrolled; text typed into the real field, key by key through its formatters and `onChanged`, so the app formats and reacts as it would for a person. |
 | `Camera`, `Shot`, `CameraPose` | Tilt, turn, roll, zoom, pan, focus, aperture, blur: shots that ease together, or a track per property. |
 | `Words`, `Reveal` | Letters or words rising into place, typed, or faded; `{accent}` markup, a marker sweep, wrapping, exits. |
 | `Backdrop`, `Glow`, `blobs` | Gradient, drifting glows, vignette. |

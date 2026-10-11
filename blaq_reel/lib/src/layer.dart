@@ -410,7 +410,10 @@ class Scroll {
 }
 
 /// Types [text] into a real text field in a screen, a character every
-/// [perCharacter] from [at].
+/// [perCharacter] from [at]. Each character is keyed in as a keyboard would:
+/// through the field's input formatters, then its `onChanged`, so a money
+/// field formats the figure and a search filters as it goes. A lifted copy
+/// of the field types along with it.
 class TypeText {
   /// Picks the field: an `EditableText` or anything above one.
   final Pick where;

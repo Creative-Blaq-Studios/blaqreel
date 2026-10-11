@@ -41,6 +41,21 @@
   the Preview step (frames drawn, time left, then the sound), a bar under
   the header, and the figure in the status. Preview renders in place and
   plays when done.
+- Typing into lifted parts: a part holding a text field takes
+  `PartMove.typing` (`PartTyping`: the keys, when, how fast, a tick per
+  key), typed once it lands. Specs set `"typing": {"text", "at", "every",
+  "sound"}` on the part. The editor's part panel has a Typing section for
+  any part with a field, the timeline a bar for it you can drag, and the
+  preview shows the keys as they go in. Screen maps mark parts that hold a
+  field (`"field": true`).
+- Typing goes in as a keyboard's would: each key through the field's input
+  formatters, then its `onChanged`, so a money field reads R186.00 and a
+  search filters as it goes. Going back in time types it again.
+- Lifted parts are live: a copy is rebuilt from the screen's widget as it
+  is now, so what changes after the lift (typed text, a figure) shows on
+  the part in the air.
+- The editor's toolbar labels the Ground and Move pickers, and says which
+  beats a ground is for with Every beat | This beat (was a "Beat" tick).
 - The Preview step is a theatre: the reel centred at its own shape, a
   scrub bar marked at each beat, a chip per beat (click to jump,
   double-click to edit it), and an Export panel that renders finals in any

@@ -3,6 +3,7 @@ import 'dart:ui' show PictureRecorder;
 
 import 'package:blaq_reel/blaq_reel.dart';
 import 'package:blaq_reel/packs.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +58,50 @@ class _Screen extends StatelessWidget {
           backgroundCursorColor: const Color(0xFF888888),
         ),
       ],
+    ),
+  );
+}
+
+/// A field that keeps its own controller and shouts what it is given, the
+/// way an app's formatted field does.
+class _Shouty extends StatefulWidget {
+  final ValueChanged<String> onChanged;
+
+  const _Shouty(this.onChanged);
+
+  @override
+  State<_Shouty> createState() => _ShoutyState();
+}
+
+class _ShoutyState extends State<_Shouty> {
+  final controller = TextEditingController();
+  final focus = FocusNode();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _Card(
+    'Name',
+    child: SizedBox(
+      width: 200,
+      child: EditableText(
+        controller: controller,
+        focusNode: focus,
+        style: const TextStyle(fontSize: 14),
+        cursorColor: const Color(0xFF000000),
+        backgroundCursorColor: const Color(0xFF888888),
+        inputFormatters: [
+          TextInputFormatter.withFunction(
+            (_, next) => next.copyWith(text: next.text.toUpperCase()),
+          ),
+        ],
+        onChanged: widget.onChanged,
+      ),
     ),
   );
 }
@@ -362,6 +407,55 @@ void main() {
     await r.close();
   });
 
+  testWidgets('Given a lifted field with typing, when the clock passes it, '
+      'then each key goes through the field as a keyboard\'s would, the '
+      'lifted copy shows it too, and going back types it again', (
+    tester,
+  ) async {
+    final changes = <String>[];
+    final reel = GlassLayers(
+      brand: const Brand(
+        ink: Color(0xFF111111),
+        paper: Color(0xFFFFFFFF),
+        accent: Color(0xFFFFD97A),
+        display: 'Display',
+        text: 'Text',
+      ),
+      format: const Format('small', Size(360, 640), pixelRatio: 1),
+      beats: [
+        GlassBeat(
+          'Type.',
+          screen: Center(child: _Shouty(changes.add)),
+          lift: [Pick.type<_Card>()],
+          partMoves: [
+            PartMove(
+              typing: PartTyping('abc', at: 3200.ms, every: 100.ms),
+            ),
+          ],
+        ),
+      ],
+    ).build('vertical');
+    final r = ReelRenderer(tester, reel, host: host);
+    await r.mount();
+    for (var t = 0; t <= 3600; t += 100) {
+      await r.seek(Duration(milliseconds: t));
+    }
+    final shown = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .map((e) => e.controller.text)
+        .toList();
+    expect(shown, hasLength(2));
+    expect(shown, everyElement('ABC'));
+    expect(changes.toSet(), {'A', 'AB', 'ABC'});
+
+    await r.seek(3300.ms);
+    final again = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .map((e) => e.controller.text);
+    expect(again, everyElement('AB'));
+    await r.close();
+  });
+
   test('Given a spec part with its own move, when read, then every setting '
       'comes through and the rest is left to the beat\'s move', () {
     final own = PartMove.fromJson({
@@ -372,6 +466,7 @@ void main() {
       'delay': 400,
       'rise': 900,
       'scan': true,
+      'typing': {'text': '186', 'every': 120},
     })!;
     expect(own.to, const Offset(-90, -250));
     expect(own.z, 200);
@@ -379,6 +474,9 @@ void main() {
     expect(own.delay, const Duration(milliseconds: 400));
     expect(own.rise, const Duration(milliseconds: 900));
     expect(own.scan, isTrue);
+    expect(own.typing?.text, '186');
+    expect(own.typing?.every, const Duration(milliseconds: 120));
+    expect(own.typing?.at, isNull);
     expect(own.scale, isNull);
     expect(PartMove.fromJson({'type': 'AppCard', 'text': 'Total'}), isNull);
   });
