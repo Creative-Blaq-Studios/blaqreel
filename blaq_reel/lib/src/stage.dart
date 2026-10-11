@@ -210,6 +210,135 @@ class ReelStageState extends State<ReelStage> {
     );
   }
 
+  /// [child], faded out along any edge where [shown] cuts [full]: a lifted
+  /// list that ran on under something ends softly rather than on a line.
+  static Widget _fadeCut(Rect full, Rect shown, Widget child) {
+    const fade = 28.0;
+    final top = shown.top > full.top + 0.5;
+    final bottom = shown.bottom < full.bottom - 0.5;
+    if (!top && !bottom) return child;
+    final h = shown.height;
+    final f = (fade / h).clamp(0.0, 0.5);
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          if (top) const Color(0x00000000) else const Color(0xFF000000),
+          const Color(0xFF000000),
+          const Color(0xFF000000),
+          if (bottom) const Color(0x00000000) else const Color(0xFF000000),
+        ],
+        stops: [0, f, 1 - f, 1],
+      ).createShader(bounds),
+      child: child,
+    );
+  }
+
+  /// [e], or the nearest widget around it that can be copied. A widget
+  /// keyed with a GlobalKey cannot be in the tree twice, so a copy is safe
+  /// only if every such widget inside it is built afresh by the copy (by a
+  /// widget inside it) rather than handed down from outside: the text inside
+  /// a field is not, but the field around it is.
+  static Element? _liftable(Element? e) {
+    Element? parentOf(Element x) {
+      Element? p;
+      x.visitAncestorElements((a) {
+        p = a;
+        return false;
+      });
+      return p;
+    }
+
+    bool within(Element x, Element root) {
+      for (Element? w = x; w != null; w = parentOf(w)) {
+        if (identical(w, root)) return true;
+      }
+      return false;
+    }
+
+    // A wrapper's own `child`, if it has one.
+    Widget? heldChild(Widget w) {
+      try {
+        // Tooling: any widget may hold its child as `child`.
+        // ignore: avoid_dynamic_calls
+        final c = (w as dynamic).child;
+        return c is Widget ? c : null;
+      } on NoSuchMethodError {
+        return null;
+      }
+    }
+
+    // Whether [d]'s GlobalKey is made afresh when [root] is copied. Keys
+    // live in a State, so follow the widget up through anything that only
+    // hands down its `child`, and through stateless builds (a Builder's
+    // closure returns what was made before), to the State that made it:
+    // inside [root], the copy's own new State makes a new key.
+    bool fresh(Element d, Element root) {
+      final path = <Element>[d];
+      for (var x = parentOf(d); x != null; x = parentOf(x)) {
+        if (x is ComponentElement) {
+          final held = heldChild(x.widget);
+          final handedDown =
+              held != null && path.any((p) => identical(p.widget, held));
+          if (!handedDown && x is StatefulElement) return within(x, root);
+          if (identical(x, root)) return false;
+        }
+        path.add(x);
+      }
+      return false;
+    }
+
+    bool copyable(Element root) {
+      if (root.widget.key is GlobalKey) return false;
+      var ok = true;
+      void visit(Element d) {
+        if (!ok) return;
+        if (d.widget.key is GlobalKey && !fresh(d, root)) ok = false;
+        d.visitChildren(visit);
+      }
+
+      root.visitChildren(visit);
+      return ok;
+    }
+
+    var walk = e;
+    for (var n = 0; walk != null && n < 64; n++) {
+      if (copyable(walk)) return walk;
+      walk = parentOf(walk);
+    }
+    return e;
+  }
+
+  /// The part of [e] that shows in screen [key]: its rect cut by every clip
+  /// above it — a scrolling list's viewport, a page's rounded foot — so a
+  /// card that runs on under a tab bar is only what can be seen of it.
+  Rect? _visibleIn(LayerKey key, Element e) {
+    final full = _rectIn(key, e);
+    final rootBox = _keys[key]?.currentContext?.findRenderObject();
+    final box = e.findRenderObject();
+    if (full == null || rootBox is! RenderBox || box is! RenderBox) {
+      return null;
+    }
+    var visible = full;
+    RenderObject child = box;
+    var parent = box.parent;
+    while (parent != null && !identical(child, rootBox)) {
+      // In the parent's own coordinates.
+      final clip = parent.describeApproximatePaintClip(child);
+      if (clip != null) {
+        visible = visible.intersect(
+          MatrixUtils.transformRect(parent.getTransformTo(rootBox), clip),
+        );
+      }
+      if (identical(parent, rootBox)) break;
+      child = parent;
+      parent = parent.parent;
+    }
+    return visible.width > 0 && visible.height > 0 ? visible : null;
+  }
+
   void _findLifts(Duration _) {
     if (!mounted) return;
     var found = false;
@@ -219,10 +348,11 @@ class ReelStageState extends State<ReelStage> {
         final layer = scenes[i].layers[j];
         for (var k = 0; k < layer.lifts.length; k++) {
           if (_lifted.containsKey((i, j, k))) continue;
-          final match = _find((i, j), layer.lifts[k].where);
+          final match = _liftable(_find((i, j), layer.lifts[k].where));
           if (match == null) continue;
-          final rect = _rectIn((i, j), match);
-          if (rect == null) continue;
+          final full = _rectIn((i, j), match);
+          final rect = _visibleIn((i, j), match);
+          if (full == null || rect == null) continue;
           _lifted[(i, j, k)] = _Lifted(
             rect,
             MediaQuery(
@@ -230,9 +360,28 @@ class ReelStageState extends State<ReelStage> {
               child: widget.host.wrap(
                 Padding(
                   padding: const EdgeInsets.all(_liftPad),
+                  // Laid out whole, as on the screen, and cut to what showed
+                  // there.
                   child: SizedBox.fromSize(
                     size: rect.size,
-                    child: match.widget,
+                    child: _fadeCut(
+                      full,
+                      rect,
+                      ClipRect(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned(
+                              left: full.left - rect.left,
+                              top: full.top - rect.top,
+                              width: full.width,
+                              height: full.height,
+                              child: match.widget,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -383,17 +532,22 @@ class ReelStageState extends State<ReelStage> {
             rect.height >= 30 &&
             rect.width * rect.height <= screen.width * screen.height * 0.75 &&
             screen.overlaps(rect)) {
-          final owner = _owner(e, key, rect) ?? e;
+          final owner = _liftable(_owner(e, key, rect) ?? e)!;
           if (!byOwner.containsKey(owner)) {
             final part = _describe(owner, key, rect, typeOrder);
             // Only what shows: a card half off the side is outlined where it
             // can be seen.
-            byOwner[owner] = ScreenPart(
-              name: part.name,
-              text: part.text,
-              rect: part.rect.intersect(screen),
-              pick: part.pick,
+            final shows = (_visibleIn(key, owner) ?? part.rect).intersect(
+              screen,
             );
+            if (shows.width > 0 && shows.height >= 24) {
+              byOwner[owner] = ScreenPart(
+                name: part.name,
+                text: part.text,
+                rect: shows,
+                pick: part.pick,
+              );
+            }
           }
         }
       }

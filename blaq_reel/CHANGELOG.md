@@ -19,6 +19,16 @@
   only when none are chosen. It used to replace them.
 - The builder reopens the reel worked on last.
 
+### Fixed
+
+- A lifted part that ran on under something (a list under the tab bar)
+  lifted whole, hidden rows and all. Lifts and the map's outlines are now
+  cut to what shows on the screen, through every clip above them, and the
+  cut edge fades.
+- Lifting part of a text field (or anything holding a GlobalKey) failed
+  the render with a duplicate key. A lift now copies the nearest widget
+  around it whose keys its copy makes afresh.
+
 - Components: one piece of the app shown on its own, large on the ground
   with no phone around it. `Layer.component` and `Device.bare` draw it
   through the host like a screen, so a `Tap` with `press` really presses it
