@@ -210,26 +210,23 @@ class ReelStageState extends State<ReelStage> {
     );
   }
 
-  /// [child], faded out along any edge where [shown] cuts [full]: a lifted
-  /// list that ran on under something ends softly rather than on a line.
-  static Widget _fadeCut(Rect full, Rect shown, Widget child) {
+  /// [child], faded out along any edge where [shown] cuts [full], by
+  /// [amount] (1 fully faded, 0 not at all): a lifted list that ran on
+  /// under something ends softly while it is still cut. Always the same
+  /// widgets, so the lifted copy keeps its state as the fade goes.
+  static Widget _fadeCut(Rect full, Rect shown, double amount, Widget child) {
     const fade = 28.0;
     final top = shown.top > full.top + 0.5;
     final bottom = shown.bottom < full.bottom - 0.5;
-    if (!top && !bottom) return child;
-    final h = shown.height;
-    final f = (fade / h).clamp(0.0, 0.5);
+    final f = shown.height <= 0 ? 0.0 : (fade / shown.height).clamp(0.0, 0.5);
+    final edge = Color.fromRGBO(0, 0, 0, 1 - amount);
+    const solid = Color(0xFF000000);
     return ShaderMask(
       blendMode: BlendMode.dstIn,
       shaderCallback: (bounds) => LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          if (top) const Color(0x00000000) else const Color(0xFF000000),
-          const Color(0xFF000000),
-          const Color(0xFF000000),
-          if (bottom) const Color(0x00000000) else const Color(0xFF000000),
-        ],
+        colors: [top ? edge : solid, solid, solid, bottom ? edge : solid],
         stops: [0, f, 1 - f, 1],
       ).createShader(bounds),
       child: child,
@@ -355,35 +352,11 @@ class ReelStageState extends State<ReelStage> {
           if (full == null || rect == null) continue;
           _lifted[(i, j, k)] = _Lifted(
             rect,
+            full,
             MediaQuery(
               data: layer.device?.media ?? MediaQuery.of(context),
               child: widget.host.wrap(
-                Padding(
-                  padding: const EdgeInsets.all(_liftPad),
-                  // Laid out whole, as on the screen, and cut to what showed
-                  // there.
-                  child: SizedBox.fromSize(
-                    size: rect.size,
-                    child: _fadeCut(
-                      full,
-                      rect,
-                      ClipRect(
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned(
-                              left: full.left - rect.left,
-                              top: full.top - rect.top,
-                              width: full.width,
-                              height: full.height,
-                              child: match.widget,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                SizedBox.fromSize(size: full.size, child: match.widget),
               ),
             ),
           );
@@ -947,13 +920,50 @@ class ReelStageState extends State<ReelStage> {
     if (lifted == null) return;
     final screen = layer.motion.at(t);
     final own = lift.motion.at(t);
-    final box = lifted.rect.inflate(_liftPad);
+    final travel = lift.to == null ? 0.0 : (lift.travel?.at(t) ?? 1);
+    // While it sits on the screen it is what the screen showed of it; as it
+    // rises (or travels) it opens out to all of it, the cut edge's fade
+    // going as it does.
+    final top = lift.motion.z.keys.fold<double>(
+      0,
+      (m, k) => math.max(m, k.value),
+    );
+    final risen = top <= 0 ? 1.0 : (own.z / top).clamp(0.0, 1.0);
+    final reveal = Curves.easeInOut.transform(
+      (math.max(risen, travel) / 0.75).clamp(0.0, 1.0),
+    );
+    final cut = Rect.lerp(lifted.rect, lifted.full, reveal)!;
+    final box = cut.inflate(_liftPad);
     const rad = math.pi / 180;
     // Toward a place on the screen, from wherever it was found.
     final shift = lift.to == null
         ? Offset.zero
-        : (layer.size.center(Offset.zero) + lift.to! - lifted.rect.center) *
-              (lift.travel?.at(t) ?? 1);
+        : (layer.size.center(Offset.zero) + lift.to! - cut.center) * travel;
+    final content = Padding(
+      padding: const EdgeInsets.all(_liftPad),
+      child: SizedBox.fromSize(
+        size: cut.size,
+        child: _fadeCut(
+          lifted.full,
+          lifted.rect,
+          1 - reveal,
+          ClipRect(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: lifted.full.left - cut.left,
+                  top: lifted.full.top - cut.top,
+                  width: lifted.full.width,
+                  height: lifted.full.height,
+                  child: lifted.content,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
     final m =
         camera.project(
             pose: pose,
@@ -964,8 +974,8 @@ class ReelStageState extends State<ReelStage> {
           )
           ..multiply(
             Matrix4.translationValues(
-              lifted.rect.center.dx + own.x + shift.dx,
-              lifted.rect.center.dy + own.y + shift.dy,
+              cut.center.dx + own.x + shift.dx,
+              cut.center.dy + own.y + shift.dy,
               -own.z,
             ),
           )
@@ -990,10 +1000,10 @@ class ReelStageState extends State<ReelStage> {
         radius: lift.radius,
         inset: _liftPad,
         child: lift.sweep == null
-            ? lifted.content
+            ? content
             : Stack(
                 children: [
-                  Positioned.fill(child: lifted.content),
+                  Positioned.fill(child: content),
                   Positioned.fill(
                     child: Padding(
                       padding: const EdgeInsets.all(_liftPad),
@@ -1255,10 +1265,14 @@ class ReelStageState extends State<ReelStage> {
 }
 
 class _Lifted {
+  /// What the screen showed of it: where it was cut by a list or a foot.
   final Rect rect;
+
+  /// All of it, laid out as on the screen.
+  final Rect full;
   final Widget content;
 
-  const _Lifted(this.rect, this.content);
+  const _Lifted(this.rect, this.full, this.content);
 }
 
 class _Circle extends CustomClipper<Path> {

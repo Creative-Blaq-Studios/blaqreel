@@ -22,9 +22,10 @@
 ### Fixed
 
 - A lifted part that ran on under something (a list under the tab bar)
-  lifted whole, hidden rows and all. Lifts and the map's outlines are now
-  cut to what shows on the screen, through every clip above them, and the
-  cut edge fades.
+  lifted whole from the start, hidden rows and all, over the tab bar. It
+  now starts as what the screen shows of it (cut by every clip above it,
+  the cut edge faded) and opens out to all of it as it rises or travels.
+  The map outlines only what shows.
 - Lifting part of a text field (or anything holding a GlobalKey) failed
   the render with a duplicate key. A lift now copies the nearest widget
   around it whose keys its copy makes afresh.
