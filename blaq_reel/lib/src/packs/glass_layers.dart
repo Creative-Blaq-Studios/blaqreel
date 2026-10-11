@@ -662,9 +662,10 @@ class GlassLayers {
         settle +
         (own?.delay ?? (move == GlassMove.pop ? 320.ms : 250.ms) * k) +
         (move == GlassMove.tap ? 450.ms : Duration.zero);
-    final end = start + rise;
+    // How long it takes to rise: its own, or the beat's.
+    final end = start + (own?.rise ?? rise);
     final ease = move == GlassMove.pop ? Ease.pop : Curves.easeInOutCubic;
-    final arrive = move == GlassMove.pop ? start + 650.ms : end;
+    final arrive = move == GlassMove.pop ? start + (own?.rise ?? 650.ms) : end;
     Track up(double to) => Track.from(0).hold(start).to(arrive, to, ease);
     // Where it sits in a fan or a spread, from the middle one.
     final side = k - (count - 1) / 2;
@@ -1091,6 +1092,9 @@ class PartMove {
   /// When it starts, after the screen settles.
   final Duration? delay;
 
+  /// How long it takes to rise into place.
+  final Duration? rise;
+
   /// A scan line passes over it as it rises.
   final bool? scan;
 
@@ -1103,6 +1107,7 @@ class PartMove {
     this.turn,
     this.roll,
     this.delay,
+    this.rise,
     this.scan,
   });
 
@@ -1123,6 +1128,9 @@ class PartMove {
       delay: n('delay') == null
           ? null
           : Duration(milliseconds: n('delay')!.round()),
+      rise: n('rise') == null
+          ? null
+          : Duration(milliseconds: n('rise')!.round()),
       scan: j['scan'] is bool ? j['scan']! as bool : null,
     );
     final any =
@@ -1133,6 +1141,7 @@ class PartMove {
         m.turn != null ||
         m.roll != null ||
         m.delay != null ||
+        m.rise != null ||
         m.scan != null;
     return any ? m : null;
   }

@@ -369,12 +369,14 @@ void main() {
       'z': 200,
       'turn': 12,
       'delay': 400,
+      'rise': 900,
       'scan': true,
     })!;
     expect(own.to, const Offset(-90, -250));
     expect(own.z, 200);
     expect(own.turn, 12);
     expect(own.delay, const Duration(milliseconds: 400));
+    expect(own.rise, const Duration(milliseconds: 900));
     expect(own.scan, isTrue);
     expect(own.scale, isNull);
     expect(PartMove.fromJson({'type': 'AppCard', 'text': 'Total'}), isNull);

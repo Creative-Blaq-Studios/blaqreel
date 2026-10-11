@@ -26,6 +26,10 @@
   "dx", "dy", "width"}}`), so each format keeps its own. `Words` gained
   `offset`, `plate`, `plateBlur` and `behind`; a set width wraps the words,
   and a word longer than a line shrinks the type instead of breaking.
+- Durations on the timeline: the beat's own bar, whose end sets its
+  length; each part's bar, whose end sets how long it takes to rise
+  (`PartMove.rise`, a part's `"rise"` in ms); and the words' bar, whose ends
+  set when they come in and go. The part inspector has a Rise slider.
 - The Parts step's timeline editor (Pick parts, then Animate): the real
   frame with its safe zone, a track per part and for the words, an
   inspector for each, dragging and snapping on the stage, and a warning

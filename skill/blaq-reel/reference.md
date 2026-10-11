@@ -91,7 +91,7 @@ Pick.key(ValueKey('x'))
 
 ```dart
 // GlassBeat(partMoves: [PartMove(to: Offset(-90, -250), z: 200, scale:,
-//   tilt:, turn: 12, roll:, delay: 400.ms, scan: true), null, ...]): each
+//   tilt:, turn: 12, roll:, delay: 400.ms, rise: 900.ms, scan: true), null, ...]): each
 //   part over the move. Specs: on each part, "to": [x, y] (from the screen's
 //   centre), "z", "scale", "tilt", "turn", "roll", "delay" (ms), "scan".
 // GlassBeat(words: GlassWords(color:, accent:, size: 96, weight:, reveal:,

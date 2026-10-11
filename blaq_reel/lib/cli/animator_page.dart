@@ -107,6 +107,18 @@ const animatorCss = r'''
 .tl-insp .tl-col { flex: 1 1 120px; }
 .tl-insp .tl-col .tl-row2 { flex-wrap: nowrap; }
 .tl-insp .tl-col .tl-num { flex: 1 1 auto; width: 0; }
+
+/* Durations on the timeline: the beat's own bar, and grab ends on bars. */
+.tl-after { position: absolute; top: 0; bottom: -2000px; right: 0; background: rgba(0,0,0,.45); pointer-events: none; border-left: 1px dashed var(--line2); z-index: 1; }
+.tl-tracks { overflow: hidden; }
+.tl-bar2.beat { background: #1C1C1C; border-color: #3A3A3A; color: var(--text2); cursor: default; }
+.tl-bar2 .tl-r, .tl-bar2 .tl-l { position: absolute; top: -1px; bottom: -1px; width: 7px; cursor: col-resize; background: rgba(255,255,255,.18); }
+.tl-bar2 .tl-r { right: -1px; } .tl-bar2 .tl-l { left: -1px; }
+.tl-bar2:hover .tl-r, .tl-bar2:hover .tl-l { background: rgba(255,255,255,.45); }
+.tl-bar2.beat .tl-r { background: var(--accent); width: 6px; }
+.tl-bar2 { position: absolute; }
+.tl-beatname { gap: 6px !important; color: var(--text) !important; cursor: default !important; }
+.tl-len { width: 52px !important; padding: 2px 5px !important; font: 400 11px var(--mono) !important; text-align: right; }
 ''';
 
 /// The editor's script: `timelineEditor(beat, screen, index, side)` returns
@@ -186,8 +198,8 @@ function partPlan(beat, k, count, dir) {
   const move = moveOf(beat), own = beat.parts[k] || {};
   const height = own.z ?? (HEIGHTS[move] || HEIGHTS._)[k];
   const start = SETTLE + (own.delay ?? (move === 'pop' ? 320 : 250) * k) + (move === 'tap' ? 450 : 0);
-  const end = start + RISE, pop = move === 'pop';
-  const arrive = pop ? start + 650 : end, e = pop ? EASE.pop : EASE.inOutCubic;
+  const pop = move === 'pop', end = start + (own.rise ?? RISE);
+  const arrive = pop ? start + (own.rise ?? 650) : end, e = pop ? EASE.pop : EASE.inOutCubic;
   const side = k - (count - 1) / 2;
   const scanned = own.scan ?? (move === 'scan' && k === 0);
   let to = null, scale, turn = 0, roll = 0;
@@ -205,7 +217,7 @@ function partPlan(beat, k, count, dir) {
     scale: trk(1).hold(start).to(arrive, own.scale ?? scale, e),
     tilt: up(own.tilt ?? 0), turn: up(own.turn ?? turn), roll: up(own.roll ?? roll),
     travel: lands == null ? trk(0) : trk(0).hold(start).to(end, 1, EASE.inOutCubic),
-    defaults: { to, scale, turn, roll, height: (HEIGHTS[move] || HEIGHTS._)[k], delay: (pop ? 320 : 250) * k, scan: move === 'scan' && k === 0 },
+    defaults: { to, scale, turn, roll, height: (HEIGHTS[move] || HEIGHTS._)[k], delay: (pop ? 320 : 250) * k, rise: pop ? 650 : RISE, scan: move === 'scan' && k === 0 },
   };
 }
 
@@ -282,6 +294,8 @@ function timelineEditor(beat, s, index, side, lead) {
   if (ed.beat !== index) { ed.beat = index; ed.sel = beat.parts.length ? 0 : 'words'; ed.t = SETTLE + RISE + 600; ed.playing = true; }
   if (!ed.frame) ed.frame = spec.format || 'vertical';
   const dir = index % 2 === 0 ? 1 : -1, l = (beat.length || 5.6) * 1000;
+  // The timeline runs a little past the beat, so its end can be dragged out.
+  const TL = Math.ceil((Math.max(l, 4000) + 2000) / 1000) * 1000;
   const f = layoutOf(ed.frame);
   const look = beat.look || spec.look;
   const ground = { mesh: 'linear-gradient(160deg,#FFF4D6,#FFD9A8 45%,#E9DDF5)', butter: 'linear-gradient(180deg,#FFE29A,#F2C34E)', studio: 'linear-gradient(180deg,#FAF8F3,#E9E6DF)', grid: 'linear-gradient(180deg,#0B0B0B,#151515)', ink: 'radial-gradient(circle at 70% 30%,#3A2E14,#0E0E0E 60%)', echo: 'linear-gradient(180deg,#111,#050505)' }[look] || '#111';
@@ -301,7 +315,7 @@ function timelineEditor(beat, s, index, side, lead) {
     <div class="tl-stagebox"><div class="tl-frame"><div class="tl-stage"></div></div></div>
     <div class="tl-time">
       <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
-      <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: Math.floor(l / 1000) + 1 }, (_, i) => `<span style="left:${(i * 1000 / l) * 100}%">${i}s</span>`).join('')}</div><div class="tl-rows"></div><div class="tl-ph"></div></div>
+      <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: TL / 1000 }, (_, i) => `<span style="left:${(i * 1000 / TL) * 100}%">${i}s</span>`).join('')}<div class="tl-after" style="left:${(l / TL) * 100}%"></div></div><div class="tl-rows"></div><div class="tl-ph"></div></div>
     </div>
   </div>`);
   const stage = root.querySelector('.tl-stage'), frameEl = root.querySelector('.tl-frame'), box = root.querySelector('.tl-stagebox');
@@ -439,25 +453,30 @@ function timelineEditor(beat, s, index, side, lead) {
     const ow = side.querySelector('.tl-overlap');
     if (ow) { ow.hidden = !hits.length; ow.querySelector('span').textContent = hits.length ? `The words cover part ${hits.join(', ')}. Move them, give them a plate, or put them behind.` : ''; }
     // The timeline.
-    root.querySelector('.tl-ph').style.left = (t / l) * 100 + '%';
+    root.querySelector('.tl-ph').style.left = (t / TL) * 100 + '%';
     root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's';
     root.querySelector('.tl-play').textContent = ed.playing ? '❚❚' : '▶';
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
-      if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / l) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / l) * 100 + '%'; }
-      else { const plan = partPlan(beat, +b.dataset.k, parts.length, dir); b.style.left = (plan.start / l) * 100 + '%'; b.style.width = ((plan.end - plan.start) / l) * 100 + '%'; }
+      if (b.dataset.k === 'beat') { b.style.left = '0%'; b.style.width = ((beat.length || 5.6) * 1000 / TL) * 100 + '%'; b.firstChild.textContent = `${(beat.length || 5.6).toFixed(1)}s`; }
+      else if (b.dataset.k === 'words') { b.style.left = (w.at * 1000 / TL) * 100 + '%'; b.style.width = (((w.until - w.at) * 1000) / TL) * 100 + '%'; }
+      else { const plan = partPlan(beat, +b.dataset.k, parts.length, dir); b.style.left = (plan.start / TL) * 100 + '%'; b.style.width = ((plan.end - plan.start) / TL) * 100 + '%'; }
     });
   }
 
   function rows() {
     const w = wordsOf(beat, ed.frame);
     root.querySelector('.tl-names').innerHTML = `<div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div>`
+      + `<div class="tl-name tl-beatname"><b>⏱</b>Beat<input class="input tl-len" id="tlLen" value="${(beat.length || 5.6).toFixed(1)}" aria-label="Beat length in seconds">s</div>`
       + `<div class="tl-name ${ed.sel === 'words' ? 'on' : ''}" data-sel="words"><b>T</b>Words · ${escB(beat.word || '—')}</div>`
       + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
-    root.querySelector('.tl-rows').innerHTML = `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words">${escB(w.reveal)} in</div></div>`
-      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}">rise${plan.scanned ? ' · scan' : ''}</div></div>`; }).join('');
+    root.querySelector('.tl-rows').innerHTML = `<div class="tl-row tl-beatrow"><div class="tl-bar2 beat" data-k="beat" title="Drag the end to make the beat longer or shorter"><span></span><i class="tl-r"></i></div></div>`
+      + `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words" title="Drag to move; drag an end to change when they come in or go"><i class="tl-l"></i>${escB(w.reveal)} in<i class="tl-r"></i></div></div>`
+      + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div></div>`; }).join('');
     root.querySelector('.tl-play').onclick = () => (ed.playing = !ed.playing);
     root.querySelectorAll('[data-sel]').forEach((d) => (d.onclick = () => select(d.dataset.sel === 'words' ? 'words' : +d.dataset.sel)));
-    root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k)));
+    root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k, e.target.classList.contains('tl-r') ? 'end' : e.target.classList.contains('tl-l') ? 'start' : 'move')));
+    const len = root.querySelector('#tlLen');
+    len.onchange = () => { const v = parseFloat(len.value); if (!isNaN(v)) { beat.length = clamp(Math.round(v * 10) / 10, 2, 20); save(); draw(); } };
   }
   function select(sel) { ed.sel = sel; rows(); inspector(); }
 
@@ -503,24 +522,41 @@ function timelineEditor(beat, s, index, side, lead) {
     }
     return beat.words.places[ed.frame];
   }
-  function dragBar(e, key) {
+  // Dragging a bar on the timeline: the middle moves it, an end resizes
+  // it. The beat's own bar sets its length; a part's end, how long it
+  // takes to rise; the words' ends, when they come in and go.
+  function dragBar(e, key, how) {
     e.preventDefault();
-    select(key === 'words' ? 'words' : +key); ed.playing = false;
+    if (key !== 'beat') select(key === 'words' ? 'words' : +key);
+    ed.playing = false;
     const x0 = e.clientX, w = root.querySelector('.tl-rows').getBoundingClientRect().width;
-    if (key === 'words') {
-      const cur = wordsOf(beat, ed.frame), a0 = cur.at, u0 = cur.until;
-      const mv = (ev) => { const d = Math.round(((ev.clientX - x0) / w) * (l / 1000) * 20) / 20; beat.words = beat.words || {}; beat.words.at = clamp(a0 + d, 0, l / 1000 - 0.6); beat.words.until = clamp(u0 + d, beat.words.at + 0.5, l / 1000); ed.t = beat.words.at * 1000 + 700; };
-      const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); };
-      addEventListener('pointermove', mv); addEventListener('pointerup', up); return;
+    const ms = (ev) => ((ev.clientX - x0) / w) * TL;
+    let mv;
+    if (key === 'beat') {
+      const l0 = beat.length || 5.6;
+      mv = (ev) => { beat.length = clamp(Math.round((l0 + ms(ev) / 1000) * 10) / 10, 2, TL / 1000); ed.t = Math.min(ed.t, beat.length * 1000); };
+    } else if (key === 'words') {
+      const cur = wordsOf(beat, ed.frame), a0 = cur.at, u0 = cur.until, end = (beat.length || 5.6);
+      beat.words = beat.words || {};
+      mv = (ev) => {
+        const d = Math.round((ms(ev) / 1000) * 20) / 20;
+        if (how === 'start') beat.words.at = clamp(a0 + d, 0, u0 - 0.3);
+        else if (how === 'end') beat.words.until = clamp(u0 + d, a0 + 0.3, end);
+        else { beat.words.at = clamp(a0 + d, 0, end - (u0 - a0)); beat.words.until = beat.words.at + (u0 - a0); }
+        ed.t = how === 'end' ? beat.words.until * 1000 - 100 : beat.words.at * 1000 + 700;
+      };
+    } else {
+      const i = +key, plan = partPlan(beat, i, parts.length, dir), d0 = plan.start - SETTLE - (moveOf(beat) === 'tap' ? 450 : 0), r0 = plan.end - plan.start;
+      mv = how === 'end'
+        ? (ev) => { beat.parts[i].rise = clamp(Math.round((r0 + ms(ev)) / 50) * 50, 300, 4000); ed.t = partPlan(beat, i, parts.length, dir).end; }
+        : (ev) => { beat.parts[i].delay = clamp(Math.round((d0 + ms(ev)) / 50) * 50, 0, 2500); ed.t = partPlan(beat, i, parts.length, dir).start + 900; };
     }
-    const i = +key, plan = partPlan(beat, i, parts.length, dir), d0 = plan.start - SETTLE - (moveOf(beat) === 'tap' ? 450 : 0);
-    const mv = (ev) => { beat.parts[i].delay = clamp(Math.round((d0 + ((ev.clientX - x0) / w) * l) / 50) * 50, 0, 2500); ed.t = partPlan(beat, i, parts.length, dir).start + 900; };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); rows(); };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); if (key === 'beat') draw(); else { inspector(); rows(); } };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
 
   // ── The inspector, in the side column ──
-  const PART_KEYS = ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'scan'];
+  const PART_KEYS = ['to', 'z', 'scale', 'tilt', 'turn', 'roll', 'delay', 'rise', 'scan'];
   const knob = (id, label, min, max, step, value, fmt, set) => `<div class="tl-knob"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" data-fmt="${fmt}"><output class="${set ? 'set' : ''}">${fmtv(fmt, value)}</output></div>`;
   const fmtv = (fmt, v) => ({ n: Math.round(v), x: (+v).toFixed(2) + '×', deg: Math.round(v) + '°', s: (v / 1000).toFixed(2) + 's', pc: Math.round(v) + '%' }[fmt]);
   function inspector() {
@@ -536,12 +572,12 @@ function timelineEditor(beat, s, index, side, lead) {
         <span class="hint" style="margin:0">From the screen's centre. Or drag the part on the preview.</span></div>
       <div class="tl-sec"><div class="lbl2">Depth</div>${knob('pz', 'Height', 0, 360, 5, p.z ?? plan.height, 'n', own('z'))}${knob('pscale', 'Size', 0.5, 2, 0.01, p.scale ?? d.scale, 'x', own('scale'))}</div>
       <div class="tl-sec"><div class="lbl2">Rotation</div>${knob('ptilt', 'Tilt', -45, 45, 1, p.tilt ?? 0, 'deg', own('tilt'))}${knob('pturn', 'Turn', -45, 45, 1, p.turn ?? d.turn, 'deg', own('turn'))}${knob('proll', 'Roll', -45, 45, 1, p.roll ?? d.roll, 'deg', own('roll'))}</div>
-      <div class="tl-sec"><div class="lbl2">Timing</div>${knob('pdelay', 'Starts', 0, 2500, 50, p.delay ?? d.delay, 's', own('delay'))}<span class="hint" style="margin:0">After the screen settles. Or drag its bar on the timeline.</span></div>
+      <div class="tl-sec"><div class="lbl2">Timing</div>${knob('pdelay', 'Starts', 0, 2500, 50, p.delay ?? d.delay, 's', own('delay'))}${knob('prise', 'Rise', 300, 4000, 50, p.rise ?? d.rise, 's', own('rise'))}<span class="hint" style="margin:0">Starts after the screen settles; Rise is how long it takes. Or drag its bar, or the bar's end, on the timeline.</span></div>
       <div class="tl-sec"><div class="lbl2">Effects</div><label class="tl-chk"><input type="checkbox" id="pscan" ${plan.scanned ? 'checked' : ''}> A scan line reads it as it rises</label></div>
       <div class="tl-sec"><button id="pReset">Reset to ${escB((MOVES.find((m) => m[0] === (beat.move || 'lift')) || MOVES[0])[1])}</button></div>
     </div>`);
     side.appendChild(el);
-    const map = { pz: 'z', pscale: 'scale', ptilt: 'tilt', pturn: 'turn', proll: 'roll', pdelay: 'delay' };
+    const map = { pz: 'z', pscale: 'scale', ptilt: 'tilt', pturn: 'turn', proll: 'roll', pdelay: 'delay', prise: 'rise' };
     Object.entries(map).forEach(([id, key]) => { const inp = el.querySelector('#' + id); inp.oninput = () => { p[key] = +inp.value; inp.nextElementSibling.textContent = fmtv(inp.dataset.fmt, +inp.value); inp.nextElementSibling.classList.add('set'); ed.playing = false; ed.t = Math.max(ed.t, partPlan(beat, i, parts.length, dir).end + 50); save(); }; inp.onchange = rows; });
     const xy = () => { const x = parseFloat(el.querySelector('#pX').value), y = parseFloat(el.querySelector('#pY').value); if (!isNaN(x) && !isNaN(y)) { p.to = [x, y]; save(); } };
     el.querySelector('#pX').oninput = xy; el.querySelector('#pY').oninput = xy;
@@ -618,7 +654,7 @@ function timelineEditor(beat, s, index, side, lead) {
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelectorAll('[data-frame]').forEach((b) => (b.onclick = () => { ed.frame = b.dataset.frame; draw(); }));
   root.querySelector('[data-safe]').onclick = (e) => { ed.safe = !ed.safe; e.target.classList.toggle('on', ed.safe); };
-  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * l, 0, l); };
+  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); };
 
   let raf = 0, alive = true, last = performance.now();
   function tick(now) {
