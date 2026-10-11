@@ -126,6 +126,11 @@ const animatorCss = r'''
 .tl-choose button b { color: var(--accent); }
 .tl-choose button.on { border-color: var(--accent); color: var(--accent); }
 .tl-choose .tl-addparts { margin-left: auto; color: var(--text2); }
+
+/* Scrubbable numbers: drag the label, or the field before typing in it. */
+.tl-scrub { cursor: ew-resize; user-select: none; }
+input.tl-scrub:focus { cursor: text; user-select: text; }
+span.tl-scrub:hover, b.tl-scrub:hover { color: var(--accent); }
 ''';
 
 /// The editor's script: `timelineEditor(beat, screen, index, side)` returns
@@ -294,6 +299,44 @@ function setStyle(beat, key, v) {
   if (w.scope === 'beat') { beat.words = beat.words || {}; beat.words[key] = v; }
   else { spec.words = spec.words || {}; spec.words[key] = v; }
   save();
+}
+
+// A number field that scrubs like a design tool's: drag its label (or the
+// field, when it is not being typed in) sideways or up and down, or press
+// the up and down arrows; Shift moves ten times as far, Alt a tenth.
+// Each change fires `input`; letting go (or each arrow press) fires
+// `change`.
+function scrubbable(input, step = 1, label = null) {
+  if (!input) return;
+  const places = String(step).includes('.') ? String(step).split('.')[1].length : 0;
+  const fire = (type) => input.dispatchEvent(new Event(type, { bubbles: true }));
+  const set = (v) => { input.value = (Math.round(v / step) * step).toFixed(places); fire('input'); };
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const by = (e.shiftKey ? 10 : e.altKey ? 0.1 : 1) * step * (e.key === 'ArrowUp' ? 1 : -1);
+    set((parseFloat(input.value) || 0) + by); fire('change');
+  });
+  for (const handle of [label, input]) {
+    if (!handle) continue;
+    handle.classList.add('tl-scrub');
+    handle.addEventListener('pointerdown', (e) => {
+      if (handle === input && document.activeElement === input) return;
+      e.preventDefault();
+      const x0 = e.clientX, y0 = e.clientY, v0 = parseFloat(input.value) || 0;
+      let moved = false;
+      const mv = (ev) => {
+        const d = (ev.clientX - x0) - (ev.clientY - y0);
+        if (Math.abs(d) > 2) moved = true;
+        if (moved) set(v0 + Math.round(d / 2) * step * (ev.shiftKey ? 10 : ev.altKey ? 0.1 : 1));
+      };
+      const up = () => {
+        removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+        if (moved) fire('change'); else if (handle === input) { input.focus(); input.select(); }
+      };
+      addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    });
+  }
 }
 
 function timelineEditor(beat, s, index, side, lead) {
@@ -484,6 +527,9 @@ function timelineEditor(beat, s, index, side, lead) {
     root.querySelectorAll('.tl-bar2').forEach((b) => (b.onpointerdown = (e) => dragBar(e, b.dataset.k, e.target.classList.contains('tl-r') ? 'end' : e.target.classList.contains('tl-l') ? 'start' : 'move')));
     const len = root.querySelector('#tlLen');
     len.onchange = () => { const v = parseFloat(len.value); if (!isNaN(v)) { beat.length = clamp(Math.round(v * 10) / 10, 2, 20); save(); draw(); } };
+    // While scrubbing, the beat's bar follows; the editor redraws on release.
+    len.oninput = () => { const v = parseFloat(len.value); if (!isNaN(v)) beat.length = clamp(Math.round(v * 10) / 10, 2, TL / 1000); };
+    scrubbable(len, 0.1, len.previousSibling && len.parentElement.querySelector('b'));
   }
   function select(sel) { ed.sel = sel; rows(); inspector(); }
 
@@ -597,6 +643,8 @@ function timelineEditor(beat, s, index, side, lead) {
     Object.entries(map).forEach(([id, key]) => { const inp = el.querySelector('#' + id); inp.oninput = () => { p[key] = +inp.value; inp.nextElementSibling.textContent = fmtv(inp.dataset.fmt, +inp.value); inp.nextElementSibling.classList.add('set'); ed.playing = false; ed.t = Math.max(ed.t, partPlan(beat, i, parts.length, dir).end + 50); save(); }; inp.onchange = rows; });
     const xy = () => { const x = parseFloat(el.querySelector('#pX').value), y = parseFloat(el.querySelector('#pY').value); if (!isNaN(x) && !isNaN(y)) { p.to = [x, y]; save(); } };
     el.querySelector('#pX').oninput = xy; el.querySelector('#pY').oninput = xy;
+    scrubbable(el.querySelector('#pX'), 1, el.querySelector('#pX').previousElementSibling);
+    scrubbable(el.querySelector('#pY'), 1, el.querySelector('#pY').previousElementSibling);
     el.querySelector('#pIn').onclick = () => { delete p.to; save(); inspector(); };
     el.querySelector('#pscan').onchange = (e) => { p.scan = e.target.checked; save(); ed.t = SETTLE; ed.playing = true; rows(); };
     el.querySelector('#pReset').onclick = () => { PART_KEYS.forEach((key) => delete p[key]); save(); inspector(); rows(); };
@@ -644,6 +692,8 @@ function timelineEditor(beat, s, index, side, lead) {
     el.querySelectorAll('[data-pos]').forEach((b) => (b.onclick = () => { const p2 = placeFor(w); Object.assign(p2, { pos: b.dataset.pos, dx: 0, dy: 0 }); save(); redo(); }));
     const dxy = () => { const p2 = placeFor(w), x = parseFloat(el.querySelector('#wDx').value), y = parseFloat(el.querySelector('#wDy').value); if (!isNaN(x)) p2.dx = x; if (!isNaN(y)) p2.dy = y; save(); };
     el.querySelector('#wDx').oninput = dxy; el.querySelector('#wDy').oninput = dxy;
+    scrubbable(el.querySelector('#wDx'), 0.1, el.querySelector('#wDx').previousElementSibling);
+    scrubbable(el.querySelector('#wDy'), 0.1, el.querySelector('#wDy').previousElementSibling);
     const wd = el.querySelector('#wWidth'); wd.oninput = () => { placeFor(w).width = +wd.value; wd.nextElementSibling.textContent = wd.value + '%'; wd.nextElementSibling.classList.add('set'); save(); };
     const pr = el.querySelector('#wPlaceReset'); if (pr) pr.onclick = () => { delete beat.words.places[ed.frame]; save(); redo(); };
     el.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { setStyle(beat, 'layer', b.dataset.layer); redo(); }));
@@ -651,6 +701,8 @@ function timelineEditor(beat, s, index, side, lead) {
     el.querySelectorAll('[data-rev]').forEach((b) => (b.onclick = () => { setStyle(beat, 'reveal', b.dataset.rev); ed.t = w.at * 1000 - 200; ed.playing = true; redo(); }));
     const times = () => { const a = parseFloat(el.querySelector('#wAt').value), u = parseFloat(el.querySelector('#wUntil').value); beat.words = beat.words || {}; if (!isNaN(a)) beat.words.at = a; if (!isNaN(u)) beat.words.until = u; save(); };
     el.querySelector('#wAt').oninput = times; el.querySelector('#wUntil').oninput = times;
+    scrubbable(el.querySelector('#wAt'), 0.05, el.querySelector('#wAt').previousElementSibling);
+    scrubbable(el.querySelector('#wUntil'), 0.05, el.querySelector('#wUntil').previousElementSibling);
     // "Move clear": the anchor where the words cover the least of the parts.
     el.querySelector('#wClear').onclick = () => {
       const pbs = partBoxes(), p2 = placeFor(w);
