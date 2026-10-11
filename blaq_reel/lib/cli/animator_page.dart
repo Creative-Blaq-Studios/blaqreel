@@ -388,7 +388,7 @@ function harmonyPalette(r) {
 // (unless it chose a look of its own) the reel's.
 function groundOf(beat) { return beat.ground || (beat.look ? null : spec.ground) || null; }
 
-function drawGround(ctx, w, h, sec, g, opts = {}) {
+function paintGroundIn(ctx, w, h, sec, g, opts = {}) {
   const p = g.palette, c = [0, 1, 2].map((i) => p.colours[i % p.colours.length]), light = !!p.light, big = Math.max(w, h), t = sec * (g.speed || 1);
   const blur = (px) => { ctx.filter = `blur(${(px * w / 360).toFixed(1)}px)`; };
   const glow = (x, y, r, col, a) => { const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, grgba(col, a)); gr.addColorStop(1, grgba(col, 0)); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h); };
@@ -440,7 +440,7 @@ function drawGround(ctx, w, h, sec, g, opts = {}) {
   // (RadialGradient's radius is a share of the shorter side.)
   const v = light ? 0.12 : 0.45, vg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, 0.9 * Math.min(w, h));
   vg.addColorStop(0.55, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${v})`); ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
-  if (g.grain && !opts.still) { if (!drawGround.noise) { const n = document.createElement('canvas'); n.width = n.height = 128; const nc = n.getContext('2d'), im = nc.createImageData(128, 128); for (let i = 0; i < im.data.length; i += 4) { const q = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = q; im.data[i + 3] = 255; } nc.putImageData(im, 0, 0); drawGround.noise = n; } ctx.globalAlpha = light ? 0.05 : 0.07; ctx.globalCompositeOperation = 'overlay'; ctx.translate(-Math.random() * 128, -Math.random() * 128); ctx.fillStyle = ctx.createPattern(drawGround.noise, 'repeat'); ctx.fillRect(0, 0, w + 128, h + 128); }
+  if (g.grain && !opts.still) { if (!paintGroundIn.noise) { const n = document.createElement('canvas'); n.width = n.height = 128; const nc = n.getContext('2d'), im = nc.createImageData(128, 128); for (let i = 0; i < im.data.length; i += 4) { const q = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = q; im.data[i + 3] = 255; } nc.putImageData(im, 0, 0); paintGroundIn.noise = n; } ctx.globalAlpha = light ? 0.05 : 0.07; ctx.globalCompositeOperation = 'overlay'; ctx.translate(-Math.random() * 128, -Math.random() * 128); ctx.fillStyle = ctx.createPattern(paintGroundIn.noise, 'repeat'); ctx.fillRect(0, 0, w + 128, h + 128); }
   ctx.restore();
 }
 
@@ -605,7 +605,7 @@ function timelineEditor(beat, s, index, side, lead) {
     // Drawn again only when the moment or the ground changes.
     if (moving) {
       const key = `${Math.round(t)}|${JSON.stringify(moving)}`;
-      if (key !== groundKey) { groundKey = key; drawGround(gcan.getContext('2d'), gcan.width, gcan.height, t / 1000, moving); }
+      if (key !== groundKey) { groundKey = key; paintGroundIn(gcan.getContext('2d'), gcan.width, gcan.height, t / 1000, moving); }
     }
     const pose = { tilt: cam.tilt.at(t), turn: cam.turn.at(t), roll: cam.roll.at(t), zoom: cam.zoom.at(t), panX: cam.panX.at(t), panY: cam.panY.at(t) };
     const has = parts.length > 0;
@@ -802,7 +802,7 @@ function timelineEditor(beat, s, index, side, lead) {
       gens.innerHTML = '';
       (ed.gens || []).forEach((cand) => {
         const b = B(`<button class="tl-gen" title="${escB(GROUND_NAMES[cand.pattern])} · ${escB(cand.palette.mode || '')} · ${cand.speed}×"><canvas width="90" height="160"></canvas><span>${escB(GROUND_NAMES[cand.pattern])}</span></button>`);
-        drawGround(b.querySelector('canvas').getContext('2d'), 90, 160, 2, cand, { still: true });
+        paintGroundIn(b.querySelector('canvas').getContext('2d'), 90, 160, 2, cand, { still: true });
         b.onclick = () => { Object.assign(g, JSON.parse(JSON.stringify(cand))); redo(); };
         gens.appendChild(b);
       });

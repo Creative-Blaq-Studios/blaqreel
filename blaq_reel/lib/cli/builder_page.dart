@@ -247,6 +247,7 @@ body.fab-on aside, body.fab-on .canvas, body.fab-on #build aside { padding-botto
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
 .lk.on { border-color: var(--accent); }
+.lk canvas.sw { width: 100%; height: auto; display: block; max-width: 100%; }
 .lk .sw { aspect-ratio: 9 / 14; border: 1px solid var(--line2); background-size: cover; background-position: center 30%; }
 .lk b { font-weight: 900; text-transform: uppercase; font-size: 14px; }
 .lk span { color: var(--text2); font-size: 12px; }
@@ -917,34 +918,90 @@ async function aiDraft(all, button) {
 
 // 5 ─ Ground
 function drawGround(c, side) {
-  c.appendChild(B(`<div><h1>What does it sit on?</h1><p class="why">Choose the ground for the whole reel. A beat can take its own (on the right). <b>Render on this reel</b> shows each ground on your own frames, which takes a couple of minutes.</p></div>`));
+  c.appendChild(B(`<div><h1>What does it sit on?</h1><p class="why">Choose the ground for the whole reel: a still look, or one that moves. A beat can take its own (on the right). Fine-tune a moving one later in the editor's Ground panel.</p></div>`));
+  const pals = brandPalettes();
+  const PAT_PAL = { drift: 'Butter light', aurora: 'Night violet', breathe: 'Butter field', orbit: 'Ink glow', sweep: 'Studio white', bokeh: 'Ink glow', grid: 'Ink glow', mesh: 'Butter light', ribbons: 'Butter light', rays: 'Night violet' };
+  const useGround = (g) => change(() => { spec.ground = JSON.parse(JSON.stringify(g)); });
+  // The looks: still grounds that drift gently.
+  c.appendChild(B('<div class="field" style="margin:0 0 8px"><span>Looks</span></div>'));
   const grid = B('<div class="looks2"></div>');
   LOOKS.forEach((l) => {
     const img = groundShots && groundShots[l.id];
-    const b = B(`<button class="lk${spec.look === l.id ? ' on' : ''}"><div class="sw ${img ? '' : 'sw-' + l.id}" ${img ? `style="background-image:url('${img}')"` : ''}></div><b>${l.name}</b><span>${l.blurb}</span></button>`);
-    b.onclick = () => change(() => (spec.look = l.id));
+    const b = B(`<button class="lk${!spec.ground && spec.look === l.id ? ' on' : ''}"><div class="sw ${img ? '' : 'sw-' + l.id}" ${img ? `style="background-image:url('${img}')"` : ''}></div><b>${l.name}</b><span>${l.blurb}</span></button>`);
+    b.onclick = () => change(() => { spec.look = l.id; delete spec.ground; });
     grid.appendChild(b);
   });
   c.appendChild(grid);
-  const row = B('<div class="row2" style="margin-top:18px"></div>');
-  const render = B('<button>Render on this reel</button>');
+  const row = B('<div class="row2" style="margin-top:12px"></div>');
+  const render = B('<button>Render the looks on this reel</button>');
   render.onclick = async () => {
     if (!spec.beats.length) return toast('Add a beat first');
     render.textContent = 'Rendering the grounds…'; render.classList.add('busy');
     const at = spec.open ? 4.4 : 2.6;
     const r = await fetch(`/api/looks?name=${encodeURIComponent(spec.name)}&format=${spec.format}&at=${at}&looks=${LOOKS.map((l) => l.id).join(',')}`, { method: 'POST' }).then((x) => x.json());
-    render.textContent = 'Render on this reel'; render.classList.remove('busy');
+    render.textContent = 'Render the looks on this reel'; render.classList.remove('busy');
     if (!r.ok) return toast('Could not render the grounds; see the log');
     groundShots = Object.fromEntries(LOOKS.map((l) => [l.id, `/looks/${spec.name}/${l.id}.png?v=${Date.now()}`]));
     draw();
   };
-  row.appendChild(render); row.appendChild(next());
+  row.appendChild(render);
   c.appendChild(row);
+  // Moving grounds, playing; and new ones generated from the brand.
+  const cards = [];
+  const card = (host, g, name, sub) => {
+    const on = spec.ground && spec.ground.pattern === g.pattern && JSON.stringify(spec.ground.palette) === JSON.stringify(g.palette);
+    const b = B(`<button class="lk${on ? ' on' : ''}"><canvas class="sw" width="144" height="224"></canvas><b>${escB(name)}</b><span>${escB(sub)}</span></button>`);
+    b.onclick = () => useGround(g);
+    host.appendChild(b); cards.push({ canvas: b.querySelector('canvas'), g });
+  };
+  c.appendChild(B('<div class="field" style="margin:26px 0 8px"><span>Moving</span></div>'));
+  const moving = B('<div class="looks2"></div>');
+  Object.entries(GROUND_NAMES).forEach(([id, name]) => {
+    const g = spec.ground && spec.ground.pattern === id ? spec.ground : { pattern: id, palette: pals[PAT_PAL[id]], speed: 1, seed: 7, grain: false, beat: null };
+    card(moving, g, name, spec.ground && spec.ground.pattern === id ? 'yours' : PAT_PAL[id]);
+  });
+  c.appendChild(moving);
+  const genRow = B('<div class="row2" style="margin-top:12px"><button class="primary" id="gsGen">Generate 6 from the brand</button><button id="gsLike">More like the chosen</button></div>');
+  c.appendChild(genRow);
+  const gens = B('<div class="looks2" style="margin-top:10px"></div>');
+  c.appendChild(gens);
+  const showGens = () => { gens.innerHTML = ''; cards.splice(Object.keys(GROUND_NAMES).length); (ed.gens || []).forEach((g) => card(gens, g, GROUND_NAMES[g.pattern], `${g.palette.mode || 'generated'} · ${g.speed}×`)); };
+  const generate = (like) => {
+    const ids = Object.keys(GROUND_NAMES), base = spec.ground;
+    ed.genSeed = (ed.genSeed || Date.now() % 100000) + 1;
+    ed.gens = Array.from({ length: 6 }, (_, i) => {
+      const r = lcg((ed.genSeed * 7919 + i * 104729) >>> 0), pal = harmonyPalette(r);
+      return { pattern: like && base ? base.pattern : ids[Math.floor(r() * ids.length)], palette: like && base && r() < 0.3 ? base.palette : pal, speed: Math.round((0.6 + r() * 1.2) * 10) / 10, seed: Math.floor(r() * 1e6), grain: false, beat: null };
+    });
+    showGens();
+  };
+  genRow.querySelector('#gsGen').onclick = () => generate(false);
+  genRow.querySelector('#gsLike').onclick = () => generate(true);
+  showGens();
+  c.appendChild(B('<div class="row2" style="margin-top:22px"></div>')).appendChild(next());
+  // Play the cards, a dozen frames a second, while this step is open.
+  let alive = true, last = 0;
+  const t0 = performance.now();
+  const tick = (now) => {
+    if (!alive) return;
+    if (now - last > 80) { last = now; const t = (now - t0) / 1000; cards.forEach((k) => paintGroundIn(k.canvas.getContext('2d'), k.canvas.width, k.canvas.height, t, k.g, { still: true })); }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  animStop = () => { alive = false; };
+  // A beat of its own: same as the reel, a look, or a moving ground.
   side.appendChild(B('<h2>A beat of its own</h2>'));
   spec.beats.forEach((b, i) => {
-    const s = screenOf(b.screen);
-    const f = B(`<div class="field"><label>${i + 1}. ${escB(b.word || b.line || (s ? s.label : b.screen))}</label><select class="input"><option value="">Same as the reel</option>${LOOKS.map((l) => `<option value="${l.id}"${b.look === l.id ? ' selected' : ''}>${l.name}</option>`).join('')}</select></div>`);
-    f.querySelector('select').onchange = (e) => change(() => { b.look = e.target.value || undefined; });
+    const s = screenOf(b.screen), cur = b.ground ? 'move:' + b.ground.pattern : b.look ? 'look:' + b.look : '';
+    const f = B(`<div class="field"><label>${i + 1}. ${escB(b.word || b.line || (s ? s.label : b.screen))}</label><select class="input"><option value="">Same as the reel</option>
+      <optgroup label="Looks">${LOOKS.map((l) => `<option value="look:${l.id}"${cur === 'look:' + l.id ? ' selected' : ''}>${l.name}</option>`).join('')}</optgroup>
+      <optgroup label="Moving">${Object.entries(GROUND_NAMES).map(([id, n]) => `<option value="move:${id}"${cur === 'move:' + id ? ' selected' : ''}>${n}</option>`).join('')}</optgroup></select></div>`);
+    f.querySelector('select').onchange = (e) => change(() => {
+      const [kind, id] = e.target.value.split(':');
+      delete b.look; delete b.ground;
+      if (kind === 'look') b.look = id;
+      if (kind === 'move') b.ground = { pattern: id, palette: JSON.parse(JSON.stringify((spec.ground && spec.ground.palette) || pals[PAT_PAL[id]])), speed: 1, seed: 7, grain: false, beat: null };
+    });
     side.appendChild(f);
   });
 }
