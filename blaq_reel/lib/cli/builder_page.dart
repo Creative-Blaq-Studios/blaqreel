@@ -81,6 +81,15 @@ textarea.input { min-height: 80px; resize: vertical; }
 .sb img { width: 100%; display: block; border: 1px solid var(--line2); max-height: 260px; object-fit: cover; object-position: top; }
 .sb .h { display: flex; justify-content: space-between; font: 600 11px var(--mono); color: var(--text2); }
 .sb .h b { color: var(--accent); }
+.styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 920px; }
+@media (max-width: 760px) { .styles { grid-template-columns: 1fr; } }
+.card.style { gap: 6px; }
+.clip { background: #000; border: 1px solid var(--line2); display: grid; place-items: center; overflow: hidden; }
+.clip.tall { aspect-ratio: 9 / 16; max-height: 360px; }
+.clip.wide { aspect-ratio: 16 / 9; }
+.clip video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.clip span { font: 400 12px var(--mono); color: var(--muted); padding: 12px; text-align: center; }
+.stylebar { margin-top: 12px; }
 .looks2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lk { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line2); background: var(--surface); }
 .lk.on { border-color: var(--accent); }
@@ -125,9 +134,9 @@ const builderHtml = r'''
 const builderJs = r'''
 const PACKS = [
   { id: 'glass', name: 'Glass Layers', shape: '9:16 · 10–30 s', blurb: 'The screens split into floating layers; one word per beat.' },
+  { id: 'story', name: 'Story Ad', shape: '9:16 · 30–60 s', blurb: 'A hook, the problem, the app, its beats, proof, and a call to action.' },
   { id: 'kinetic', name: 'Kinetic Launch', shape: '16:9 · 15–30 s', blurb: 'A line per beat, word by word, the key part marked; the phone sweeps in.' },
   { id: 'glow', name: 'Dark Glow', shape: '16:9 · 20–40 s', blurb: 'One camera past glowing screens, a title and a line at each.' },
-  { id: 'story', name: 'Story Ad', shape: '9:16 · 30–60 s', blurb: 'A hook, the problem, the app, its beats, proof, and a call to action.' },
 ];
 const LOOKS = [
   { id: 'mesh', name: 'Butter mesh', blurb: 'Light, soft drifting fields of the accent.' },
@@ -139,15 +148,16 @@ const LOOKS = [
 ];
 const FORMATS = ['vertical', 'wide', 'square', 'portrait'];
 const STEPS = [
-  { id: 'brief', name: 'Brief', sub: 'what it is for' },
   { id: 'screens', name: 'Screens', sub: 'which ones, in order' },
+  { id: 'brief', name: 'Brief & style', sub: 'what it is for, how it looks' },
   { id: 'parts', name: 'Parts', sub: 'what each beat features' },
   { id: 'story', name: 'Story', sub: 'the words' },
   { id: 'ground', name: 'Ground', sub: 'what it sits on' },
   { id: 'preview', name: 'Preview', sub: 'watch it, then render' },
 ];
 
-let spec = null, step = 'brief', beatIndex = 0, catalogue = null, saving = null, groundShots = null;
+let styleClips = {}, styleKey = null, styleBusy = false;
+let spec = null, step = 'screens', beatIndex = 0, catalogue = null, saving = null, groundShots = null;
 const B = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 const escB = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -174,6 +184,7 @@ if (location.hash.startsWith('#build')) {
 
 async function openBuilder() {
   if (!catalogue) catalogue = await fetch('/api/catalogue').then((r) => r.json());
+  try { styleClips = (await fetch('/api/styles').then((r) => r.json())).clips || {}; } catch {}
   const specs = await fetch('/api/specs').then((r) => r.json());
   const pick = $('specPick');
   pick.innerHTML = specs.length ? specs.map((s) => `<option value="${escB(s.name)}">${escB(s.name)}</option>`).join('') : '<option value="">No reels yet</option>';
@@ -185,13 +196,13 @@ async function openBuilder() {
 $('specPick').onchange = async (e) => {
   const name = e.target.value; if (!name) return;
   const s = await fetch('/api/spec?name=' + encodeURIComponent(name)).then((r) => r.json());
-  spec = { ...blank(name), ...s, name }; step = 'brief'; beatIndex = 0; groundShots = null; draw();
+  spec = { ...blank(name), ...s, name }; step = 'screens'; beatIndex = 0; groundShots = null; draw();
 };
 $('newSpec').onclick = () => newSpec();
 function newSpec() {
   let n = 1; const taken = [...$('specPick').options].map((o) => o.value);
   while (taken.includes('reel-' + n)) n++;
-  spec = blank('reel-' + n); step = 'brief'; beatIndex = 0; groundShots = null;
+  spec = blank('reel-' + n); step = 'screens'; beatIndex = 0; groundShots = null;
   const o = document.createElement('option'); o.value = spec.name; o.textContent = spec.name; $('specPick').appendChild(o); $('specPick').value = spec.name;
   save(); draw();
 }
@@ -250,7 +261,7 @@ function beatList(side, opts = {}) {
 
 // 1 ─ Brief
 function drawBrief(c, side) {
-  c.appendChild(B(`<div><h1>What is this reel for?</h1><p class="why">Name it, choose a style and a frame, and say what it should get across. Then choose who writes the story: the AI, you, or both.</p></div>`));
+  c.appendChild(B(`<div><h1>What is it for, and how should it look?</h1><p class="why">Watch each style on your screens and choose one. Then say what the reel should get across, and who writes the story: the AI, you, or both.</p></div>`));
   const name = B(`<div class="field"><label for="bName">Name (lowercase, for the file)</label><input class="input" id="bName" value="${escB(spec.name)}"></div>`);
   name.querySelector('input').onchange = (e) => {
     const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
@@ -259,12 +270,32 @@ function drawBrief(c, side) {
     save(); toast('Saved as ' + v);
   };
   c.appendChild(name);
-  const packs = B('<div class="field"><span>Style</span><div class="cards"></div></div>');
+  const key = JSON.stringify(spec.beats.slice(0, 2).map((b) => [b.screen, b.parts, b.word, b.line, b.move]) ) + spec.look;
+  const packs = B('<div class="field"><span>Style</span><div class="styles"></div><div class="row2 stylebar"></div></div>');
   PACKS.forEach((p) => {
-    const b = B(`<button class="card${spec.pack === p.id ? ' on' : ''}"><span class="shape">${p.shape}</span><b>${p.name}</b><span>${p.blurb}</span></button>`);
-    b.onclick = () => change(() => { spec.pack = p.id; if (p.id === 'kinetic' || p.id === 'glow') spec.format = 'wide'; });
-    packs.querySelector('.cards').appendChild(b);
+    const clip = styleClips[p.id];
+    const wide = p.id === 'kinetic' || p.id === 'glow';
+    const b = B(`<button class="card style${spec.pack === p.id ? ' on' : ''}"><div class="clip ${wide ? 'wide' : 'tall'}">${clip ? `<video src="${clip}" autoplay muted loop playsinline></video>` : `<span>${spec.beats.length ? 'Not rendered yet' : 'Pick screens to see it'}</span>`}</div><span class="shape">${p.shape}</span><b>${p.name}</b><span>${p.blurb}</span></button>`);
+    b.onclick = () => change(() => { spec.pack = p.id; spec.format = wide ? 'wide' : 'vertical'; });
+    packs.querySelector('.styles').appendChild(b);
   });
+  const bar = packs.querySelector('.stylebar');
+  if (!spec.beats.length) {
+    const go = B('<button>Choose screens first</button>'); go.onclick = () => { step = 'screens'; draw(); }; bar.appendChild(go);
+  } else {
+    const stale = Object.keys(styleClips).length && styleKey !== null && styleKey !== key;
+    const go = B(`<button class="${Object.keys(styleClips).length ? '' : 'primary'}">${styleBusy ? 'Rendering the styles… about a minute and a half' : Object.keys(styleClips).length ? (stale ? 'Your screens changed: preview again' : 'Preview again') : 'Preview every style on your screens'}</button>`);
+    if (styleBusy) go.classList.add('busy');
+    go.onclick = async () => {
+      styleBusy = true; draw();
+      const r = await fetch('/api/styles', { method: 'POST', body: JSON.stringify(spec) }).then((x) => x.json()).catch(() => ({ ok: false }));
+      styleBusy = false;
+      if (r.ok) { styleClips = r.clips; styleKey = key; } else toast('The style previews failed; see the log');
+      if (step === 'brief') draw();
+    };
+    bar.appendChild(go);
+    bar.appendChild(B(`<span class="hint">Played on your first ${Math.min(2, spec.beats.length)} screen${spec.beats.length > 1 ? 's' : ''}, on ${escB((LOOKS.find((l) => l.id === spec.look) || {}).name || 'the chosen ground')}.</span>`));
+  }
   c.appendChild(packs);
   const fmt = B('<div class="field"><span>Frame</span><div class="seg"></div></div>');
   FORMATS.forEach((f) => { const b = B(`<button class="${spec.format === f ? 'on' : ''}">${f}</button>`); b.onclick = () => change(() => (spec.format = f)); fmt.querySelector('.seg').appendChild(b); });
@@ -294,7 +325,10 @@ function drawBrief(c, side) {
 
 // 2 ─ Screens
 function drawScreens(c, side) {
-  c.appendChild(B(`<div><h1>Which screens?</h1><p class="why">Each screen you add becomes a beat, in the order you add them. Add a screen twice to feature two moments of it.</p></div>`));
+  c.appendChild(B(`<div><h1>Which screens?</h1><p class="why">Start with what you want to show. Each screen you add becomes a beat, in the order you add them; add one twice to feature two moments of it. Next you'll see every style played on the first two.</p></div>`));
+  const lazy = B('<div class="ai" style="margin-bottom:18px"><b>Not sure which?</b><span>Describe the reel and let the AI choose the screens, the parts and the words. You can change all of it after.</span><button>Let the AI choose →</button></div>');
+  lazy.querySelector('button').onclick = () => change(() => { spec.storyBy = 'all'; step = 'brief'; });
+  c.appendChild(lazy);
   if (!catalogue) { c.appendChild(B('<p class="hint">Drawing the app\'s screens… this takes a minute the first time.</p>')); setTimeout(async () => { catalogue = await fetch('/api/catalogue').then((r) => r.json()); if (step === 'screens') draw(); }, 5000); return; }
   const grid = B('<div class="screens"></div>');
   catalogue.screens.forEach((s) => {

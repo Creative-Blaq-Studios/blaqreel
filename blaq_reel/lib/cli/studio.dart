@@ -62,6 +62,114 @@ class Studio {
     if (code == 0) _library++;
   });
 
+  /// The four styles, each drawn on [spec]'s first two beats: short
+  /// previews to choose a style by eye. Written as hidden specs (`_style-…`)
+  /// and rendered as studio previews.
+  Future<bool> styles(Map<String, Object?> spec) {
+    var ok = true;
+    return _serial('Rendering the style previews', () async {
+      final catalogue = _json('$_dir/catalogue/map.json');
+      final screens = {
+        for (final s
+            in (catalogue?['screens'] as List? ?? const [])
+                .cast<Map<String, Object?>>())
+          '${s['id']}': s,
+      };
+      final beats = [
+        for (final b
+            in (spec['beats'] as List? ?? const [])
+                .take(2)
+                .cast<Map<String, Object?>>())
+          _sampleBeat(b, screens),
+      ];
+      if (beats.isEmpty) {
+        ok = false;
+        return;
+      }
+      String brief() {
+        final b = '${spec['brief'] ?? ''}'.trim();
+        if (b.isEmpty) return 'Your story starts {here}.';
+        final first = b.split(RegExp(r'(?<=[.!?])\s')).first;
+        return first.length > 48 ? '${first.substring(0, 46)}…' : first;
+      }
+
+      Directory(_specs).createSync(recursive: true);
+      void write(String pack, Map<String, Object?> extra) =>
+          File('$_specs/_style-$pack.json').writeAsStringSync(
+            jsonEncode({
+              'pack': pack,
+              'look': spec['look'] ?? 'mesh',
+              'music': 'none',
+              'beats': beats,
+              ...extra,
+            }),
+          );
+      write('glass', {});
+      write('story', {
+        'hook': [brief()],
+      });
+      write('kinetic', {'look': spec['look'] ?? 'mesh'});
+      write('glow', {'look': 'ink'});
+      for (final (names, format) in [
+        ('_style-glass,_style-story', 'vertical'),
+        ('_style-kinetic,_style-glow', 'wide'),
+      ]) {
+        _status = 'Rendering the style previews ($format)';
+        final code = await _run({
+          'BLAQ_REEL_TASK': 'preview',
+          'BLAQ_REEL_NAME': names,
+          'BLAQ_REEL_FORMATS': format,
+        });
+        if (code != 0) ok = false;
+      }
+      _status = ok ? 'Style previews rendered' : 'A style preview failed';
+    }).then((_) => ok);
+  }
+
+  /// A beat for a style preview: its own words and parts if it has them,
+  /// otherwise the screen's name and its biggest card.
+  Map<String, Object?> _sampleBeat(
+    Map<String, Object?> b,
+    Map<String, Map<String, Object?>> screens,
+  ) {
+    final screen = screens['${b['screen']}'];
+    final label = '${screen?['label'] ?? b['screen']}'
+        .split(RegExp(r'[ ·]'))
+        .first;
+    var parts = (b['parts'] as List?) ?? const [];
+    if (parts.isEmpty && screen != null) {
+      final candidates =
+          (screen['parts']! as List).cast<Map<String, Object?>>().where((p) {
+            final n = '${p['name']}';
+            return !n.contains('Btn') &&
+                !n.contains('Island') &&
+                !n.contains('Segmented') &&
+                !n.contains('Bar');
+          }).toList()..sort((a, c) {
+            double area(Map<String, Object?> p) {
+              final r = (p['rect']! as List).cast<num>();
+              return (r[2] * r[3]).toDouble();
+            }
+
+            return area(c).compareTo(area(a));
+          });
+      parts = [
+        if (candidates.isNotEmpty)
+          {'type': candidates.first['name'], 'text': candidates.first['text']},
+      ];
+    }
+    final word = '${b['word'] ?? ''}'.trim();
+    final line = '${b['line'] ?? ''}'.trim();
+    return {
+      'screen': b['screen'],
+      'parts': parts,
+      'word': word.isNotEmpty ? word : '$label.',
+      'line': line.isNotEmpty ? line : 'This is {$label}.',
+      'length': 4.6,
+      if (b['move'] != null) 'move': b['move'],
+    };
+  }
+
   /// Renders [look]s of spec [name] at [at] seconds into
   /// `studio/looks/<name>/`, one still each.
   Future<bool> looks(
@@ -235,7 +343,7 @@ class Studio {
       for (final f in dir.listSync().whereType<File>()) {
         if (!f.path.endsWith('.json')) continue;
         final meta = _json(f.path);
-        if (meta == null) continue;
+        if (meta == null || '${meta['name']}'.startsWith('_')) continue;
         (byName['${meta['name']}'] ??= []).add({
           'format': meta['format'],
           'length': meta['length'],
@@ -345,7 +453,8 @@ class Studio {
           _sendJson(req, [
             if (dir.existsSync())
               for (final f in dir.listSync().whereType<File>())
-                if (f.path.endsWith('.json'))
+                if (f.path.endsWith('.json') &&
+                    !f.uri.pathSegments.last.startsWith('_'))
                   {
                     'name': f.uri.pathSegments.last.replaceAll('.json', ''),
                     'spec': _json(f.path),
@@ -383,6 +492,31 @@ class Studio {
           } on CliError catch (e) {
             _sendJson(req, {'ok': false, 'error': e.message});
           }
+        case '/api/styles':
+          if (req.method == 'POST') {
+            final spec =
+                jsonDecode(await utf8.decodeStream(req))
+                    as Map<String, Object?>;
+            final ok = await styles(spec);
+            if (!ok) {
+              _sendJson(req, {'ok': false});
+              return;
+            }
+          }
+          final stamp = DateTime.now().millisecondsSinceEpoch;
+          _sendJson(req, {
+            'ok': true,
+            'clips': {
+              for (final (pack, format) in [
+                ('glass', 'vertical'),
+                ('kinetic', 'wide'),
+                ('glow', 'wide'),
+                ('story', 'vertical'),
+              ])
+                if (File('$_dir/_style-$pack-$format.mp4').existsSync())
+                  pack: '/files/_style-$pack-$format.mp4?v=$stamp',
+            },
+          });
         case '/api/looks' when req.method == 'POST':
           final name = _safe(q['name']);
           final ok = await looks(
