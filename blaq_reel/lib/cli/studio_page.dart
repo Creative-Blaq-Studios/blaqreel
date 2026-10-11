@@ -104,6 +104,22 @@ const _studioBase = r'''<!doctype html>
   .v-meta { font: 400 11px var(--mono); color: var(--text2); margin-top: 2px; }
   .empty-note { color: var(--muted); font-size: 12px; }
   .stage { display: grid; place-items: center; padding: 20px; min-height: 0; min-width: 0; position: relative; }
+  /* A render under way, impossible to miss: over the player in the
+     Library, and in the builder's Preview step. */
+  .rcard { width: min(440px, 92%); background: rgba(8,8,8,.94); border: 1px solid var(--accent); box-shadow: 0 30px 90px rgba(0,0,0,.7);
+    padding: 22px 24px; display: grid; gap: 10px; }
+  .stage > .rcard { position: absolute; z-index: 5; }
+  .rcard .rc-k { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--accent); display: flex; gap: 8px; align-items: center; }
+  .rcard .rc-k::before { content: ''; width: 8px; height: 8px; background: var(--accent); animation: pulse 1s infinite; }
+  .rcard .rc-name { font-weight: 900; font-size: 22px; text-transform: uppercase; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .rcard .rc-pct { font: 900 64px/1 var(--display, Outfit), sans-serif; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .rcard .rc-bar { height: 8px; background: #1E1E1E; overflow: hidden; }
+  .rcard .rc-bar i { display: block; height: 100%; background: var(--accent); transition: width .5s; }
+  .rcard .rc-bar i.waiting { width: 30% !important; animation: rcslide 1.4s ease-in-out infinite; }
+  @keyframes rcslide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  .rcard .rc-phase { font-size: 15px; }
+  .rcard .rc-el { font: 400 12px var(--mono); color: var(--text2); }
+  @media (prefers-reduced-motion: reduce) { .rcard .rc-bar i.waiting, .rcard .rc-k::before { animation: none; } }
   video { max-width: 100%; max-height: calc(100vh - 290px); background: #000;
     box-shadow: 0 30px 80px rgba(0,0,0,.6); outline: 1px solid var(--line2); }
   .empty { color: var(--text2); text-align: center; max-width: 320px; }
@@ -186,6 +202,7 @@ const _studioBase = r'''<!doctype html>
   </nav>
   <div class="stage">
     <div class="empty" id="empty">Rendering the first preview…</div>
+    <div class="rcard" id="renderCard" hidden aria-live="polite"></div>
     <video id="video" playsinline preload="auto" hidden></video>
   </div>
   <aside>
@@ -492,10 +509,33 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── Polling ───────────────────────────────────────────────────────────
+// The render card: what the job is, how far, what it is doing, how long
+// is left. Time left is measured from the frames drawn so far.
+let rcJob = null, rcT0 = null, rcP0 = null;
+function renderCardHtml(st) {
+  if (!st.job || !/^Rendering/.test(st.job)) { rcJob = null; return null; }
+  if (rcJob !== st.jobStarted) { rcJob = st.jobStarted; rcT0 = null; rcP0 = null; }
+  const p = st.progress, now = Date.now();
+  const started = st.jobStarted ? new Date(st.jobStarted).getTime() : now;
+  if (p != null && rcT0 == null) { rcT0 = now; rcP0 = p; }
+  const pct = p == null ? null : Math.min(100, Math.round(p * 100));
+  let left = 0;
+  if (p != null && p - rcP0 > 0.02) left = Math.max(1, Math.round(((now - rcT0) / (p - rcP0)) * (1 - p) / 1000));
+  const phase = p == null ? 'Starting the renderer · usually about 30 seconds'
+    : p < 1 ? `Drawing the frames${left ? ` · about ${left} s left` : ''}` : 'Mixing the sound and finishing';
+  return `<div class="rc-k">${esc(st.job)}</div><div class="rc-name">${esc(st.reel)} · ${esc(st.format)}</div>
+    <div class="rc-pct">${pct == null ? '—' : pct + '%'}</div>
+    <div class="rc-bar"><i class="${pct == null ? 'waiting' : ''}" style="width:${pct ?? 30}%"></i></div>
+    <div class="rc-phase">${phase}</div><div class="rc-el">${Math.round((now - started) / 1000)} s so far</div>`;
+}
+
 async function poll() {
   try {
     state = await fetch('/api/state').then((r) => r.json());
     if (window.onStudioState) window.onStudioState(state);
+    const card = renderCardHtml(state), rc = $('renderCard');
+    rc.hidden = !card; if (card) rc.innerHTML = card;
+    video.style.opacity = card ? 0.25 : 1;
     const dot = $('dot');
     dot.className = 'dot' + (state.job ? ' busy' : state.status.includes('failed') ? ' bad' : '');
     // How far the render is: a figure in the status, a bar under the header.

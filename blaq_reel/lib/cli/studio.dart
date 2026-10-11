@@ -45,6 +45,9 @@ class Studio {
 
   /// How far the render under way is, 0 to 1, from its frame count.
   double? _progress;
+
+  /// When the job under way started.
+  DateTime? _jobStarted;
   String _status = 'Starting';
   final List<String> _log = [];
   DateTime? _renderedAt;
@@ -232,6 +235,7 @@ class Studio {
     final next = _queue.then((_) async {
       _job = name;
       _progress = null;
+      _jobStarted = DateTime.now();
       try {
         await job();
       } finally {
@@ -454,6 +458,7 @@ class Studio {
             'library': _library,
             'job': _job,
             'progress': _progress,
+            'jobStarted': _jobStarted?.toIso8601String(),
             'status': _status,
             'renderedAt': _renderedAt?.toIso8601String(),
             'log': _log,

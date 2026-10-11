@@ -316,9 +316,10 @@ const FORMATS = ['vertical', 'wide', 'square', 'portrait'];
 const STEPS = [
   { id: 'screens', name: 'Screens', sub: 'which ones, in order' },
   { id: 'brief', name: 'Brief & style', sub: 'what it is for, how it looks' },
+  // The ground comes before the parts, so they are animated on it.
+  { id: 'ground', name: 'Ground', sub: 'what it sits on' },
   { id: 'parts', name: 'Parts', sub: 'what each beat features' },
   { id: 'story', name: 'Story', sub: 'the words' },
-  { id: 'ground', name: 'Ground', sub: 'what it sits on' },
   { id: 'preview', name: 'Preview', sub: 'watch it, then render' },
 ];
 
@@ -378,6 +379,7 @@ document.addEventListener('keydown', (e) => {
 });
 function clampBeat(i) { return Math.max(0, Math.min(spec.beats.length - 1, i)); }
 window.onStudioState = (st) => {
+  if (document.body.classList.contains('building') && step === 'preview') previewState(st);
   const a = st.agent, fab = $('agentFab'), box = $('agent');
   agentLast = a;
   placeFab();
@@ -947,20 +949,44 @@ function drawGround(c, side) {
 }
 
 // 6 ─ Preview
+// Renders in place: the render card while it renders, then the video here.
+let pvKey = null;
 function drawPreview(c, side) {
+  pvKey = null;
   const missing = spec.beats.filter((b) => !b.parts.length && !isComp(b.screen)).length;
-  c.appendChild(B(`<div><h1>Preview it</h1><p class="why">${spec.beats.length} beat${spec.beats.length === 1 ? '' : 's'}, ${escB(PACKS.find((p) => p.id === spec.pack).name)}, ${spec.format}, on ${escB((LOOKS.find((l) => l.id === spec.look) || {}).name || spec.look)}.${missing ? ` ${missing} beat${missing === 1 ? ' has' : 's have'} no parts chosen yet: ${missing === 1 ? 'it' : 'they'} will show the screen alone.` : ''} The preview renders in about a minute and opens in the player; change anything here and preview again.</p></div>`));
+  c.appendChild(B(`<div><h1>Preview it</h1><p class="why">${spec.beats.length} beat${spec.beats.length === 1 ? '' : 's'}, ${escB(PACKS.find((p) => p.id === spec.pack).name)}, ${spec.format}, on ${escB((LOOKS.find((l) => l.id === spec.look) || {}).name || spec.look)}.${missing ? ` ${missing} beat${missing === 1 ? ' has' : 's have'} no parts chosen yet: ${missing === 1 ? 'it' : 'they'} will show the screen alone.` : ''} A preview is half size, with sound, and takes a minute or two; it plays here when it is done.</p></div>`));
   const row = B('<div class="row2"></div>');
-  const go = B('<button class="primary">Render the preview →</button>');
+  const go = B('<button class="primary" id="pvGo">Render the preview</button>');
   go.onclick = async () => {
-    await new Promise((r) => setTimeout(r, 600));
+    go.disabled = true;
+    await new Promise((r) => setTimeout(r, 600));   // let the last edit save
     await fetch(`/api/spec/preview?name=${encodeURIComponent(spec.name)}&format=${spec.format}`, { method: 'POST' });
-    setTab(false); toast(`Rendering the preview of ${spec.name}…`);
-    state = await fetch('/api/state').then((r) => r.json()); seenVersion = state.version; showLive(false);
+    pvKey = null;
   };
   row.appendChild(go);
   c.appendChild(row);
-  c.appendChild(B(`<pre class="mono" style="margin-top:22px;font-size:12px;color:var(--text2);white-space:pre-wrap;border:1px solid var(--line2);padding:12px;background:var(--deep)">${escB(JSON.stringify((({ name, ...rest }) => rest)(spec), null, 2))}</pre>`));
+  c.appendChild(B('<div id="pvArea" style="margin-top:18px"></div>'));
+  c.appendChild(B(`<details style="margin-top:22px"><summary class="hint" style="cursor:pointer">The reel as data</summary><pre class="mono" style="font-size:12px;color:var(--text2);white-space:pre-wrap;border:1px solid var(--line2);padding:12px;background:var(--deep)">${escB(JSON.stringify((({ name, ...rest }) => rest)(spec), null, 2))}</pre></details>`));
   side.appendChild(B(`<div class="ai"><b>Where it lives</b><span><code>app_reels/specs/${escB(spec.name)}.json</code>. It renders like any reel: <code>dart run blaq_reel render ${escB(spec.name)}</code>, or Render final in the Library.</span></div>`));
+  if (state) previewState(state);
+}
+// The Preview step follows the studio: a render under way shows its card;
+// a finished preview of this reel plays.
+function previewState(st) {
+  const area = document.getElementById('pvArea'), go = document.getElementById('pvGo');
+  if (!area) return;
+  const rendering = st.job && /^Rendering/.test(st.job);
+  if (go) { go.disabled = !!rendering; go.textContent = rendering ? 'Rendering…' : 'Render the preview'; }
+  if (rendering) { pvKey = 'job'; area.innerHTML = `<div class="rcard">${renderCardHtml(st)}</div>`; return; }
+  const p = st.preview, mine = p && p.name === spec.name && st.reel === spec.name;
+  const key = mine ? `v${st.version}` : 'none';
+  if (key === pvKey) return;
+  pvKey = key;
+  area.innerHTML = mine
+    ? `<div class="pv-done"><video src="/files/${p.video}?v=${st.version}" controls autoplay playsinline style="max-height:62vh;max-width:100%;display:block;border:1px solid var(--line2);background:#000"></video>
+       <div class="row2" style="margin-top:10px"><span class="hint" style="margin:0">${escB(p.format)} ${p.width}×${p.height} · ${p.fps} fps · ${(+p.length).toFixed(1)} s${st.renderedAt ? ' · rendered ' + new Date(st.renderedAt).toLocaleTimeString() : ''}</span><span style="flex:1"></span><button id="pvLib">Open in the Library</button></div></div>`
+    : '<p class="hint">No preview of this reel yet.</p>';
+  const lib = document.getElementById('pvLib');
+  if (lib) lib.onclick = () => { setTab(false); history.replaceState(null, '', '#'); showLive(false); };
 }
 ''';

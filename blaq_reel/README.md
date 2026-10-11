@@ -39,7 +39,10 @@ widget tests already has this.
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
-3. **Parts**, in two modes per beat. **Pick parts**: the screen with its
+3. **Ground**: the reel's ground and any beat's own; render them on the
+   reel's own frames to compare. It comes before the parts, so they are
+   animated on it; the editor also has a Ground picker.
+4. **Parts**, in two modes per beat. **Pick parts**: the screen with its
    cards, rows and photos numbered; click what it features, in order.
    **Animate**, the timeline editor: the beat plays live in the real frame
    (9:16, 4:5, 1:1 or 16:9, with the platform's safe zone), with a track per
@@ -59,13 +62,14 @@ widget tests already has this.
    tool's (drag the label, or ↑/↓; Shift ×10, Alt ×0.1). `[` and `]` step
    through the beats, Space plays and pauses, and the chips at the top of
    the inspector switch between the words and each part.
-4. **Story**: the words per beat, the end card, and for a Story Ad the hook,
+5. **Story**: the words per beat, the end card, and for a Story Ad the hook,
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).
-   **Let the AI build it** does steps 2 to 4 from the brief alone.
-5. **Ground**: the reel's ground and any beat's own; render them on the
-   reel's own frames to compare.
-6. **Preview**, then **Render final** in the Library.
+   **Let the AI build it** does the screens, parts and words from the brief alone.
+6. **Preview**: renders in place, with a card showing how far it is (the
+   frames drawn, the time left, then the sound), and plays it there when it
+   is done; any render in the Library shows the same card over the player.
+   Then **Render final** in the Library.
 
 Whenever the studio asks Claude Code for something (drafting, the
 inventory, staging screens) it runs a headless session (`claude -p`) in the

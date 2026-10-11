@@ -26,6 +26,12 @@
   "dx", "dy", "width"}}`), so each format keeps its own. `Words` gained
   `offset`, `plate`, `plateBlur` and `behind`; a set width wraps the words,
   and a word longer than a line shrinks the type instead of breaking.
+- The Ground step comes before Parts, and the editor has a Ground picker
+  that draws each look as the renderer builds it.
+- Renders show how far they are: a card over the Library's player and in
+  the Preview step (frames drawn, time left, then the sound), a bar under
+  the header, and the figure in the status. Preview renders in place and
+  plays when done.
 - Number fields scrub like a design tool's; `[` and `]` step through
   beats and Space plays or pauses in the builder (the Library's keys no
   longer act while building); chips at the top of the inspector switch
