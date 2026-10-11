@@ -32,13 +32,13 @@ widget tests already has this.
 
 `blaq_reel studio`, then **Build**: a reel made step by step, in the page.
 
-1. **Brief**: name, style pack, frame, what it should get across, sound,
-   and who writes the story: the AI, you then the AI, or you.
-2. **Screens**: every screen the app's kit offers, drawn for real, and
+1. **Screens**: every screen the app's kit offers, drawn for real, and
    below them its components (a button, a loading placeholder) shown on
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
+2. **Brief**: name, style pack, frame, what it should get across, sound,
+   and who writes the story: the AI, you then the AI, or you.
 3. **Ground**: the reel's ground and any beat's own; render them on the
    reel's own frames to compare. It comes before the parts, so they are
    animated on it; the editor also has a Ground picker.
