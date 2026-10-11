@@ -13,19 +13,24 @@ const builderCss = r'''
 body.building main, body.building footer { display: none; }
 /* The steps, the reel and New reel run across the top, so the canvas has
    the width. */
-#build { display: none; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+#build { display: none; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); min-height: 0; }
 body.building #build { display: grid; }
-#build nav, #build aside { overflow: auto; padding: 16px 14px; background: var(--deep); }
-#build nav { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line2); overflow-x: auto; overflow-y: hidden; }
-#build nav .field { display: flex; align-items: center; gap: 8px; margin: 0; flex: none; }
-#build nav #specPick { width: 190px; padding: 6px 8px; }
-#build nav #newSpec { width: auto !important; padding: 7px 12px; white-space: nowrap; flex: none; }
+#build aside { overflow: auto; padding: 16px 14px; background: var(--deep); }
+/* The builder's reel and steps live in the studio's header while building. */
+#buildNav { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding-left: 12px; border-left: 1px solid var(--line2); }
+body:not(.building) #buildNav { display: none; }
+#buildNav .field { display: flex; align-items: center; gap: 8px; margin: 0; flex: none; }
+#buildNav #specPick { width: 150px; padding: 5px 8px; }
+#buildNav .field > label { display: none; }
+body.building header .status span:last-child { display: none; }
+#buildNav #newSpec { width: auto !important; white-space: nowrap; flex: none; }
+#buildNav .steps { min-width: 0; flex: 0 1 auto; }
 #build aside { border-left: 1px solid var(--line2); display: flex; flex-direction: column; gap: 14px; }
 .canvas { overflow: auto; padding: 22px 26px 40px; min-width: 0; }
 .canvas h1 { font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; font-size: 30px; margin: 0 0 6px; }
 .canvas .why { color: var(--text2); margin: 0 0 20px; max-width: 70ch; }
 .steps { display: flex; gap: 0; margin-left: auto; flex: none; }
-.step { all: unset; display: flex; gap: 7px; align-items: center; padding: 8px 12px; white-space: nowrap;
+.step { all: unset; display: flex; gap: 7px; align-items: center; padding: 7px 10px; white-space: nowrap; flex: none;
   border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; font-size: 13px; }
 .step:hover { background: var(--surface); }
 .step:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -77,6 +82,27 @@ textarea.input { min-height: 80px; resize: vertical; }
 .pbox.on { border-color: var(--ok); background: rgba(34,197,94,.14); }
 .pbox.on b { background: var(--ok); }
 .plist { display: grid; gap: 6px; }
+/* The Parts step fits the window: nothing scrolls the page; what is long
+   (the parts list, the timeline) scrolls inside itself. */
+.canvas.fixed { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 16px; }
+.canvas.fixed > * { flex: none; }
+.canvas.fixed > .grow { flex: 1 1 auto; min-height: 0; }
+.canvas.fixed .pmode { margin-bottom: 10px; }
+.canvas.fixed .why { margin-bottom: 12px; }
+.canvas.fixed .picker { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+.canvas.fixed .shot2 { height: 100%; aspect-ratio: 393 / 852; max-width: 46vw; justify-self: start; }
+.canvas.fixed .shot2 img { width: 100%; height: 100%; object-fit: contain; }
+.canvas.fixed .picker > div:last-child { overflow: auto; min-height: 0; padding-right: 4px; }
+.canvas.fixed .tled { height: auto; min-height: 0; }
+.canvas.fixed .tl-time { max-height: 32vh; }
+/* One row on top: every beat (scrolling sideways if there are many), the
+   Pick/Animate switch, and the way on. */
+.beatbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.beatbar > * { flex: none; }
+.beatbar .bnav { padding: 6px 11px; font-size: 14px; line-height: 1; }
+.beatbar .beatSel { width: 260px; padding: 6px 8px; }
+.beatbar > .seg { margin-left: 8px; }
+body.fab-on .canvas.fixed { padding-bottom: 16px; }
 .prow { all: unset; display: grid; grid-template-columns: 36px minmax(0,1fr) 22px; gap: 8px; align-items: center; padding: 8px 10px;
   border: 1px solid var(--line2); background: var(--surface); cursor: pointer; }
 .prow.on { border-color: var(--ok); }
@@ -85,11 +111,6 @@ textarea.input { min-height: 80px; resize: vertical; }
 .prow b { font-weight: 600; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow span { color: var(--text2); font-size: 12px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow .o { font: 600 11px var(--mono); color: var(--ok); }
-.beatTabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
-.beatTabs button { padding: 6px 10px; font-size: 11px; display: inline-flex; gap: 6px; align-items: center; }
-.beatTabs button.on { border-color: var(--accent); color: var(--accent); }
-.beatTabs button i { font-style: normal; color: var(--ok); }
-.beatTabs button i.no { color: var(--muted); }
 .moves { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 22px; }
 .mv { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line2); background: var(--surface); }
 .mv:hover { border-color: var(--text2); }
@@ -248,7 +269,7 @@ const builderHtml = r'''
 <button id="agentFab" hidden aria-haspopup="dialog" aria-expanded="false"><span class="mk">✳</span><span class="lb">Claude Code</span><span class="badge"></span></button>
 <aside id="agent" hidden aria-live="polite" aria-label="Claude Code"></aside>
 <div id="build">
-  <nav>
+  <nav id="buildNav">
     <div class="field"><label for="specPick">Reel</label>
       <select class="input" id="specPick"></select>
     </div>
@@ -401,6 +422,9 @@ window.onStudioState = (st) => {
 // ── Tabs ────────────────────────────────────────────────────────────
 function setTab(build) {
   document.body.classList.toggle('building', build);
+  // The builder's reel and steps sit in the header, after the tabs.
+  const nav = $('buildNav');
+  if (build && nav.parentElement.tagName !== 'HEADER') document.querySelector('header .tabs').after(nav);
   requestAnimationFrame(placeFab);
   $('tabBuild').classList.toggle('on', build); $('tabLibrary').classList.toggle('on', !build);
   if (build) openBuilder();
@@ -471,7 +495,7 @@ function draw() {
     b.onclick = () => { step = s.id; draw(); };
     $('steps').appendChild(b);
   });
-  const c = $('canvas'), side = $('side'); c.innerHTML = ''; side.innerHTML = '';
+  const c = $('canvas'), side = $('side'); c.innerHTML = ''; side.innerHTML = ''; c.className = 'canvas';
   ({ brief: drawBrief, screens: drawScreens, parts: drawParts, story: drawStory, ground: drawGround, preview: drawPreview })[step](c, side);
 }
 function next(label = 'Next') {
@@ -733,15 +757,15 @@ function drawParts(c, side) {
   if (!spec.beats.length) { c.appendChild(B('<div><h1>Parts</h1><p class="why">Add screens first.</p></div>')); return; }
   beatIndex = Math.min(beatIndex, spec.beats.length - 1);
   const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
-  // Every beat, so any of them is a click away.
-  const tabs = B('<div class="beatTabs" role="tablist" aria-label="Beats"></div>');
-  spec.beats.forEach((b, i) => {
-    const bs = screenOf(b.screen), ready = b.parts.length || isComp(b.screen);
-    const t = B(`<button role="tab" aria-selected="${i === beatIndex}" class="${i === beatIndex ? 'on' : ''}"><i class="${ready ? '' : 'no'}">${ready ? '✓' : '○'}</i>${i + 1} · ${escB(b.word || (bs ? bs.label : b.screen))}</button>`);
-    t.onclick = () => { beatIndex = i; draw(); };
-    tabs.appendChild(t);
-  });
-  c.appendChild(tabs);
+  // One slim row: which beat (step through, or jump), and Pick or Animate.
+  const prow = B(`<div class="beatbar"><button class="bnav" aria-label="Previous beat" ${beatIndex === 0 ? 'disabled' : ''}>‹</button>
+    <select class="input beatSel" aria-label="Beat">${spec.beats.map((b, i) => { const bs = screenOf(b.screen), ready = b.parts.length || isComp(b.screen); return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${i + 1} / ${spec.beats.length} · ${escB(b.word || (bs ? bs.label : b.screen))}${ready ? '' : ' · no parts yet'}</option>`; }).join('')}</select>
+    <button class="bnav" aria-label="Next beat" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''}>›</button></div>`);
+  const [prev, nextB] = prow.querySelectorAll('.bnav');
+  prev.onclick = () => { beatIndex--; draw(); }; nextB.onclick = () => { beatIndex++; draw(); };
+  prow.querySelector('.beatSel').onchange = (e) => { beatIndex = +e.target.value; draw(); };
+  c.appendChild(prow);
+  c.classList.add('fixed');
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
   if (s.kind === 'component') {
     c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: ${escB(s.label)}</h1><p class="why"><b>${escB(s.label)}</b> is a piece of the app, so this beat shows it whole: large, on the ground, doing what it does. There is nothing to pick.</p></div>`));
@@ -752,19 +776,17 @@ function drawParts(c, side) {
   // Two jobs: which parts lift (Pick), then how they and the words move
   // (Animate, the timeline editor).
   const mode = partsMode[beatIndex] || (beat.parts.length ? 'animate' : 'pick');
-  const head = B(`<div class="pmode"><h1>Beat ${beatIndex + 1}${beat.word ? ' · ' + escB(beat.word) : ''}</h1><span style="flex:1"></span><div class="seg" role="tablist"><button data-mode="pick" class="${mode === 'pick' ? 'on' : ''}">1 · Pick parts${beat.parts.length ? ' (' + beat.parts.length + ')' : ''}</button><button data-mode="animate" class="${mode === 'animate' ? 'on' : ''}">2 · Animate</button></div></div>`);
+  const head = B(`<div class="seg" role="tablist" aria-label="Pick or animate"><button data-mode="pick" class="${mode === 'pick' ? 'on' : ''}">1 · Pick parts${beat.parts.length ? ' (' + beat.parts.length + ')' : ''}</button><button data-mode="animate" class="${mode === 'animate' ? 'on' : ''}">2 · Animate</button></div>`);
   head.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => { partsMode[beatIndex] = b.dataset.mode; draw(); }));
-  c.appendChild(head);
-  const nb = B('<div class="row2" style="margin-top:18px"></div>');
+  prow.appendChild(head);
   if (mode === 'animate') {
-    c.appendChild(timelineEditor(beat, s, beatIndex, side));
-    if (beatIndex < spec.beats.length - 1) { const b = B('<button class="primary">Next beat →</button>'); b.onclick = () => { beatIndex++; draw(); }; nb.appendChild(b); }
-    else nb.appendChild(next('On to the story'));
-    c.appendChild(nb);
+    if (beatIndex === spec.beats.length - 1) { const on = next('On to the story'); on.style.marginTop = '0'; on.style.marginLeft = 'auto'; prow.appendChild(on); }
+    c.appendChild(timelineEditor(beat, s, beatIndex, side)).classList.add('grow');
     return;
   }
+  const nb = B('<div class="row2" style="margin-top:12px"></div>');
   c.appendChild(B(`<p class="why" style="margin-top:-4px">Click the parts of <b>${escB(s.label)}</b> to feature, in order: the first rises highest. One to three reads best; up to six lift. Then animate them.</p>`));
-  const wrap = B('<div class="picker"><div class="shot2"></div><div><div class="plist"></div></div></div>');
+  const wrap = B('<div class="picker grow"><div class="shot2"></div><div><div class="plist"></div></div></div>');
   const shot = wrap.querySelector('.shot2'); shot.appendChild(B(`<img src="/catalogue/${s.image}" alt="${escB(s.label)}">`));
   const isOn = (p) => beat.parts.findIndex((x) => x.type === p.name && (x.text || null) === (p.text || null));
   s.parts.forEach((p, n) => {

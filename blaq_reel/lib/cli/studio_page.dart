@@ -36,8 +36,19 @@ const _studioBase = r'''<!doctype html>
     background-image: linear-gradient(var(--line) 1px, transparent 1px),
       linear-gradient(90deg, var(--line) 1px, transparent 1px);
     background-size: 48px 48px; background-position: -1px -1px; }
-  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px;
-    border-bottom: 1px solid var(--line2); background: var(--deep); flex-wrap: wrap; }
+  /* One row, never two: what does not fit shortens. */
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; min-height: 52px;
+    border-bottom: 1px solid var(--line2); background: var(--deep); flex-wrap: nowrap; overflow: hidden; }
+  header > * { flex: none; }
+  header button { padding: 6px 10px; font-size: 11px; }
+  header .now { flex: 0 1 auto; min-width: 0; }
+  header .tag { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  header .status { flex: 0 1 auto; min-width: 0; }
+  header .status span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Building: the Library's player controls go; the builder's reel and
+     steps take their place. */
+  body.building header .now, body.building #formatName, body.building #renderBtn,
+  body.building #finalBtn, body.building #stillBtn { display: none; }
   .brand { font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; font-size: 18px; }
   .brand b { color: var(--accent); }
   .now { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -153,8 +164,8 @@ const _studioBase = r'''<!doctype html>
   <span class="tag" id="formatName">—</span>
   <div class="status"><span class="dot" id="dot"></span><span id="status">Starting</span></div>
   <button id="renderBtn" title="R — render the preview again">Re-render</button>
-  <button id="finalBtn" title="Render the finished video of this reel and format">Render final</button>
-  <button class="primary" id="stillBtn" title="S">Still</button>
+  <button class="primary" id="finalBtn" title="Render the finished video of this reel and format">Render final</button>
+  <button id="stillBtn" title="S — save a still of this frame">Still</button>
 </header>
 <main>
   <nav>
