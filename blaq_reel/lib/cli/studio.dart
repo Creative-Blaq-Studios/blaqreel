@@ -5,19 +5,20 @@ import 'dart:io';
 import 'project.dart';
 import 'studio_page.dart';
 
-/// The studio: a preview of a reel in the browser, with a scrubber, frame
-/// stepping, the timeline of scenes, words and cues, full-size stills on
-/// demand, and a fresh preview whenever a file under `app_reels/` or `lib/`
-/// changes.
+/// The formats a rendered file's name can end in.
+const _formats = ['vertical', 'wide', 'square', 'portrait'];
+
+/// The studio: every reel and every rendered video of an app in one page.
+///
+/// Pick a reel and a format to work on it: a quick preview renders, with a
+/// scrubber, frame stepping, the timeline of scenes, words and cues, and
+/// full-size stills on demand, and it renders again whenever a file under
+/// `app_reels/` or `lib/` changes. Pick a finished video to watch it with
+/// the same timeline. Render a finished video of what you are working on
+/// from the page.
 class Studio {
   /// The app.
   final Project project;
-
-  /// The reel.
-  final String reel;
-
-  /// Its format.
-  final String format;
 
   /// The port to serve on.
   final int port;
@@ -25,12 +26,20 @@ class Studio {
   /// Whether file changes re-render.
   final bool watch;
 
+  /// The reel being worked on.
+  String reel;
+
+  /// Its format.
+  String format;
+
   var _version = 0;
-  var _rendering = false;
-  var _queued = false;
+  var _library = 0;
+  String? _job;
   String _status = 'Starting';
   final List<String> _log = [];
   DateTime? _renderedAt;
+  Future<void> _queue = Future.value();
+  var _previewQueued = false;
 
   /// A studio.
   Studio(
@@ -43,56 +52,104 @@ class Studio {
 
   String get _dir => '${project.out}/studio';
 
-  /// Serves until the process is stopped. Returns the address.
+  /// Serves until the process is stopped.
   Future<Uri> serve({void Function(Uri)? onReady}) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     final uri = Uri.parse('http://localhost:${server.port}/');
     server.listen(_handle);
     onReady?.call(uri);
     if (watch) _watch();
-    unawaited(render());
+    unawaited(_describe());
+    // A preview from an earlier session is shown as it is; saving a file
+    // renders a fresh one.
+    if (!File('$_dir/$reel-$format.mp4').existsSync()) unawaited(preview());
     return uri;
   }
 
-  /// Renders the preview again, or queues one if a render is running.
-  Future<void> render() async {
-    if (_rendering) {
-      _queued = true;
-      return;
-    }
-    _rendering = true;
-    _status = 'Rendering';
-    _log.clear();
-    final watch = Stopwatch()..start();
-    final code = await project.renderTest(
-      {
+  /// Runs [job] after every job before it: one render at a time.
+  Future<void> _serial(String name, Future<void> Function() job) {
+    final next = _queue.then((_) async {
+      _job = name;
+      try {
+        await job();
+      } finally {
+        _job = null;
+      }
+    });
+    _queue = next.catchError((Object _) {});
+    return next;
+  }
+
+  Future<int> _run(Map<String, String> defines, {bool log = true}) =>
+      project.renderTest(
+        defines,
+        quiet: true,
+        onLine: !log
+            ? null
+            : (line) {
+                if (line.contains('blaq_reel:') ||
+                    line.contains('EXCEPTION') ||
+                    line.contains('Error')) {
+                  _log.add(line.trim());
+                  if (_log.length > 40) _log.removeAt(0);
+                }
+              },
+      );
+
+  /// Reads every reel's timeline in every format, for the library.
+  Future<void> _describe() => _serial('Reading the reels', () async {
+    await _run({
+      'BLAQ_REEL_TASK': 'describe',
+      'BLAQ_REEL_FORMATS': 'all',
+    }, log: false);
+    _library++;
+  });
+
+  /// Renders the preview of the reel being worked on. Asking while one is
+  /// waiting to start does not queue another.
+  Future<void> preview() {
+    if (_previewQueued) return Future.value();
+    _previewQueued = true;
+    return _serial('Rendering the preview', () async {
+      _previewQueued = false;
+      final r = reel, f = format;
+      _status = 'Rendering $r · $f';
+      _log.clear();
+      final watch = Stopwatch()..start();
+      final code = await _run({
         'BLAQ_REEL_TASK': 'preview',
-        'BLAQ_REEL_NAME': reel,
-        'BLAQ_REEL_FORMATS': format,
-      },
-      quiet: true,
-      onLine: (line) {
-        if (line.contains('blaq_reel:') ||
-            line.contains('EXCEPTION') ||
-            line.contains('Error')) {
-          _log.add(line.trim());
-          if (_log.length > 40) _log.removeAt(0);
-        }
-      },
-    );
-    _rendering = false;
-    if (code == 0) {
-      _version++;
-      _renderedAt = DateTime.now();
-      _status = 'Rendered in ${watch.elapsed.inSeconds}s';
-    } else {
-      _status = 'Render failed — see the log';
-    }
-    stdout.writeln('studio: $_status');
-    if (_queued) {
-      _queued = false;
-      await render();
-    }
+        'BLAQ_REEL_NAME': r,
+        'BLAQ_REEL_FORMATS': f,
+      });
+      if (code == 0) {
+        _version++;
+        _renderedAt = DateTime.now();
+        _status = 'Preview rendered in ${watch.elapsed.inSeconds}s';
+      } else {
+        _status = 'Render failed — see the log';
+      }
+      stdout.writeln('studio: $_status');
+    });
+  }
+
+  /// Renders the finished video of the reel being worked on.
+  Future<void> finalRender() {
+    final r = reel, f = format;
+    return _serial('Rendering $r · $f final', () async {
+      _status = 'Rendering the final $r · $f';
+      _log.clear();
+      final watch = Stopwatch()..start();
+      final code = await _run({
+        'BLAQ_REEL_TASK': 'video',
+        'BLAQ_REEL_NAME': r,
+        'BLAQ_REEL_FORMATS': f,
+      });
+      _status = code == 0
+          ? 'Final $r · $f rendered in ${watch.elapsed.inSeconds}s'
+          : 'Final render failed — see the log';
+      _library++;
+      stdout.writeln('studio: $_status');
+    });
   }
 
   void _watch() {
@@ -104,7 +161,8 @@ class Studio {
       debounce?.cancel();
       debounce = Timer(const Duration(milliseconds: 700), () {
         stdout.writeln('studio: ${path.split('/').last} changed');
-        unawaited(render());
+        unawaited(_describe());
+        unawaited(preview());
       });
     }
 
@@ -115,61 +173,180 @@ class Studio {
     }
   }
 
+  Map<String, Object?>? _json(String path) {
+    final file = File(path);
+    if (!file.existsSync()) return null;
+    try {
+      return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// The reels, by the timelines `describe` wrote.
+  List<Map<String, Object?>> _reels() {
+    final dir = Directory('$_dir/describe');
+    final byName = <String, List<Map<String, Object?>>>{};
+    if (dir.existsSync()) {
+      for (final f in dir.listSync().whereType<File>()) {
+        if (!f.path.endsWith('.json')) continue;
+        final meta = _json(f.path);
+        if (meta == null) continue;
+        (byName['${meta['name']}'] ??= []).add({
+          'format': meta['format'],
+          'length': meta['length'],
+          'scenes': (meta['scenes']! as List).length,
+        });
+      }
+    }
+    return [
+      for (final name in byName.keys.toList()..sort())
+        {
+          'name': name,
+          'formats': byName[name]!
+            ..sort(
+              (a, b) => _formats
+                  .indexOf('${a['format']}')
+                  .compareTo(_formats.indexOf('${b['format']}')),
+            ),
+        },
+    ];
+  }
+
+  /// What a rendered file is: its reel and format, from its name.
+  (String, String) _parse(String file) {
+    final stem = file.substring(0, file.length - 4);
+    for (final f in _formats) {
+      if (stem.endsWith('-$f')) {
+        return (stem.substring(0, stem.length - f.length - 1), f);
+      }
+    }
+    return (stem, project.format);
+  }
+
+  final Map<String, (DateTime, double)> _durations = {};
+
+  double _duration(File file) {
+    final modified = file.lastModifiedSync();
+    final known = _durations[file.path];
+    if (known != null && known.$1 == modified) return known.$2;
+    final r = Process.runSync('ffprobe', [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'csv=p=0',
+      file.path,
+    ]);
+    final d = double.tryParse('${r.stdout}'.trim()) ?? 0;
+    _durations[file.path] = (modified, d);
+    return d;
+  }
+
+  /// The finished videos in `out/`, newest first.
+  List<Map<String, Object?>> _videos() {
+    final dir = Directory(project.out);
+    if (!dir.existsSync()) return const [];
+    final files =
+        dir.listSync().whereType<File>().where((f) {
+          final name = f.uri.pathSegments.last;
+          return name.endsWith('.mp4') && !name.contains('.silent.');
+        }).toList()..sort(
+          (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+        );
+    return [
+      for (final f in files)
+        () {
+          final name = f.uri.pathSegments.last;
+          final (r, fmt) = _parse(name);
+          return {
+            'file': name,
+            'reel': r,
+            'format': fmt,
+            'bytes': f.lengthSync(),
+            'duration': _duration(f),
+            'modified': f.lastModifiedSync().toIso8601String(),
+          };
+        }(),
+    ];
+  }
+
   Future<void> _handle(HttpRequest req) async {
     final path = req.uri.path;
+    final q = req.uri.queryParameters;
     try {
-      if (path == '/') {
-        _send(req, 'text/html; charset=utf-8', utf8.encode(studioPage));
-      } else if (path == '/api/state') {
-        final meta = File('$_dir/$reel-$format.json');
-        _send(
-          req,
-          'application/json',
-          utf8.encode(
-            jsonEncode({
-              'version': _version,
-              'rendering': _rendering,
-              'status': _status,
-              'renderedAt': _renderedAt?.toIso8601String(),
-              'log': _log,
-              'reel': meta.existsSync()
-                  ? jsonDecode(meta.readAsStringSync())
-                  : null,
-            }),
-          ),
-        );
-      } else if (path == '/api/render' && req.method == 'POST') {
-        unawaited(render());
-        _send(req, 'application/json', utf8.encode('{"ok":true}'));
-      } else if (path == '/api/still' && req.method == 'POST') {
-        final t = double.parse(req.uri.queryParameters['t'] ?? '0');
-        final at = t.toStringAsFixed(2);
-        final code = await project.renderTest({
-          'BLAQ_REEL_TASK': 'stills',
-          'BLAQ_REEL_NAME': reel,
-          'BLAQ_REEL_FORMATS': format,
-          'BLAQ_REEL_AT': at,
-        }, quiet: true);
-        final stem = format == project.format ? reel : '$reel-$format';
-        final name = '$stem-${double.parse(at)}s.png';
-        _send(
-          req,
-          'application/json',
-          utf8.encode(
-            jsonEncode({
-              'ok': code == 0,
-              'url': '/stills/$name',
-              'path': '${project.out}/stills/$name',
-            }),
-          ),
-        );
-      } else if (path.startsWith('/files/')) {
-        await _file(req, File('$_dir/${path.substring(7)}'));
-      } else if (path.startsWith('/stills/')) {
-        await _file(req, File('${project.out}/stills/${path.substring(8)}'));
-      } else {
-        req.response.statusCode = HttpStatus.notFound;
-        await req.response.close();
+      switch (path) {
+        case '/':
+          _send(req, 'text/html; charset=utf-8', utf8.encode(studioPage));
+        case '/api/state':
+          _sendJson(req, {
+            'version': _version,
+            'library': _library,
+            'job': _job,
+            'status': _status,
+            'renderedAt': _renderedAt?.toIso8601String(),
+            'log': _log,
+            'reel': reel,
+            'format': format,
+            'preview': _json('$_dir/$reel-$format.json'),
+          });
+        case '/api/library':
+          _sendJson(req, {'reels': _reels(), 'videos': _videos()});
+        case '/api/meta':
+          _sendJson(
+            req,
+            _json('$_dir/describe/${q['reel']}-${q['format']}.json'),
+          );
+        case '/api/select' when req.method == 'POST':
+          reel = q['reel'] ?? reel;
+          format = q['format'] ?? format;
+          _version++;
+          if (!File('$_dir/$reel-$format.mp4').existsSync()) {
+            unawaited(preview());
+          }
+          _sendJson(req, {'ok': true});
+        case '/api/render' when req.method == 'POST':
+          unawaited(preview());
+          _sendJson(req, {'ok': true});
+        case '/api/final' when req.method == 'POST':
+          unawaited(finalRender());
+          _sendJson(req, {'ok': true});
+        case '/api/still' when req.method == 'POST':
+          final t = double.parse(q['t'] ?? '0').toStringAsFixed(2);
+          final r = q['reel'] ?? reel, f = q['format'] ?? format;
+          var code = 1;
+          await _serial('Rendering a still', () async {
+            code = await _run({
+              'BLAQ_REEL_TASK': 'stills',
+              'BLAQ_REEL_NAME': r,
+              'BLAQ_REEL_FORMATS': f,
+              'BLAQ_REEL_AT': t,
+            });
+          });
+          final stem = f == project.format ? r : '$r-$f';
+          final name = '$stem-${double.parse(t)}s.png';
+          _sendJson(req, {
+            'ok': code == 0,
+            'url': '/stills/$name',
+            'path': '${project.out}/stills/$name',
+          });
+        default:
+          if (path.startsWith('/files/')) {
+            await _file(req, File('$_dir/${path.substring(7)}'));
+          } else if (path.startsWith('/out/')) {
+            await _file(req, File('${project.out}/${path.substring(5)}'));
+          } else if (path.startsWith('/stills/')) {
+            await _file(
+              req,
+              File('${project.out}/stills/${path.substring(8)}'),
+            );
+          } else if (path.startsWith('/thumbs/')) {
+            await _thumb(req, path.substring(8));
+          } else {
+            req.response.statusCode = HttpStatus.notFound;
+            await req.response.close();
+          }
       }
     } catch (e) {
       req.response.statusCode = HttpStatus.internalServerError;
@@ -177,6 +354,40 @@ class Studio {
       await req.response.close();
     }
   }
+
+  /// A frame from a second into a finished video, made once per version of
+  /// it.
+  Future<void> _thumb(HttpRequest req, String name) async {
+    final video = File('${project.out}/${name.replaceAll('.jpg', '.mp4')}');
+    if (!video.existsSync() || name.contains('..')) {
+      req.response.statusCode = HttpStatus.notFound;
+      await req.response.close();
+      return;
+    }
+    final thumb = File('$_dir/thumbs/$name');
+    if (!thumb.existsSync() ||
+        thumb.lastModifiedSync().isBefore(video.lastModifiedSync())) {
+      thumb.parent.createSync(recursive: true);
+      await Process.run(project.ffmpeg, [
+        '-y',
+        '-loglevel',
+        'error',
+        '-ss',
+        '1.2',
+        '-i',
+        video.path,
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=240:-2',
+        thumb.path,
+      ]);
+    }
+    await _file(req, thumb);
+  }
+
+  void _sendJson(HttpRequest req, Object? data) =>
+      _send(req, 'application/json', utf8.encode(jsonEncode(data)));
 
   void _send(HttpRequest req, String type, List<int> body) {
     req.response.headers
@@ -186,7 +397,7 @@ class Studio {
     unawaited(req.response.close());
   }
 
-  /// Serves [file], honouring Range requests so the video can be scrubbed.
+  /// Serves [file], honouring Range requests so a video can be scrubbed.
   Future<void> _file(HttpRequest req, File file) async {
     final res = req.response;
     if (!file.existsSync() || file.path.contains('..')) {
@@ -199,6 +410,8 @@ class Studio {
         ? 'video/mp4'
         : file.path.endsWith('.png')
         ? 'image/png'
+        : file.path.endsWith('.jpg')
+        ? 'image/jpeg'
         : 'application/json';
     res.headers
       ..set(HttpHeaders.contentTypeHeader, type)

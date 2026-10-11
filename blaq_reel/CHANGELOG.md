@@ -28,6 +28,9 @@ app.
   management), `doctor`, `list`, `stills`, `render`, `studio` (browser
   scrubber with live re-render and stills), `sfx`, `voice`.
 - The `blaq-reel` Claude skill.
+- The studio's library: every reel in every format and every rendered
+  video, side by side; watch any finished video with its timeline, switch
+  which reel is previewed live, render finals from the page.
 
 ### Fixed
 

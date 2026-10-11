@@ -45,12 +45,21 @@ log in `last.log`.
 
 ### The studio
 
-`blaq_reel studio <reel>` serves a page on localhost:4455: the preview with
-a scrubber over the timeline of scenes, transitions, words and cues; frame
-stepping (← →), seconds (⇧ ← →), scenes ([ ]), ¼× and ½× speed, scene loop,
-full-size stills at the playhead (S), and the time copied for notes (C).
-Saving any file under `app_reels/` or `lib/` re-renders the preview, and the
-page reloads it where it was.
+`blaq_reel studio [<reel>]` serves a page on localhost:4455 with the whole
+app's reels in one place:
+
+- **Rendered videos**: every finished MP4 in `out/`, newest first, with a
+  thumbnail, length and size. Click one to watch it with its timeline.
+  `?video=<file>` opens the page on one.
+- **Reels**: every reel, with a chip per format. Pick one to work on it
+  live: a quick preview renders, and saving any file under `app_reels/` or
+  `lib/` renders it again; the page reloads it where it was.
+- **Render final** renders the finished video of the reel being worked on;
+  it appears under Rendered videos.
+- The timeline shows scenes, transitions, words, cues and voice-over. Step
+  frames (← →), seconds (⇧ ← →), scenes ([ ]), play at ¼× or ½×, loop a
+  scene, take a full-size still at the playhead (S), copy the time for
+  notes (C).
 
 ## Style packs
 

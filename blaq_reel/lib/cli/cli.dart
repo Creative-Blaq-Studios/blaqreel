@@ -159,7 +159,7 @@ class _List extends Command<int> {
   @override
   Future<int> run() async {
     final project = Project.find();
-    final dir = Directory('${project.out}/studio');
+    final dir = Directory('${project.out}/studio/describe');
     final before = DateTime.now();
     final code = await project.renderTest({
       'BLAQ_REEL_TASK': 'describe',
@@ -291,20 +291,41 @@ class _Studio extends Command<int> {
 
   @override
   String get description =>
-      'Preview a reel in the browser: scrub, step frames, take stills; '
-      're-renders when a file changes.';
+      'Every reel and rendered video in the browser: preview one live '
+      '(re-rendered on save), watch finished videos, scrub, step frames, '
+      'take stills, render finals.';
 
   @override
-  String get invocation => 'blaq_reel studio <reel>';
+  String get invocation => 'blaq_reel studio [<reel>]';
 
   @override
   Future<int> run() async {
     final project = Project.find();
     final r = argResults!;
-    if (r.rest.isEmpty) throw UsageException('Name a reel.', usage);
+    var reel = r.rest.isEmpty ? null : r.rest.first;
+    if (reel == null) {
+      // No reel named: read them all and open on the first.
+      stdout.writeln('Reading the reels…');
+      await project.renderTest({'BLAQ_REEL_TASK': 'describe'}, quiet: true);
+      final dir = Directory('${project.out}/studio/describe');
+      final names = dir.existsSync()
+          ? (dir
+                .listSync()
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.json'))
+                .map(
+                  (f) => '${(jsonDecode(f.readAsStringSync()) as Map)['name']}',
+                )
+                .toSet()
+                .toList()
+              ..sort())
+          : <String>[];
+      if (names.isEmpty) throw const CliError('No reels found in app_reels/.');
+      reel = names.first;
+    }
     final studio = Studio(
       project,
-      reel: r.rest.first,
+      reel: reel,
       format: r['format'] as String? ?? project.format,
       port: int.parse(r['port'] as String),
       watch: r['watch'] as bool,

@@ -108,8 +108,9 @@ void blaqReelMain({
       }
       if (task == 'describe') {
         test('$label describe', () {
+          // Apart from the previews' own JSON, which names a video.
           _writeJson(
-            '${config.out}/studio/$n-${f.name}.json',
+            '${config.out}/studio/describe/$n-${f.name}.json',
             describeReel(reels[n]!(f)),
           );
         });
