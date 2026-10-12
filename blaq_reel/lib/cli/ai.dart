@@ -186,7 +186,7 @@ ${_copy()}
 An intro is up to three short lines, each shown large on its own, one after another, then optionally the logo. A line is at most six words; put its key word in {braces} for the accent colour. No lines and just the logo is fine if that is what is asked. A hook works best as a question or a feeling the viewer recognises, not a feature. No numbers or claims the copy does not make. Plain, warm, direct.
 
 Reply with one JSON object and nothing else:
-{"lines":["…"],"logo":"${logos.isEmpty ? 'mark' : logos.first}" or null,"length":seconds (about 1.4 per line, plus 1.6 for a logo),"reveal":"words" or "letters" or "typewriter" or "fade","note":"one sentence on the idea"}
+{"lines":["…"],"logo":"${logos.isEmpty ? 'mark' : logos.first}" or null,"length":seconds (about 1.4 per line, plus 2 for a logo),"reveal":"words" or "letters" or "typewriter" or "fade","note":"one sentence on the idea"}
 ''';
     final run = await runClaude(
       project,

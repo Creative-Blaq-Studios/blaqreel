@@ -63,6 +63,13 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- Logos play their own animation: the kit's logo is built from a clock
+  that now starts when it appears (after the intro's lines, half a second
+  into the end card), so the mark's cards join on screen rather than before
+  it shows. It comes in with a short fade; the studio's zoom, roll and blur
+  are an option (`"entrance": "zoom"`). The catalogue captures each logo's
+  animation as frames, and the editor plays them. An intro's lines each
+  leave before the next comes, and the logo keeps 2 s for itself.
 - An intro that says something: `GlassLayers.openLines` (spec `"open":
   {"lines": [...], "reveal"}`) shows up to a few hook lines, one after
   another, large, before the logo (or instead of it). In the editor the

@@ -616,7 +616,7 @@ function bookendEditor(kind, side, lead) {
   const ownPlace = (t) => { const s2 = ownStyle(t); s2.places = s2.places || {}; s2.places[ed.frame] = s2.places[ed.frame] || {}; return s2.places[ed.frame]; };
   const logoPlace = () => ((read().logoPlaces || {})[ed.frame] || {});
   const ownLogoPlace = () => { const o = own(); o.logoPlaces = o.logoPlaces || {}; o.logoPlaces[ed.frame] = o.logoPlaces[ed.frame] || {}; return o.logoPlaces[ed.frame]; };
-  const lenOf = () => { const v = read(); return v.length || (intro ? ((v.lines || []).length ? (v.lines || []).length * 1.4 + (v.logo ? 1.6 : 0.2) : 2.6) : 4.7); };
+  const lenOf = () => { const v = read(); return v.length || (intro ? ((v.lines || []).length ? (v.lines || []).length * 1.4 + (v.logo ? 2.0 : 0.2) : 2.6) : 4.7); };
   const url = () => { const v = read(); return v.url === false || v.url === '' ? null : v.url || (catalogue && catalogue.url) || null; };
 
   const root = B(`<div class="tled bk">
@@ -637,7 +637,7 @@ function bookendEditor(kind, side, lead) {
     requestAnimationFrame(() => paintGroundIn(g.getContext('2d'), g.width, g.height, 1, moving));
   }
   const sketch = B('<div class="bk-sketch still"></div>'); stage.appendChild(sketch);
-  let k = 1;
+  let k = 1, logoLoop = 0;
   function fit() {
     const W = box.clientWidth - 12, H = box.clientHeight - 12, view = root.querySelector('.tl-view');
     k = Math.max(0.1, Math.min(W / f.w, H / f.h));
@@ -671,14 +671,16 @@ function bookendEditor(kind, side, lead) {
     const sc = v.logoScale || 1, lp = logoPlace();
     const logoX = f.w / 2 + ((lp.dx || 0) / 100) * f.w, logoY = f.h / 2 + ((lp.dy || 0) / 100 - (intro ? 0.02 : wide ? 0.08 : 0.06)) * f.h;
     const pct = (sec) => Math.max(0, Math.min(100, (sec / len) * 100)).toFixed(1) + '%';
-    const n = lines.length, logoAt = intro && v.logo && n ? len - 1.6 : 0, each = n ? (v.logo ? logoAt : len) / n : 0;
+    const n = lines.length, logoAt = intro && v.logo && n ? len - 2.0 : 0, each = n ? (v.logo ? logoAt : len) / n : 0;
     // Which moment the settled intro shows: a line, or the logo.
     const moment = Math.min(st8.moment || 0, n);
     const showLogo = v.logo && !v.off && (!intro || playing || !n || moment === n);
     const css = intro
       ? `@keyframes bk-logo { 0%, ${pct(logoAt)} { opacity: 0; transform: translate(-50%,-50%) scale(${0.6 * sc}) rotate(10deg); filter: blur(10px) } ${pct(logoAt + 0.6)} { opacity: 1 } ${pct(logoAt + 1.4)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(${sc}) rotate(0); filter: blur(0) } }
-         ${lines.map((_, i) => `@keyframes bk-l${i} { 0%, ${pct(each * i + 0.12)} { opacity: 0; transform: translateY(18px) } ${pct(each * i + 0.6)}, ${pct(i < n - 1 ? each * (i + 1) - 0.1 : v.logo ? logoAt - 0.1 : len - 0.45)} { opacity: 1; transform: none } ${pct(i < n - 1 ? each * (i + 1) : v.logo ? logoAt : len - 0.35)}, 100% { opacity: 0 } }`).join('\n')}`
+         @keyframes bk-logo-in { 0%, ${pct(logoAt)} { opacity: 0 } ${pct(logoAt + 0.2)}, 100% { opacity: 1 } }
+         ${lines.map((_, i) => `@keyframes bk-l${i} { 0%, ${pct(each * i + 0.12)} { opacity: 0; transform: translateY(18px) } ${pct(each * i + 0.6)}, ${pct(i < n - 1 ? each * (i + 1) - 0.33 : v.logo ? logoAt - 0.45 : len - 0.5)} { opacity: 1; transform: none } ${pct(i < n - 1 ? each * (i + 1) + 0.12 : v.logo ? logoAt : len - 0.05)}, 100% { opacity: 0 } }`).join('\n')}`
       : `@keyframes bk-logo { 0%, ${pct(0.5)} { opacity: 0; transform: translate(-50%,-50%) scale(${0.85 * sc}); filter: blur(8px) } ${pct(1.6)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(${sc}); filter: blur(0) } }
+         @keyframes bk-logo-in { 0%, ${pct(0.5)} { opacity: 0 } ${pct(0.7)}, 100% { opacity: 1 } }
          @keyframes bk-line { 0%, ${pct(1.5)} { opacity: 0; translate: 0 14px } ${pct(2.2)}, 100% { opacity: 1; translate: 0 0 } }
          @keyframes bk-url { 0%, ${pct(2.2)} { opacity: 0 } ${pct(2.8)}, 100% { opacity: 1 } }
          @keyframes bk-fan { 0%, ${pct(0.3)} { opacity: 0; transform: translateY(80px) } ${pct(1.5)}, 100% { opacity: .5; transform: none } }`;
@@ -686,7 +688,7 @@ function bookendEditor(kind, side, lead) {
     const blur = v.blur == null ? 1.6 : v.blur, m = screens.length;
     sketch.innerHTML = `<style>${css}</style>
       ${screens.map((s2, i) => `<img class="bk-scr" src="/catalogue/${s2.image}" style="left:${f.w / 2 + (i - (m - 1) / 2) * (wide ? f.w * 0.12 : 56) - 32}px;top:${f.h * (wide ? 0.86 : 0.78)}px;filter:blur(${(blur * 1.1).toFixed(1)}px);animation:bk-fan ${len}s ${0.09 * i}s infinite both">`).join('')}
-      ${showLogo ? `<img class="bk-logo ${st8.sel === 'logo' ? 'sel' : ''}" data-pick="logo" src="/catalogue/logo-${v.logo}-${light ? 'ink' : 'paper'}.png" style="left:${logoX}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;transform:translate(-50%,-50%) scale(${sc});animation:bk-logo ${len}s infinite both" alt="">` : ''}
+      ${showLogo ? `<img class="bk-logo ${st8.sel === 'logo' ? 'sel' : ''}" data-pick="logo" src="/catalogue/logo-${v.logo}-${light ? 'ink' : 'paper'}.png" style="left:${logoX}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;transform:translate(-50%,-50%) scale(${sc});animation:${v.entrance === 'zoom' ? 'bk-logo' : 'bk-logo-in'} ${len}s infinite both" alt="">` : ''}
       ${v.off ? `<div class="bk-off">No ${intro ? 'intro' : 'outro'}: the reel ${intro ? 'opens on its first beat' : 'ends on its last beat'}</div>` : ''}`;
     // The texts, placed once the sketch is on the page.
     const texts = v.off ? [] : intro ? lines.map((x, i) => ['words', x, i]).filter(([, , i]) => playing || i === moment) : [['line', v.line], ['url', url()]].filter(([, x]) => x);
@@ -696,6 +698,22 @@ function bookendEditor(kind, side, lead) {
       sketch.appendChild(el); placeText(t, text, el);
     });
     sketch.querySelectorAll('[data-pick]').forEach((el) => (el.onpointerdown = (e) => drag(e, el.dataset.pick)));
+    // The logo's own animation, as the catalogue drew it frame by frame,
+    // from the moment it appears.
+    clearInterval(logoLoop);
+    const img = sketch.querySelector('.bk-logo'), meta = (catalogue && catalogue.logos && catalogue.logos[v.logo]) || {};
+    if (img && playing && meta.frames) {
+      const tone = light ? 'ink' : 'paper', shots = Array.from({ length: meta.frames }, (_, i) => { const im = new Image(); im.src = `/catalogue/logo-${v.logo}-${tone}-${i}.png`; return im; });
+      // A frame of the logo's animation each tick, on the sketch's loop.
+      const appear = intro ? logoAt : 0.5;
+      let tick = 0;
+      logoLoop = setInterval(() => {
+        if (!img.isConnected) { clearInterval(logoLoop); return; }
+        const local = ((tick++ / meta.fps) % len) - appear;
+        const i = Math.max(0, Math.min(meta.frames - 1, Math.floor(local * meta.fps)));
+        if (img.dataset.i !== String(i)) { img.dataset.i = i; img.src = shots[i].src; }
+      }, 1000 / meta.fps);
+    }
     // The foot: play, the length, and for the intro which moment to show.
     root.querySelector('.bk-foot').innerHTML = `<button class="tl-play bk-play" aria-label="Play or pause">${playing ? '❚❚' : '▶'}</button><span class="lbl2">${intro ? 'Intro' : 'Outro'}</span><b>${v.off ? 'off' : len.toFixed(1) + ' s'}</b>
       ${intro && n ? `<div class="seg bk-moments">${lines.map((_, i) => `<button data-m="${i}" class="${!playing && moment === i ? 'on' : ''}">Line ${i + 1}</button>`).join('')}${v.logo ? `<button data-m="${n}" class="${!playing && moment === n ? 'on' : ''}">Logo</button>` : ''}</div>` : ''}
@@ -785,12 +803,15 @@ function bookendEditor(kind, side, lead) {
     const el = B(`<div class="tl-insp">
       <div class="tl-ih"><span class="lbl2">The logo</span><b>${v.logo ? escB(v.logo) : 'None'}</b></div>
       <div class="tl-sec"><div class="seg">${logos.map((x) => `<button data-logo="${x}" class="${v.logo === x ? 'on' : ''}">${escB(x)}</button>`).join('')}<button data-logo="" class="${v.logo ? '' : 'on'}">none</button></div></div>
-      ${v.logo ? `<div class="tl-sec"><div class="lbl2">Size</div><div class="tl-knob"><label for="lgS">Size</label><input type="range" id="lgS" min="0.3" max="2.5" step="0.05" value="${v.logoScale || 1}"><output class="${v.logoScale ? 'set' : ''}">${(v.logoScale || 1).toFixed(2)}×</output></div></div>
+      ${v.logo ? `<div class="tl-sec"><div class="lbl2">How it comes in</div><div class="seg"><button data-ent="own" class="${v.entrance === 'zoom' ? '' : 'on'}">Its own animation</button><button data-ent="zoom" class="${v.entrance === 'zoom' ? 'on' : ''}">Zoom in</button></div>
+        <span class="hint" style="margin:0">${v.entrance === 'zoom' ? 'The studio zooms it in from the dark, on top of its own animation.' : 'It plays the animation the app’s logo has, from the moment it appears, with a short fade.'}</span></div>
+      <div class="tl-sec"><div class="lbl2">Size</div><div class="tl-knob"><label for="lgS">Size</label><input type="range" id="lgS" min="0.3" max="2.5" step="0.05" value="${v.logoScale || 1}"><output class="${v.logoScale ? 'set' : ''}">${(v.logoScale || 1).toFixed(2)}×</output></div></div>
       <div class="tl-sec"><div class="lbl2"><span>Place · ${FRAMES[ed.frame][0]}</span><span>${lp.dx || lp.dy ? 'moved' : 'in the middle'}</span></div>
         <div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="lgX" value="${lp.dx || 0}"><span class="lbl2">%</span><span class="lbl2">Y</span><input class="input tl-num" id="lgY" value="${lp.dy || 0}"><span class="lbl2">%</span></div>
         <span class="hint" style="margin:0">Or drag the logo on the preview.</span>${lp.dx || lp.dy ? '<button id="lgBack">Back to the middle</button>' : ''}</div>` : ''}
     </div>`);
     el.querySelectorAll('[data-logo]').forEach((b) => (b.onclick = () => { own().logo = b.dataset.logo || null; changed(true); }));
+    el.querySelectorAll('[data-ent]').forEach((b) => (b.onclick = () => { const o = own(); if (b.dataset.ent === 'zoom') o.entrance = 'zoom'; else delete o.entrance; changed(true); }));
     const s2 = el.querySelector('#lgS'); if (s2) s2.oninput = () => { own().logoScale = +s2.value; s2.nextElementSibling.textContent = (+s2.value).toFixed(2) + '×'; s2.nextElementSibling.classList.add('set'); changed(); };
     const xy = () => { const p = ownLogoPlace(), x = parseFloat(el.querySelector('#lgX').value), y = parseFloat(el.querySelector('#lgY').value); if (!isNaN(x)) p.dx = x; if (!isNaN(y)) p.dy = y; changed(); };
     if (el.querySelector('#lgX')) { el.querySelector('#lgX').oninput = xy; el.querySelector('#lgY').oninput = xy; scrubbable(el.querySelector('#lgX'), 0.5, el.querySelector('#lgX').previousElementSibling); scrubbable(el.querySelector('#lgY'), 0.5, el.querySelector('#lgY').previousElementSibling); }

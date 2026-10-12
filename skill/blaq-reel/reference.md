@@ -104,7 +104,8 @@ Pick.key(ValueKey('x'))
 //   "reveal": "words", "words": {style as a beat's words}, "logoScale",
 //   "logoPlaces": {"vertical": {"dx", "dy"}}} (or "mark", or false); "end"
 //   also takes "lineWords", "urlWords", "logoScale", "logoPlaces", "blur";
-//   "logo": null is none.
+//   "logo": null is none; "entrance": "zoom" brings a logo in by the
+//   studio's zoom on top of its own animation (else just its own, faded in).
 //   "end": {"logo", "line", "url" (false for none), "length", "fan", "off"};
 //   a beat's "skip": true leaves it out; "length": 30 runs the whole reel in
 //   30 s, every timing scaled to fit (it sets the pace).

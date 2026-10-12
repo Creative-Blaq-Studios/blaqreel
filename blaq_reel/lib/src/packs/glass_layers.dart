@@ -155,6 +155,10 @@ class GlassEnd {
   /// own, up to 4.
   final double blur;
 
+  /// The logo comes in by the studio's rise and blur rather than its own
+  /// animation alone.
+  final bool logoZoom;
+
   /// An end card.
   const GlassEnd({
     required this.logo,
@@ -168,6 +172,7 @@ class GlassEnd {
     this.logoOffset = Offset.zero,
     this.logoScale = 1,
     this.blur = 1.6,
+    this.logoZoom = false,
   });
 }
 
@@ -213,6 +218,10 @@ class GlassLayers {
 
   /// The opening's logo's size, 1 as drawn.
   final double openLogoScale;
+
+  /// The opening's logo comes in by the studio's zoom, roll and blur rather
+  /// than its own animation alone.
+  final bool openLogoZoom;
 
   /// How it ends. Null ends on the last beat.
   final GlassEnd? end;
@@ -262,6 +271,7 @@ class GlassLayers {
     this.openWords,
     this.openLogoOffset = Offset.zero,
     this.openLogoScale = 1,
+    this.openLogoZoom = false,
     this.end,
     this.hole,
     this.statusBar,
@@ -578,12 +588,12 @@ class GlassLayers {
   Scene openScene() {
     final length = openLength;
     final f = _frame;
-    // The lines share the time before the logo, which keeps 1.6 s for
-    // itself; with no logo they have all of it.
+    // The lines share the time before the logo, which keeps 2 s for its
+    // own animation; with no logo they have all of it.
     final n = openLines.length;
     final logoAt = open == null || n == 0
         ? Duration.zero
-        : length - const Duration(milliseconds: 1600);
+        : length - const Duration(milliseconds: 2000);
     final each = n == 0
         ? Duration.zero
         : (open == null ? length : logoAt) * (1 / n);
@@ -595,26 +605,34 @@ class GlassLayers {
       layers: [
         if (open != null)
           Layer.timed(
-            open!,
+            // Its own animation, from the moment it appears.
+            (t) => open!(t < logoAt ? Duration.zero : t - logoAt),
             size: openSize * openLogoScale,
             position: Offset(
               f.stage.width * openLogoOffset.dx,
               f.stage.height * (openLogoOffset.dy - 0.02),
             ),
-            motion: Motion(
-              z: Track.from(
-                -420,
-              ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
-              roll: Track.from(
-                10,
-              ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
-              blur: Track.from(
-                14,
-              ).hold(logoAt).to(logoAt + 1100.ms, 0, Ease.out),
-              opacity: Track.from(
-                0,
-              ).hold(logoAt).to(logoAt + 600.ms, 1, Ease.out),
-            ),
+            motion: openLogoZoom
+                ? Motion(
+                    z: Track.from(
+                      -420,
+                    ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
+                    roll: Track.from(
+                      10,
+                    ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
+                    blur: Track.from(
+                      14,
+                    ).hold(logoAt).to(logoAt + 1100.ms, 0, Ease.out),
+                    opacity: Track.from(
+                      0,
+                    ).hold(logoAt).to(logoAt + 600.ms, 1, Ease.out),
+                  )
+                // A short fade, so it does not pop in after the lines.
+                : Motion(
+                    opacity: Track.from(
+                      0,
+                    ).hold(logoAt).to(logoAt + 200.ms, 1, Ease.out),
+                  ),
           ),
       ],
       words: [
@@ -623,13 +641,13 @@ class GlassLayers {
             line,
             openWords,
             at: each * i + 120.ms,
-            // Each leaves as the next comes; the last before the logo, or
-            // just before the cut into the first beat.
+            // Each has left (words take 450 ms to go) by the time the next
+            // comes, the logo appears, or the cut into the first beat.
             until: i < n - 1
-                ? each * (i + 1)
+                ? each * (i + 1) - 330.ms
                 : open == null
-                ? length - 350.ms
-                : logoAt,
+                ? length - 500.ms
+                : logoAt - 450.ms,
             reveal: openReveal,
             align: Alignment.center,
             maxWidth: wide ? 0.72 : 0.9,
@@ -1075,17 +1093,22 @@ class GlassLayers {
               ),
             ),
         Layer.timed(
-          end.logo,
+          // Its own animation, from when it appears.
+          (t) => end.logo(t < 500.ms ? Duration.zero : t - 500.ms),
           size: end.logoSize * end.logoScale,
           position: Offset(
             stage.width * end.logoOffset.dx,
             stage.height * (end.logoOffset.dy - (wide ? 0.08 : 0.06)),
           ),
-          motion: Motion(
-            z: Track.from(-160).hold(500.ms).to(1600.ms, 0, Ease.out),
-            blur: Track.from(10).hold(500.ms).to(1400.ms, 0, Ease.out),
-            opacity: Track.from(0).hold(500.ms).to(1100.ms, 1, Ease.out),
-          ),
+          motion: end.logoZoom
+              ? Motion(
+                  z: Track.from(-160).hold(500.ms).to(1600.ms, 0, Ease.out),
+                  blur: Track.from(10).hold(500.ms).to(1400.ms, 0, Ease.out),
+                  opacity: Track.from(0).hold(500.ms).to(1100.ms, 1, Ease.out),
+                )
+              : Motion(
+                  opacity: Track.from(0).hold(500.ms).to(700.ms, 1, Ease.out),
+                ),
         ),
       ],
       words: [

@@ -195,7 +195,7 @@ class ReelSpec {
         ? (o['length']! as num)
         : lines == 0
         ? 2.6
-        : lines * 1.4 + (logo ? 1.6 : 0.2);
+        : lines * 1.4 + (logo ? 2.0 : 0.2);
     return Duration(milliseconds: (s.clamp(1.2, 12) * 1000).round());
   }
 
@@ -462,6 +462,7 @@ class ReelSpec {
             logoOffset: _logoAt(end, format),
             logoScale: _num(end['logoScale'], 1),
             blur: _num(end['blur'], 1.6).clamp(0, 4),
+            logoZoom: end['entrance'] == 'zoom',
           );
 
     final reel = switch (_pack) {
@@ -490,6 +491,8 @@ class ReelSpec {
         openLogoScale: json['open'] is Map
             ? _num((json['open']! as Map)['logoScale'], 1)
             : 1,
+        openLogoZoom:
+            json['open'] is Map && (json['open']! as Map)['entrance'] == 'zoom',
         beats: [for (final b in _beats) glassBeat(b)],
         end: glassEnd(),
       ).build(name),
@@ -517,9 +520,7 @@ class ReelSpec {
               length: _num(b['length'], 4.2).s,
             ),
         ],
-        logo: end == null
-            ? null
-            : logo(_endLogo(end), GlassLook.mesh),
+        logo: end == null ? null : logo(_endLogo(end), GlassLook.mesh),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
         line: end?['line'] as String?,
         url: _url(end, kit),
@@ -545,9 +546,7 @@ class ReelSpec {
                 scrolls: screen(b).scrolls,
               ),
         ],
-        logo: end == null
-            ? null
-            : logo(_endLogo(end), GlassLook.ink),
+        logo: end == null ? null : logo(_endLogo(end), GlassLook.ink),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
         url: _url(end, kit),
       ).build(name),

@@ -431,37 +431,55 @@ Future<void> _catalogue(
   // can show an opening or an end as it will look.
   final brand = Brand.from(config);
   final logos = <String, Object?>{};
+  // Each logo's own animation as frames, two seconds at 15 a second, then
+  // as it settles: what the builder plays for an opening or an end.
+  const fps = 15, frames = 31;
+  Future<void> shoot(Widget logo, Size size, String file) async {
+    final boundary = GlobalKey();
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: RepaintBoundary(
+            key: boundary,
+            child: SizedBox.fromSize(size: size, child: logo),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.runAsync(() async {
+      final ro =
+          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await ro.toImage(pixelRatio: 1.5);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      File('$dir/$file').writeAsBytesSync(png!.buffer.asUint8List());
+    });
+  }
+
   for (final MapEntry(:key, :value) in kit.logos.entries) {
     final size = kit.logoSizes[key] ?? const Size(220, 220);
     for (final (tone, color) in [('ink', brand.ink), ('paper', brand.paper)]) {
-      final boundary = GlobalKey();
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Center(
-            child: RepaintBoundary(
-              key: boundary,
-              child: SizedBox.fromSize(
-                size: size,
-                child: value(const Duration(seconds: 6), color),
-              ),
-            ),
-          ),
-        ),
+      await shoot(
+        value(const Duration(seconds: 6), color),
+        size,
+        'logo-$key-$tone.png',
       );
-      await tester.pump(const Duration(milliseconds: 100));
-      final file = 'logo-$key-$tone.png';
-      await tester.runAsync(() async {
-        final ro =
-            boundary.currentContext!.findRenderObject()!
-                as RenderRepaintBoundary;
-        final image = await ro.toImage(pixelRatio: 2);
-        final png = await image.toByteData(format: ui.ImageByteFormat.png);
-        image.dispose();
-        File('$dir/$file').writeAsBytesSync(png!.buffer.asUint8List());
-      });
+      for (var i = 0; i < frames; i++) {
+        await shoot(
+          value(Duration(milliseconds: (i * 1000 / fps).round()), color),
+          size,
+          'logo-$key-$tone-$i.png',
+        );
+      }
     }
-    logos[key] = {'width': size.width, 'height': size.height};
+    logos[key] = {
+      'width': size.width,
+      'height': size.height,
+      'frames': frames,
+      'fps': fps,
+    };
   }
   map['logos'] = logos;
   // The address an end card shows unless it gives its own.
