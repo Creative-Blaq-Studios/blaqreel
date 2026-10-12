@@ -126,6 +126,9 @@ const animatorCss = r'''
 .tl-issue { display: flex; gap: 8px; align-items: center; border: 1px solid var(--warn); color: var(--warn); padding: 8px; font-size: 12px; margin: 8px 0; }
 .tl-issue span { flex: 1; }
 .tl-flag { font-style: normal; color: var(--warn); }
+.tl-layer { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.tl-layer b { font: 600 12px var(--mono); color: var(--text); }
+.tl-layer button { padding: 3px 9px; font: 600 12px var(--mono); }
 .pmode { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; }
 .pmode h1 { margin: 0; }
 
@@ -677,7 +680,9 @@ function timelineEditor(beat, s, index, side, lead) {
       if (n) x.keys.innerHTML = `${escB(ty.text.slice(0, n))}<i>${n < ty.text.length || Math.floor(t / 450) % 2 ? '▍' : '&nbsp;'}</i>`;
       order.push([sz + z, i]);
     });
-    order.sort((a, b) => a[0] - b[0]).forEach(([, i], j) => (els[i].el.style.zIndex = 3 + j));
+    // Stacked by height, unless given layers: then by those.
+    const lay = (i) => beat.parts[i].layer;
+    order.sort((a, b) => (lay(a[1]) != null && lay(b[1]) != null && lay(a[1]) !== lay(b[1]) ? lay(a[1]) - lay(b[1]) : a[0] - b[0])).forEach(([, i], j) => (els[i].el.style.zIndex = 3 + j));
     scr.style.zIndex = 2;
     const w = wordsOf(beat, ed.frame);
     layoutWords(w); revealWords(w, t);
@@ -908,7 +913,9 @@ function timelineEditor(beat, s, index, side, lead) {
       <div class="tl-sec"><div class="lbl2"><span>Lands</span><span class="${own('to') ? 'set' : ''}">${plan.lands ? 'moved' : 'in place'}</span></div>
         <div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="pX" value="${plan.lands ? Math.round(plan.lands[0]) : 0}"><span class="lbl2">Y</span><input class="input tl-num" id="pY" value="${plan.lands ? Math.round(plan.lands[1]) : 0}"><button id="pIn">In place</button></div>
         <span class="hint" style="margin:0">From the screen's centre. Or drag the part on the preview.</span></div>
-      <div class="tl-sec"><div class="lbl2">Depth</div>${knob('pz', 'Height', 0, 360, 5, p.z ?? plan.height, 'n', own('z'))}${knob('pscale', 'Size', 0.5, 2, 0.01, p.scale ?? d.scale, 'x', own('scale'))}</div>
+      <div class="tl-sec"><div class="lbl2">Depth</div>${knob('pz', 'Height', 0, 360, 5, p.z ?? plan.height, 'n', own('z'))}${knob('pscale', 'Size', 0.5, 2, 0.01, p.scale ?? d.scale, 'x', own('scale'))}
+        <div class="tl-layer"><span class="lbl2">Layer</span><b>${stackPos(i) === parts.length - 1 ? 'Front' : stackPos(i) === 0 ? 'Back' : (stackPos(i) + 1) + ' of ' + parts.length}</b><span class="hint" style="margin:0">${parts.some((x) => x.layer != null) ? 'set by you' : 'by height'}</span>
+          <span style="flex:1"></span><button id="pBack" title="Send back one" ${stackPos(i) === 0 ? 'disabled' : ''}>↓</button><button id="pFwd" title="Bring forward one" ${stackPos(i) === parts.length - 1 ? 'disabled' : ''}>↑</button>${parts.some((x) => x.layer != null) ? '<button id="pAuto" title="Stack by height again">Auto</button>' : ''}</div></div>
       <div class="tl-sec"><div class="lbl2">Rotation</div>${knob('ptilt', 'Tilt', -45, 45, 1, p.tilt ?? 0, 'deg', own('tilt'))}${knob('pturn', 'Turn', -45, 45, 1, p.turn ?? d.turn, 'deg', own('turn'))}${knob('proll', 'Roll', -45, 45, 1, p.roll ?? d.roll, 'deg', own('roll'))}</div>
       <div class="tl-sec"><div class="lbl2">Timing</div>${knob('pdelay', 'Starts', 0, 2500, 50, p.delay ?? d.delay, 's', own('delay'))}${knob('prise', 'Rise', 300, 4000, 50, p.rise ?? d.rise, 's', own('rise'))}<span class="hint" style="margin:0">Starts after the screen settles; Rise is how long it takes. Or drag its bar, or the bar's end, on the timeline.</span></div>
       <div class="tl-sec"><div class="lbl2">Effects</div><label class="tl-chk"><input type="checkbox" id="pscan" ${plan.scanned ? 'checked' : ''}> A scan line reads it as it rises</label></div>
@@ -927,6 +934,12 @@ function timelineEditor(beat, s, index, side, lead) {
     el.querySelector('#pX').oninput = xy; el.querySelector('#pY').oninput = xy;
     scrubbable(el.querySelector('#pX'), 1, el.querySelector('#pX').previousElementSibling);
     scrubbable(el.querySelector('#pY'), 1, el.querySelector('#pY').previousElementSibling);
+    // Moving it one place up or down the stack fixes every part's layer.
+    const restack = (by) => { const st = stack(), at = st.indexOf(i), to = at + by; if (to < 0 || to >= st.length) return; [st[at], st[to]] = [st[to], st[at]]; st.forEach((k, n) => (beat.parts[k].layer = n)); save(); inspector(); };
+    el.querySelector('#pBack').onclick = () => restack(-1);
+    el.querySelector('#pFwd').onclick = () => restack(1);
+    const auto = el.querySelector('#pAuto');
+    if (auto) auto.onclick = () => { beat.parts.forEach((x) => delete x.layer); save(); inspector(); };
     el.querySelector('#pIn').onclick = () => { delete p.to; save(); inspector(); };
     el.querySelector('#pscan').onchange = (e) => { p.scan = e.target.checked; save(); ed.t = SETTLE; ed.playing = true; rows(); };
     el.querySelector('#pReset').onclick = () => { PART_KEYS.forEach((key) => delete p[key]); save(); inspector(); rows(); };
@@ -946,6 +959,13 @@ function timelineEditor(beat, s, index, side, lead) {
       if (snd) snd.onchange = () => { if (snd.checked) delete p.typing.sound; else p.typing.sound = false; save(); };
     }
   }
+  // The parts from the back of the stack to the front: by their layers
+  // where set, else by height, as the renderer stacks them.
+  function stack() {
+    const h = (k) => partPlan(beat, k, parts.length, dir).height;
+    return parts.map((_, k) => k).sort((a, b) => { const la = parts[a].layer, lb = parts[b].layer; return la != null && lb != null && la !== lb ? la - lb : h(a) - h(b) || a - b; });
+  }
+  const stackPos = (k) => stack().indexOf(k);
   // Whether a part holds a text field: as the catalogue found it, or by its
   // name where the catalogue is older than that.
   function isField(p) { const sp = partOf(p); return !!(sp && sp.field) || /TextField|Editable|Field|Input/.test(p.type); }

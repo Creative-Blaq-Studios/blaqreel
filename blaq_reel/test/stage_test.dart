@@ -467,6 +467,7 @@ void main() {
       'rise': 900,
       'scan': true,
       'typing': {'text': '186', 'every': 120},
+      'layer': 2,
     })!;
     expect(own.to, const Offset(-90, -250));
     expect(own.z, 200);
@@ -477,6 +478,7 @@ void main() {
     expect(own.typing?.text, '186');
     expect(own.typing?.every, const Duration(milliseconds: 120));
     expect(own.typing?.at, isNull);
+    expect(own.layer, 2);
     expect(own.scale, isNull);
     expect(PartMove.fromJson({'type': 'AppCard', 'text': 'Total'}), isNull);
   });

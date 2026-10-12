@@ -99,7 +99,9 @@ Pick.key(ValueKey('x'))
 // PartMove(typing: PartTyping('186', at: 3700.ms, every: 90.ms)): keys typed
 //   into the field in a lifted part once it lands (or at `at`, from the
 //   beat's start), through the field's own formatters, so "186" in a money
-//   field shows R186.00; the lifted copy shows it. Specs: on the part,
+//   field shows R186.00; the lifted copy shows it.
+// PartMove(layer: 2) / Lift(layer:): stacking among the beat's lifted
+//   parts, lowest drawn first, whatever their heights. Specs: "layer". Specs: on the part,
 //   "typing": {"text", "at" (ms), "every" (ms), "sound": false}.
 // Backdrop(top:, bottom:, light: false, motion: GroundMotion(pattern:
 //   GroundPattern.aurora, colours: [...3], speed: 1, seed: 7, bpm: 120,

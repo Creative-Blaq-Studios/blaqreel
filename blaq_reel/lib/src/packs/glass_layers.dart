@@ -758,6 +758,7 @@ class GlassLayers {
     final lands = own?.to ?? to;
     return Lift(
       where: where,
+      layer: own?.layer,
       radius: beat.liftRadius,
       hole: hole?.call(beat.liftRadius),
       glass: const Glass(depth: 6, color: Color(0x30FFFFFF)),
@@ -1156,6 +1157,10 @@ class PartMove {
   /// Text typed into the field in it.
   final PartTyping? typing;
 
+  /// Where it is stacked among the beat's other parts, lowest drawn first,
+  /// whatever their heights; null leaves it to its height.
+  final int? layer;
+
   /// A part's move.
   const PartMove({
     this.to,
@@ -1168,10 +1173,11 @@ class PartMove {
     this.rise,
     this.scan,
     this.typing,
+    this.layer,
   });
 
   /// From a spec's part: `{"to": [x, y], "z", "scale", "tilt", "turn",
-  /// "roll", "delay" (ms), "rise" (ms), "scan", "typing": {"text", "at"
+  /// "roll", "delay" (ms), "rise" (ms), "scan", "layer", "typing": {"text", "at"
   /// (ms into the beat), "every" (ms a character), "sound"}}`; null if it
   /// sets none of them.
   static PartMove? fromJson(Map<String, Object?> j) {
@@ -1194,6 +1200,7 @@ class PartMove {
           : Duration(milliseconds: n('rise')!.round()),
       scan: j['scan'] is bool ? j['scan']! as bool : null,
       typing: PartTyping.fromJson(j['typing']),
+      layer: j['layer'] is num ? (j['layer']! as num).round() : null,
     );
     final any =
         m.to != null ||
@@ -1205,7 +1212,8 @@ class PartMove {
         m.delay != null ||
         m.rise != null ||
         m.scan != null ||
-        m.typing != null;
+        m.typing != null ||
+        m.layer != null;
     return any ? m : null;
   }
 }

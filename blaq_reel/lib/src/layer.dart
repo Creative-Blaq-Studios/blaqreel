@@ -317,6 +317,10 @@ class Lift {
   /// from the start.
   final Track? travel;
 
+  /// Where it is stacked among its screen's other lifted widgets, lowest
+  /// drawn first, whatever their heights; null leaves it to its height.
+  final int? layer;
+
   /// A lift.
   Lift({
     required this.where,
@@ -330,6 +334,7 @@ class Lift {
     this.sweep,
     this.to,
     this.travel,
+    this.layer,
   }) : motion = motion ?? Motion();
 }
 

@@ -58,6 +58,12 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- Layers: `Lift.layer` and `PartMove.layer` (spec `"layer"` on a part)
+  stack a beat's lifted parts in an order of their own, whatever their
+  heights, so a lower part can sit in front. They swap only among the
+  places their heights gave them, so the phone and other screens keep
+  theirs. The part panel has a Layer row: where it is in the stack, ↓ and
+  ↑ to move it one place, and Auto to stack by height again.
 - `GlassLayers.flip` (spec `"flip": true`) swings the beats the other way,
   first one to the left. Fixed with it: a beat rendered on its own from
   the editor swung the way the reel's first beat does, so every

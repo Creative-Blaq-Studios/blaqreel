@@ -839,6 +839,8 @@ class ReelStageState extends State<ReelStage> {
 
     final world = <(double, int, Widget)>[];
     final carried = <(double, int, Widget)>[];
+    // Lifts given a layer: their screen, and the layer.
+    final stacked = <(Object, int), (LayerKey, int)>{};
     for (var j = 0; j < scene.layers.length; j++) {
       final layer = scene.layers[j];
       final carry = leaving && layer.carry;
@@ -853,8 +855,9 @@ class ReelStageState extends State<ReelStage> {
       for (var k = 0; k < layer.lifts.length; k++) {
         final lift = layer.lifts[k];
         final liftCarry = leaving && lift.carry;
+        final into = liftCarry ? carried : world, before = into.length;
         _liftEntry(
-          into: liftCarry ? carried : world,
+          into: into,
           key: (i, j, k),
           layer: layer,
           lift: lift,
@@ -862,6 +865,10 @@ class ReelStageState extends State<ReelStage> {
           pose: liftCarry ? raw : pose,
           t: local,
         );
+        // A lift not found yet adds nothing.
+        if (lift.layer != null && into.length > before) {
+          stacked[(into, before)] = ((i, j), lift.layer!);
+        }
       }
     }
     int order((double, int, Widget) a, (double, int, Widget) b) {
@@ -871,6 +878,8 @@ class ReelStageState extends State<ReelStage> {
 
     world.sort(order);
     carried.sort(order);
+    _restack(world, stacked);
+    _restack(carried, stacked);
 
     final safe = widget.reel.format.safe;
     final stage = _stage;
@@ -919,6 +928,31 @@ class ReelStageState extends State<ReelStage> {
         ],
       ),
     );
+  }
+
+  /// Stacks a screen's lifted widgets by their layers, where any has one:
+  /// they swap among the places their heights gave them, so the screen and
+  /// everything else keep theirs.
+  static void _restack(
+    List<(double, int, Widget)> list,
+    Map<(Object, int), (LayerKey, int)> stacked,
+  ) {
+    if (!stacked.keys.any((k) => identical(k.$1, list))) return;
+    final groups = <LayerKey, List<int>>{};
+    for (var p = 0; p < list.length; p++) {
+      final s = stacked[(list, list[p].$2)];
+      if (s != null) (groups[s.$1] ??= []).add(p);
+    }
+    for (final at in groups.values) {
+      final entries = [for (final p in at) list[p]]
+        ..sort((a, b) {
+          final la = stacked[(list, a.$2)]!.$2, lb = stacked[(list, b.$2)]!.$2;
+          return la != lb ? la.compareTo(lb) : a.$1.compareTo(b.$1);
+        });
+      for (var n = 0; n < at.length; n++) {
+        list[at[n]] = entries[n];
+      }
+    }
   }
 
   void _layerEntry({
