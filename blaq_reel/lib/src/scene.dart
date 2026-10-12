@@ -329,6 +329,11 @@ class Reel {
   /// move with the moments they belong to.
   final double pace;
 
+  /// Scenes, by name, that keep their own speed whatever the [pace], where
+  /// they open or close the reel: an intro and an end card timed to the
+  /// second while the beats between them speed up.
+  final Set<String> steady;
+
   /// A reel.
   Reel({
     required this.name,
@@ -340,10 +345,11 @@ class Reel {
     this.soundtrack = const Soundtrack(),
     this.motionBlur = 1,
     this.pace = 1,
+    this.steady = const {},
   }) : assert(pace > 0);
 
-  /// This reel at [pace].
-  Reel withPace(double pace) => Reel(
+  /// This reel at [pace], [steady] scenes keeping their own speed.
+  Reel withPace(double pace, {Set<String>? steady}) => Reel(
     name: name,
     backdrop: backdrop,
     scenes: scenes,
@@ -353,15 +359,55 @@ class Reel {
     soundtrack: soundtrack,
     motionBlur: motionBlur,
     pace: pace,
+    steady: steady ?? this.steady,
   );
 
+  /// Where the steady scenes at the start end, and those at the end begin,
+  /// on the reel's clock: the stretch between runs at the [pace].
+  late final (Duration, Duration) _paced = () {
+    var head = Duration.zero, tail = length;
+    for (final s in timeline) {
+      if (!steady.contains(s.scene.name)) break;
+      head = s.end;
+    }
+    for (final s in timeline.reversed) {
+      if (!steady.contains(s.scene.name)) break;
+      tail = s.start;
+    }
+    return head < tail ? (head, tail) : (Duration.zero, length);
+  }();
+
+  /// The pace that makes the video run [target], the steady scenes kept at
+  /// their own length; the beats between take the rest.
+  double paceFor(Duration target) {
+    final (head, tail) = _paced;
+    final fixed = head + (length - tail);
+    final room = target - fixed;
+    if (room <= Duration.zero) return 4;
+    return (tail - head).inMicroseconds / room.inMicroseconds;
+  }
+
   /// When a moment on the reel's clock comes in the video, at its [pace].
-  Duration played(Duration reelTime) =>
-      Duration(microseconds: (reelTime.inMicroseconds / pace).round());
+  Duration played(Duration reelTime) {
+    final (head, tail) = _paced;
+    final us = reelTime.inMicroseconds, h = head.inMicroseconds;
+    final t = tail.inMicroseconds;
+    if (us <= h) return reelTime;
+    if (us <= t) return Duration(microseconds: h + ((us - h) / pace).round());
+    return Duration(microseconds: h + ((t - h) / pace).round() + (us - t));
+  }
 
   /// The moment on the reel's clock shown at [videoTime].
-  Duration atVideo(Duration videoTime) =>
-      Duration(microseconds: (videoTime.inMicroseconds * pace).round());
+  Duration atVideo(Duration videoTime) {
+    final (head, tail) = _paced;
+    final v = videoTime.inMicroseconds, h = head.inMicroseconds;
+    final mid = ((tail.inMicroseconds - h) / pace).round();
+    if (v <= h) return videoTime;
+    if (v <= h + mid) {
+      return Duration(microseconds: h + ((v - h) * pace).round());
+    }
+    return Duration(microseconds: tail.inMicroseconds + (v - h - mid));
+  }
 
   /// How long the video runs, at its [pace].
   Duration get playedLength => played(length);

@@ -573,12 +573,18 @@ class ReelSpec {
     };
     // How long it should run: every beat stays, every timing scales to fit
     // ("length", in seconds). Or a pace of its own ("pace").
+    // The intro and the end card keep the seconds they are given; the
+    // beats between speed up or slow down to fit.
     final target = json['length'], pace = json['pace'];
+    const steady = {'open', 'end'};
     if (target is num && target > 0) {
-      return reel.withPace(secondsOf(reel.length) / target);
+      final fixed = reel.withPace(1, steady: steady);
+      return fixed.withPace(
+        fixed.paceFor(Duration(milliseconds: (target * 1000).round())),
+      );
     }
     return pace is num && pace > 0 && pace != 1
-        ? reel.withPace(pace.toDouble())
+        ? reel.withPace(pace.toDouble(), steady: steady)
         : reel;
   }
 }

@@ -63,6 +63,14 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- The intro and the end card keep the seconds they are given: a reel's
+  length (or pace) speeds the beats between them up or down to fit what is
+  left (`Reel.steady`, `Reel.paceFor`). Housemates at 30 s with its 1.6 s
+  intro and 4.7 s end card renders at 30.0 s with both whole. The Length
+  control shows the intro, the beats (about how long each) and the outro.
+- Logo frames are captured on a canvas twice the logo's box, so an
+  animation that reaches past it (the mark's cards before they join) is
+  shown whole in the editor rather than cut at the box.
 - Logos play their own animation: the kit's logo is built from a clock
   that now starts when it appears (after the intro's lines, half a second
   into the end card), so the mark's cards join on screen rather than before

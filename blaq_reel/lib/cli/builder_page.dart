@@ -535,21 +535,32 @@ const outroOn = () => !!spec.end && !spec.end.off;
 function naturalLength() {
   const beats = spec.beats.filter((b) => !b.skip);
   let l = beats.reduce((t, b) => t + (b.length || BEAT), 0) - SWING * Math.max(0, beats.length - 1);
-  if (introOn()) l += ((typeof spec.open === 'object' && spec.open.length) || 2.6) - OPEN_OVERLAP;
-  if (outroOn()) l += (spec.end.length || 4.7) - END_OVERLAP;
+  if (introOn()) l += introSecs() - OPEN_OVERLAP;
+  if (outroOn()) l += outroSecs() - END_OVERLAP;
   return l;
 }
-// How fast it plays: as made, over the length asked for.
-const paceOf = () => (spec.length ? naturalLength() / spec.length : spec.pace || 1);
+// The intro and the end card keep the seconds they are given; the beats
+// between speed up or slow down to fit what is left.
+const introSecs = () => (introOn() ? (typeof spec.open === 'object' && spec.open.length) || ((spec.open && spec.open.lines || []).length ? spec.open.lines.length * 1.4 + (spec.open.logo === null ? 0.2 : 2.0) : 2.6) : 0);
+const outroSecs = () => (outroOn() ? spec.end.length || 4.7 : 0);
+// How fast the beats play: their own length, over what the length asked
+// for leaves them.
+const paceOf = () => {
+  if (!spec.length) return spec.pace || 1;
+  const fixed = introSecs() + outroSecs(), room = spec.length - fixed;
+  return room > 0.5 ? (naturalLength() - fixed) / room : 4;
+};
 function lengthControl() {
   const el = B(`<div class="lenc" title="How long the reel runs. Every beat stays; everything plays faster or slower to fit."><span class="lbl2">Length</span>
     <input class="input lenc-n" aria-label="Length in seconds"><span class="lbl2">s</span><button class="lenc-reset">As made</button><span class="mono2 lenc-info"></span></div>`);
   const n = el.querySelector('.lenc-n'), reset = el.querySelector('.lenc-reset');
   const show = () => {
-    const nat = naturalLength(), beats = spec.beats.filter((b) => !b.skip).length, p = paceOf(), len = nat / p;
+    const nat = naturalLength(), beats = spec.beats.filter((b) => !b.skip).length, p = paceOf();
+    const fixed = introSecs() + outroSecs(), len = fixed + (nat - fixed) / p;
     if (document.activeElement !== n) n.value = len.toFixed(1);
     reset.hidden = Math.abs(p - 1) < 0.005;
-    el.querySelector('.lenc-info').textContent = `${beats} beats · about ${(BEAT / p).toFixed(1)} s each` + (Math.abs(p - 1) < 0.005 ? '' : ` · ${p > 1 ? p.toFixed(2) + '× faster' : (1 / p).toFixed(2) + '× slower'}`);
+    const parts = [introSecs() ? `intro ${introSecs().toFixed(1)} s` : '', `${beats} beats, about ${(BEAT / p).toFixed(1)} s each`, outroSecs() ? `outro ${outroSecs().toFixed(1)} s` : ''].filter(Boolean);
+    el.querySelector('.lenc-info').textContent = parts.join(' · ') + (Math.abs(p - 1) < 0.005 ? '' : ` · beats ${p > 1 ? p.toFixed(2) + '× faster' : (1 / p).toFixed(2) + '× slower'}`);
   };
   const set = (v) => {
     if (!(v > 2)) return;

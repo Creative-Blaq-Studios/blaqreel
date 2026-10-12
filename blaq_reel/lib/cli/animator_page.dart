@@ -68,7 +68,8 @@ const animatorCss = r'''
 .bk-sketch.still * { animation: none !important; }
 .bk-sketch.still .bk-scr { opacity: .5; }
 .bk-play { padding: 3px 9px; }
-.bk-logo { position: absolute; transform: translate(-50%, -50%); object-fit: contain; pointer-events: auto; cursor: grab; }
+.bk-logo { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; cursor: grab; }
+.bk-logo img { position: absolute; max-width: none; pointer-events: none; }
 .bk-text { position: absolute; line-height: 1.08; pointer-events: auto; cursor: grab; white-space: normal; width: max-content; }
 .bk-text.sel, .bk-logo.sel { outline: 2px dashed var(--accent); outline-offset: 4px; }
 .bk-moments button { padding: 3px 8px; font-size: 10px; }
@@ -688,7 +689,7 @@ function bookendEditor(kind, side, lead) {
     const blur = v.blur == null ? 1.6 : v.blur, m = screens.length;
     sketch.innerHTML = `<style>${css}</style>
       ${screens.map((s2, i) => `<img class="bk-scr" src="/catalogue/${s2.image}" style="left:${f.w / 2 + (i - (m - 1) / 2) * (wide ? f.w * 0.12 : 56) - 32}px;top:${f.h * (wide ? 0.86 : 0.78)}px;filter:blur(${(blur * 1.1).toFixed(1)}px);animation:bk-fan ${len}s ${0.09 * i}s infinite both">`).join('')}
-      ${showLogo ? `<img class="bk-logo ${st8.sel === 'logo' ? 'sel' : ''}" data-pick="logo" src="/catalogue/logo-${v.logo}-${light ? 'ink' : 'paper'}.png" style="left:${logoX}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;transform:translate(-50%,-50%) scale(${sc});animation:${v.entrance === 'zoom' ? 'bk-logo' : 'bk-logo-in'} ${len}s infinite both" alt="">` : ''}
+      ${showLogo ? `<div class="bk-logo ${st8.sel === 'logo' ? 'sel' : ''}" data-pick="logo" style="left:${logoX}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;transform:translate(-50%,-50%) scale(${sc});animation:${v.entrance === 'zoom' ? 'bk-logo' : 'bk-logo-in'} ${len}s infinite both"><img src="/catalogue/logo-${v.logo}-${light ? 'ink' : 'paper'}.png" style="width:${100 * (size.pad || 1)}%;height:${100 * (size.pad || 1)}%;left:${-50 * ((size.pad || 1) - 1)}%;top:${-50 * ((size.pad || 1) - 1)}%" alt=""></div>` : ''}
       ${v.off ? `<div class="bk-off">No ${intro ? 'intro' : 'outro'}: the reel ${intro ? 'opens on its first beat' : 'ends on its last beat'}</div>` : ''}`;
     // The texts, placed once the sketch is on the page.
     const texts = v.off ? [] : intro ? lines.map((x, i) => ['words', x, i]).filter(([, , i]) => playing || i === moment) : [['line', v.line], ['url', url()]].filter(([, x]) => x);
@@ -701,7 +702,7 @@ function bookendEditor(kind, side, lead) {
     // The logo's own animation, as the catalogue drew it frame by frame,
     // from the moment it appears.
     clearInterval(logoLoop);
-    const img = sketch.querySelector('.bk-logo'), meta = (catalogue && catalogue.logos && catalogue.logos[v.logo]) || {};
+    const img = sketch.querySelector('.bk-logo img'), meta = (catalogue && catalogue.logos && catalogue.logos[v.logo]) || {};
     if (img && playing && meta.frames) {
       const tone = light ? 'ink' : 'paper', shots = Array.from({ length: meta.frames }, (_, i) => { const im = new Image(); im.src = `/catalogue/logo-${v.logo}-${tone}-${i}.png`; return im; });
       // A frame of the logo's animation each tick, on the sketch's loop.

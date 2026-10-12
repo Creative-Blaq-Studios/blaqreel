@@ -474,6 +474,37 @@ void main() {
     expect(described['pace'], 1.25);
   });
 
+  test(
+    'Given a reel with steady scenes at either end, when paced to a '
+    'length, then they keep their own and the scenes between take the rest',
+    () {
+      Scene scene(String name, Duration l) => Scene(
+        name: name,
+        length: l,
+        camera: Camera.still(const CameraPose()),
+      );
+      final reel = Reel(
+        name: 'steady',
+        backdrop: backdrop,
+        scenes: [
+          scene('open', 2.s),
+          scene('a', 4.s),
+          scene('b', 4.s),
+          scene('end', 3.s),
+        ],
+      ).withPace(1, steady: {'open', 'end'});
+      expect(reel.length, 13.s);
+      final paced = reel.withPace(reel.paceFor(9.s));
+      expect(paced.pace, closeTo(2, 1e-9));
+      expect(paced.playedLength, 9.s);
+      expect(paced.played(1.s), 1.s);
+      expect(paced.played(6.s), 4.s);
+      expect(paced.played(12.s), 8.s);
+      expect(paced.atVideo(4.s), 6.s);
+      expect(paced.atVideo(8.s), 12.s);
+    },
+  );
+
   test('Given a spec part with its own move, when read, then every setting '
       'comes through and the rest is left to the beat\'s move', () {
     final own = PartMove.fromJson({

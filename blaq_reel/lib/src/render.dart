@@ -196,7 +196,6 @@ class ReelRenderer {
     final h = (reel.format.pixels.height * scale / 2).round() * 2;
     // At a pace, each frame moves the reel's clock that much further.
     final step = Duration(microseconds: (1e6 / (fps * blur)).round());
-    final reelStep = reel.atVideo(step);
     // A stretch of it, from [from] to [to] in the video.
     final first = clock.frames(from) * blur;
     final frames = clock.frames(to ?? reel.playedLength) * blur - first;
@@ -241,7 +240,9 @@ class ReelRenderer {
 
     final watch = Stopwatch()..start();
     for (var n = 0; n < frames; n++) {
-      await seek(reel.atVideo(step * (first + n)), step: reelStep);
+      // The app's clock moves as far as the reel's does this frame.
+      final at = reel.atVideo(step * (first + n));
+      await seek(at, step: reel.atVideo(step * (first + n + 1)) - at);
       final image = await capture(scale: w / reel.format.pixels.width);
       await tester.runAsync(() async {
         final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);

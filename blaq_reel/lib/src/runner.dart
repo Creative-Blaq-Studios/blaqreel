@@ -440,9 +440,17 @@ Future<void> _catalogue(
       Directionality(
         textDirection: TextDirection.ltr,
         child: Center(
+          // Twice its box, the logo in the middle: an animation that
+          // reaches past its box (the mark's cards before they join) is
+          // drawn whole.
           child: RepaintBoundary(
             key: boundary,
-            child: SizedBox.fromSize(size: size, child: logo),
+            child: SizedBox.fromSize(
+              size: size * 2,
+              child: Center(
+                child: SizedBox.fromSize(size: size, child: logo),
+              ),
+            ),
           ),
         ),
       ),
@@ -458,6 +466,10 @@ Future<void> _catalogue(
     });
   }
 
+  // Room for the largest logo at twice its box.
+  tester.view
+    ..physicalSize = const Size(2000, 2000)
+    ..devicePixelRatio = 1;
   for (final MapEntry(:key, :value) in kit.logos.entries) {
     final size = kit.logoSizes[key] ?? const Size(220, 220);
     for (final (tone, color) in [('ink', brand.ink), ('paper', brand.paper)]) {
@@ -479,8 +491,11 @@ Future<void> _catalogue(
       'height': size.height,
       'frames': frames,
       'fps': fps,
+      // Each picture is this many times the logo's box, centred on it.
+      'pad': 2,
     };
   }
+  tester.view.reset();
   map['logos'] = logos;
   // The address an end card shows unless it gives its own.
   if (kit.url != null) map['url'] = kit.url;
