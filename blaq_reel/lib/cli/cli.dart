@@ -8,6 +8,7 @@ import 'package:yaml/yaml.dart';
 
 import '../src/sfx.dart';
 import 'ai.dart';
+import 'cutout_swift.dart';
 import 'files.dart';
 import 'init.dart';
 import 'pages.dart';
@@ -788,6 +789,7 @@ class _Clean extends Command<int> {
 class _Media extends Command<int> {
   _Media() {
     addSubcommand(_MediaFrames());
+    addSubcommand(_MediaCutout());
   }
 
   @override
@@ -852,6 +854,141 @@ class _MediaFrames extends Command<int> {
     stdout
       ..writeln('  ✓ $n frames in $rel')
       ..writeln('  Use it: "media": [{"frames": "$rel", "fps": ${r['fps']}}]');
+    return 0;
+  }
+}
+
+class _MediaCutout extends Command<int> {
+  _MediaCutout() {
+    argParser
+      ..addOption(
+        'name',
+        help:
+            'The file under app_reels/media/ (no extension); the photo\'s name by default.',
+      )
+      ..addOption(
+        'subject',
+        allowed: ['person', 'object'],
+        defaultsTo: 'person',
+        help: 'person: people and hands; object: anything in front.',
+      )
+      ..addOption(
+        'region',
+        help:
+            'Keep only this area: a polygon in fractions of the photo, "x,y x,y x,y …".',
+      )
+      ..addFlag(
+        'solid',
+        defaultsTo: true,
+        help: 'Make the inside solid, so nothing shows through it.',
+      )
+      ..addOption(
+        'fade',
+        help:
+            'Edges where the photo cuts the subject off, faded: any of l r t b.',
+      )
+      ..addFlag(
+        'drop-dark',
+        negatable: false,
+        help: 'Drop near-black, colourless pixels (a phone\'s frame).',
+      )
+      ..addOption(
+        'tip',
+        help: 'Find the fingertip in this direction: up, up-left, left, down…',
+      )
+      ..addOption(
+        'credit',
+        help: 'Where the photo came from; added to app_reels/media/CREDITS.md.',
+      );
+  }
+
+  @override
+  String get name => 'cutout';
+
+  @override
+  String get description =>
+      'Cut a subject (a hand, a person, an object) out of a photo into a '
+      'transparent PNG in app_reels/media/, for a reel\'s "hand" or "media".';
+
+  @override
+  String get invocation =>
+      'blaq_reel media cutout <photo> --name hand --region "0.5,0.3 1,0.3 1,1 0.6,1" --fade rb --tip up-left';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final rest = argResults!.rest;
+    if (rest.isEmpty) throw UsageException('Which photo?', usage);
+    final photo = File(rest.first);
+    if (!photo.existsSync()) throw CliError('No photo at ${photo.path}.');
+    final r = argResults!;
+    final stem = photo.uri.pathSegments.last.split('.').first;
+    final name = (r['name'] as String?) ?? stem;
+    final media = Directory('${project.reels}/media')
+      ..createSync(recursive: true);
+    final out = '${media.path}/$name.png';
+    final rel = 'app_reels/media/$name.png';
+
+    if (Platform.isMacOS) {
+      // Apple's Vision, through a small Swift tool compiled once.
+      final tools = Directory('${project.out}/studio/tools')
+        ..createSync(recursive: true);
+      final key = cutoutSwift.hashCode.toUnsigned(32).toRadixString(16);
+      final bin = File('${tools.path}/cutout-$key');
+      if (!bin.existsSync()) {
+        stdout.writeln('Building the cut-out tool (once)…');
+        final src = File('${tools.path}/cutout.swift')
+          ..writeAsStringSync(cutoutSwift);
+        final b = await Process.run('swiftc', ['-O', '-o', bin.path, src.path]);
+        if (b.exitCode != 0) {
+          throw CliError(
+            'Could not build it (needs Xcode\'s command-line tools): ${b.stderr}',
+          );
+        }
+      }
+      final run = await Process.run(bin.path, [
+        photo.path,
+        out,
+        r['subject'] as String,
+        (r['region'] as String?) ?? '-',
+        r['solid'] as bool ? '1' : '0',
+        (r['fade'] as String?) ?? '-',
+        r['drop-dark'] as bool ? '1' : '0',
+        (r['tip'] as String?) ?? '-',
+      ]);
+      if (run.exitCode != 0) {
+        throw CliError('The cut-out failed: ${run.stdout}${run.stderr}');
+      }
+      final info =
+          jsonDecode('${run.stdout}'.trim().split('\n').last)
+              as Map<String, Object?>;
+      stdout.writeln('  ✓ $rel  (${info['width']}×${info['height']})');
+      final tip = info['tip'];
+      if (tip is List) {
+        stdout.writeln(
+          '  Use it: "hand": {"image": "$rel", "tip": $tip, "width": 400}',
+        );
+      } else {
+        stdout.writeln(
+          '  Use it: "media": [{"image": "$rel", "box": [10, 10, 30, 20]}]',
+        );
+      }
+    } else {
+      // Elsewhere: rembg, if it is installed.
+      final run = await Process.run('rembg', ['i', photo.path, out]);
+      if (run.exitCode != 0) {
+        throw CliError(
+          'Needs macOS, or rembg elsewhere: pip install "rembg[cli]".',
+        );
+      }
+      stdout.writeln('  ✓ $rel (rembg: --region, --fade and --tip need macOS)');
+    }
+    final credit = r['credit'] as String?;
+    if (credit != null && credit.isNotEmpty) {
+      File(
+        '${media.path}/CREDITS.md',
+      ).writeAsStringSync('- `$name.png`: $credit\n', mode: FileMode.append);
+    }
     return 0;
   }
 }

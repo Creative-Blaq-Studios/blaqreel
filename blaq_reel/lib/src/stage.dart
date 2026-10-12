@@ -1035,6 +1035,31 @@ class ReelStageState extends State<ReelStage> {
         child: child,
       ),
     ));
+    // A hand reaches in from past the phone and taps what it taps, lifted
+    // or not: drawn in the screen's own place, in front of everything in
+    // the scene.
+    if (layer.isScreen && widget.reel.hand != null && layer.taps.isNotEmpty) {
+      final (i, j) = key;
+      into.add((
+        motion.z + 100000,
+        into.length,
+        _placed(
+          key: ValueKey('hand ${key.$1}.${key.$2}'),
+          matrix: m,
+          size: layer.size,
+          sigma: 0,
+          opacity: motion.opacity,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (var k = 0; k < layer.taps.length; k++)
+                if (_tapRects[(i, j, k)] case final rect?)
+                  _finger(layer.taps[k], rect, t),
+            ],
+          ),
+        ),
+      ));
+    }
   }
 
   void _liftEntry({
@@ -1352,8 +1377,8 @@ class ReelStageState extends State<ReelStage> {
                       layer.lifts[k].motion.z.at(t),
                     ),
                   ],
-                // A fingertip stays on the glass; a hand reaches in from
-                // past the phone's edge, so it is drawn over the clip.
+                // A fingertip stays on the glass; a hand is drawn apart,
+                // over the lifted parts too (see _layerEntry).
                 if (widget.reel.hand == null)
                   for (var k = 0; k < layer.taps.length; k++)
                     if (_tapRects[(i, j, k)] case final rect?)
@@ -1362,10 +1387,7 @@ class ReelStageState extends State<ReelStage> {
             ),
           ),
         ),
-        if (widget.reel.hand != null)
-          for (var k = 0; k < layer.taps.length; k++)
-            if (_tapRects[(i, j, k)] case final rect?)
-              _finger(layer.taps[k], rect, t),
+
         if (frame)
           Positioned.fill(
             child: IgnorePointer(

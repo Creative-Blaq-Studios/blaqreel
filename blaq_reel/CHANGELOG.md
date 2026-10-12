@@ -80,6 +80,13 @@
   on the point. `ReelImage` reads and decodes pictures so they draw inside
   the test's clock. `blaq_reel media frames <video>` turns a clip into
   frames. For pictures an AI generates, or any the person has.
+- `blaq_reel media cutout <photo>`: cuts a hand, person or object out of a
+  photo into a transparent PNG (Apple's Vision on macOS, compiled once as a
+  small Swift tool; `rembg` elsewhere), keeping only a region, solid inside,
+  faded where the photo cuts it off, with a phone's dark frame dropped; it
+  finds a hand's fingertip and records the photo's credit.
+- A tap hand is drawn in front of everything in its scene, lifted parts
+  included, in its screen's place: it taps the card it lifts.
 - A tap hand is drawn over the screen's edge rather than clipped by it, so
   it reaches in from past the phone; the round fingertip stays on the glass.
 - `blaq_reel clean`: clears out `app_reels/out/` (scratch previews, stills,

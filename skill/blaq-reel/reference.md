@@ -235,6 +235,7 @@ A hand's `tip` is where the fingertip is in its picture, as fractions:
 | `render <reel> [-f vertical,wide \| all] [--fps 60] [--no-audio] [--open] [--reveal]` | MP4s; prints each path and link |
 | `studio [<reel>] [-f wide] [--port 4455] [--no-watch] [--no-open]` | the studio in the browser; it re-renders when files change unless `--no-watch` |
 | `media frames <video> [--name x] [--fps 30] [--width 720]` | a clip as frames in `app_reels/media/<name>/` |
+| `media cutout <photo> [--name hand] [--subject person\|object] [--region "x,y x,y …"] [--no-solid] [--fade rb] [--drop-dark] [--tip left] [--credit "…"]` | a subject cut out of a photo into `app_reels/media/<name>.png`; prints its size and, with `--tip`, the fingertip for `"hand"`. macOS uses Vision; elsewhere `rembg` |
 | `clean [--finals] [--keep 1] [--dry-run]` | clear out `app_reels/out/` |
 | `inventory [--find "the settings sheet"]` | the app's screens worth showing, found with Claude Code |
 | `sfx [--pad 30]` | the built-in sounds and a placeholder pad |

@@ -166,13 +166,14 @@ for watermarks or signatures before using it: a "public domain" label can
 be wrong, and a `©` in the corner means don't. Keep a note of each
 picture's source in `app_reels/media/CREDITS.md`.
 
-**Cutting out a hand (or any subject).** On macOS, the Vision framework
-does it with no downloads: `VNGeneratePersonSegmentationRequest` for
-people and hands, `VNGenerateForegroundInstanceMaskRequest` for objects
-(a short Swift script, run with `swift`). Elsewhere, `pip install rembg`.
-Keep only the hand you want (mask it with a polygon around it), make the
-inside solid (a soft mask lets the screen show through the palm), fade only
-the few percent where the photo cuts the wrist off, and crop to the hand.
+**Cutting out a hand (or any subject).** `dart run blaq_reel media cutout
+photo.jpg --name hand --region "x,y x,y …" --fade rb --tip left --credit
+"…"`: on macOS it uses Vision (no downloads), elsewhere `rembg`. `--region`
+keeps only the hand you want (a polygon in fractions of the photo: look at
+the photo and trace around that hand, leaving out any other); the inside is
+made solid; `--fade` softens the edges where the photo cuts the wrist off;
+`--drop-dark` removes a phone's dark frame; `--tip` prints the fingertip
+for `"hand"`. Look at the result before using it.
 Make the hand large enough (`"width"` around 350–450 on a vertical reel)
 that its cut wrist sits past the phone's edge, as a real hand reaching in.
 
