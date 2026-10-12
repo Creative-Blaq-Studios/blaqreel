@@ -1352,13 +1352,20 @@ class ReelStageState extends State<ReelStage> {
                       layer.lifts[k].motion.z.at(t),
                     ),
                   ],
-                for (var k = 0; k < layer.taps.length; k++)
-                  if (_tapRects[(i, j, k)] case final rect?)
-                    _finger(layer.taps[k], rect, t),
+                // A fingertip stays on the glass; a hand reaches in from
+                // past the phone's edge, so it is drawn over the clip.
+                if (widget.reel.hand == null)
+                  for (var k = 0; k < layer.taps.length; k++)
+                    if (_tapRects[(i, j, k)] case final rect?)
+                      _finger(layer.taps[k], rect, t),
               ],
             ),
           ),
         ),
+        if (widget.reel.hand != null)
+          for (var k = 0; k < layer.taps.length; k++)
+            if (_tapRects[(i, j, k)] case final rect?)
+              _finger(layer.taps[k], rect, t),
         if (frame)
           Positioned.fill(
             child: IgnorePointer(

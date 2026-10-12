@@ -80,6 +80,8 @@
   on the point. `ReelImage` reads and decodes pictures so they draw inside
   the test's clock. `blaq_reel media frames <video>` turns a clip into
   frames. For pictures an AI generates, or any the person has.
+- A tap hand is drawn over the screen's edge rather than clipped by it, so
+  it reaches in from past the phone; the round fingertip stays on the glass.
 - `blaq_reel clean`: clears out `app_reels/out/` (scratch previews, stills,
   pages, thumbnails, stray files); `--finals` also removes older finished
   videos, keeping the newest (`--keep`); `--dry-run` lists what would go.

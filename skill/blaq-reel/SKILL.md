@@ -159,6 +159,23 @@ person provides instead.
 `drift`, `zoom`, `spin` or `pop`. A ground picture breathes slowly on its
 own. Use motion sparingly: one moving thing at a time reads better.
 
+**Free media instead.** If no model is available, or the person prefers
+real photos, search Openverse (`https://api.openverse.org/v1/images/?q=...&license=cc0,pdm`,
+no key needed) for CC0 or public-domain pictures. Open each one and look
+for watermarks or signatures before using it: a "public domain" label can
+be wrong, and a `©` in the corner means don't. Keep a note of each
+picture's source in `app_reels/media/CREDITS.md`.
+
+**Cutting out a hand (or any subject).** On macOS, the Vision framework
+does it with no downloads: `VNGeneratePersonSegmentationRequest` for
+people and hands, `VNGenerateForegroundInstanceMaskRequest` for objects
+(a short Swift script, run with `swift`). Elsewhere, `pip install rembg`.
+Keep only the hand you want (mask it with a polygon around it), make the
+inside solid (a soft mask lets the screen show through the palm), fade only
+the few percent where the photo cuts the wrist off, and crop to the hand.
+Make the hand large enough (`"width"` around 350–450 on a vertical reel)
+that its cut wrist sits past the phone's edge, as a real hand reaching in.
+
 **Use a real image or video model.** If your environment has no generation
 tool (or it fails), say so and offer to use the person's own pictures; don't
 draw pictures with code and pass them off as generated, as they read as
