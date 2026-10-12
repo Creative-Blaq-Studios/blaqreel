@@ -665,6 +665,24 @@ class Studio {
           } on CliError catch (e) {
             _sendJson(req, {'ok': false, 'error': e.message});
           }
+        case '/api/ai/intro' when req.method == 'POST':
+          final body =
+              jsonDecode(await utf8.decodeStream(req)) as Map<String, Object?>;
+          final logos =
+              (_json('$_dir/catalogue/map.json')?['logos'] as Map?)?.keys
+                  .map((k) => '$k')
+                  .toList() ??
+              const <String>[];
+          try {
+            final intro = await _drafter.intro(
+              spec: (body['spec'] as Map?)?.cast<String, Object?>() ?? {},
+              asks: '${body['asks'] ?? ''}',
+              logos: logos,
+            );
+            _sendJson(req, {'ok': true, 'intro': intro});
+          } on CliError catch (e) {
+            _sendJson(req, {'ok': false, 'error': e.message});
+          }
         case '/api/styles':
           if (req.method == 'POST') {
             final spec =

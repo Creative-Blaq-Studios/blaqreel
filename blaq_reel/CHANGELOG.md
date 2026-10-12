@@ -63,6 +63,19 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- An intro that says something: `GlassLayers.openLines` (spec `"open":
+  {"lines": [...], "reveal"}`) shows up to a few hook lines, one after
+  another, large, before the logo (or instead of it). In the editor the
+  AI writes them: describe the intro you want, and Claude Code answers with
+  lines, a logo, a length and a reveal from the brief, the beats and the
+  app's own copy (`POST /api/ai/intro`).
+- The intro's and outro's pieces are styled and placed as the beats'
+  words are: click the intro's words, the end card's line or address, or
+  either logo, and set colour, accent, size, weight, anchor, offset, width
+  and plate, or drag them on the preview, per frame. Logos take a size and
+  a place; the end card's screens a background blur (0 to 4). Specs:
+  `"open": {"words", "logoScale", "logoPlaces"}`, `"end": {"lineWords",
+  "urlWords", "logoScale", "logoPlaces", "blur"}`; `"logo": null` is none.
 - The intro and the outro are in the editor, either side of the beats:
   on or off, the logo, the length, and for the outro its line, its address
   (the app's, its own, or none) and the screens fanned behind it. Sketched

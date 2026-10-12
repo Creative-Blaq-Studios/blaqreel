@@ -153,6 +153,64 @@ Reply with one JSON object and nothing else:
     return draft;
   }
 
+  /// Writes the reel's intro from what the person [asks] for: the lines it
+  /// says before the logo, which logo, how long, how the lines arrive.
+  /// Returns `{"lines", "logo", "length", "reveal", "note"}`.
+  Future<Map<String, Object?>> intro({
+    required Map<String, Object?> spec,
+    required String asks,
+    required List<String> logos,
+  }) async {
+    final beats = [
+      for (final b
+          in (spec['beats'] as List? ?? const []).cast<Map<String, Object?>>())
+        if (b['skip'] != true) b['word'] ?? b['screen'],
+    ];
+    final text =
+        '''
+You are writing the intro of a promo reel for the Flutter app "${project.name}" with BlaqReel: what plays before the first beat.
+
+The person asks for:
+${asks.trim().isEmpty ? '(nothing in particular: make a strong opening that sets up the reel)' : asks.trim()}
+
+The reel's brief:
+${'${spec['brief'] ?? ''}'.trim().isEmpty ? '(none)' : spec['brief']}
+
+The beats that follow, in order: ${beats.join(' · ')}
+The intro now: ${jsonEncode(spec['open'])}
+Logos the app has: ${logos.join(', ')}
+
+What the app really does, in its own words (use only claims found here):
+${_copy()}
+
+An intro is up to three short lines, each shown large on its own, one after another, then optionally the logo. A line is at most six words; put its key word in {braces} for the accent colour. No lines and just the logo is fine if that is what is asked. A hook works best as a question or a feeling the viewer recognises, not a feature. No numbers or claims the copy does not make. Plain, warm, direct.
+
+Reply with one JSON object and nothing else:
+{"lines":["…"],"logo":"${logos.isEmpty ? 'mark' : logos.first}" or null,"length":seconds (about 1.4 per line, plus 1.6 for a logo),"reveal":"words" or "letters" or "typewriter" or "fade","note":"one sentence on the idea"}
+''';
+    final run = await runClaude(
+      project,
+      task: 'Writing the intro',
+      prompt: text,
+      timeout: const Duration(minutes: 2),
+      onUpdate: onUpdate,
+    );
+    if (!run.ok) {
+      throw CliError('Claude did not answer: ${run.error ?? run.result}');
+    }
+    final result = run.result ?? '';
+    final start = result.indexOf('{'), end = result.lastIndexOf('}');
+    if (start < 0 || end <= start) {
+      throw CliError('Claude answered without an intro: $result');
+    }
+    final draft =
+        jsonDecode(result.substring(start, end + 1)) as Map<String, Object?>;
+    run.result = 'Wrote the intro';
+    run.steps.add(ClaudeStep(run.result!, 'note'));
+    onUpdate?.call(run);
+    return draft;
+  }
+
   /// Stages a screen the kit does not have yet, by asking Claude Code to
   /// edit `app_reels/`: the screen [name] from [file], or one matching
   /// [description]. Returns Claude's one-line summary.

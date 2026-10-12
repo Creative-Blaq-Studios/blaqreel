@@ -139,6 +139,22 @@ class GlassEnd {
   /// How long it holds, its transition in included.
   final Duration length;
 
+  /// How the line looks and where it sits, over the card's own.
+  final GlassWords? lineWords;
+
+  /// How the address looks and where it sits, over the card's own.
+  final GlassWords? urlWords;
+
+  /// The logo moved from its place, as a fraction of the frame.
+  final Offset logoOffset;
+
+  /// The logo's size, 1 as drawn.
+  final double logoScale;
+
+  /// How soft the screens fanned behind it are: 0 sharp, 1.6 the card's
+  /// own, up to 4.
+  final double blur;
+
   /// An end card.
   const GlassEnd({
     required this.logo,
@@ -147,6 +163,11 @@ class GlassEnd {
     this.url,
     this.fan = true,
     this.length = const Duration(milliseconds: 4200),
+    this.lineWords,
+    this.urlWords,
+    this.logoOffset = Offset.zero,
+    this.logoScale = 1,
+    this.blur = 1.6,
   });
 }
 
@@ -176,6 +197,22 @@ class GlassLayers {
 
   /// How long the opening runs.
   final Duration openLength;
+
+  /// Lines the opening says before its logo, one after another, large in
+  /// the middle: a hook. `{braces}` take the accent.
+  final List<String> openLines;
+
+  /// How each of [openLines] arrives.
+  final Reveal openReveal;
+
+  /// How [openLines] look and where they sit, over the opening's own.
+  final GlassWords? openWords;
+
+  /// The opening's logo moved from its place, as a fraction of the frame.
+  final Offset openLogoOffset;
+
+  /// The opening's logo's size, 1 as drawn.
+  final double openLogoScale;
 
   /// How it ends. Null ends on the last beat.
   final GlassEnd? end;
@@ -220,6 +257,11 @@ class GlassLayers {
     this.open,
     this.openSize = const Size(160, 160),
     this.openLength = const Duration(milliseconds: 2600),
+    this.openLines = const [],
+    this.openReveal = Reveal.words,
+    this.openWords,
+    this.openLogoOffset = Offset.zero,
+    this.openLogoScale = 1,
     this.end,
     this.hole,
     this.statusBar,
@@ -441,7 +483,7 @@ class GlassLayers {
   Reel build(String name) {
     final scenes = <Scene>[];
     final transitions = <Transition>[];
-    if (open != null) {
+    if (open != null || openLines.isNotEmpty) {
       scenes.add(openScene());
       transitions.add(const Transition.zoomThrough());
     }
@@ -468,29 +510,137 @@ class GlassLayers {
     );
   }
 
-  /// The opening: [open] arriving out of the dark, for a zoom through into
-  /// the first beat.
+  /// Words outside the beats (the opening's lines, the end card's line and
+  /// address): [w]'s style and place over these defaults, as a beat's words
+  /// take theirs. A size is set against a 9:16 frame's beat word, 80.
+  Words _styled(
+    String text,
+    GlassWords? w, {
+    required Duration at,
+    Duration? until,
+    required Reveal reveal,
+    required Alignment align,
+    required double maxWidth,
+    required double size,
+    required Color color,
+    Duration stagger = const Duration(milliseconds: 80),
+    Duration? rise,
+    double tracking = -0.035,
+    bool small = false,
+    FontWeight? weight,
+    Color? glow,
+  }) {
+    final f = _frame;
+    final s = w?.size == null ? size : w!.size! * f.wordSize / 80;
+    final fw = w?.weight ?? weight;
+    final base = small
+        ? brand.small(
+            s,
+            w?.color ?? color,
+            weight: (fw?.value ?? 600).toDouble(),
+          )
+        : brand.words(s, w?.color ?? color, tracking: tracking);
+    final anchor = w?.anchor;
+    final plate = w?.plate;
+    return Words(
+      text,
+      at: w?.at ?? at,
+      until: w?.until ?? until,
+      reveal: w?.reveal ?? reveal,
+      stagger: stagger,
+      rise: rise ?? const Duration(milliseconds: 500),
+      align: anchor ?? align,
+      textAlign: anchor == null
+          ? TextAlign.center
+          : anchor.x < -0.3
+          ? TextAlign.left
+          : anchor.x > 0.3
+          ? TextAlign.right
+          : TextAlign.center,
+      maxWidth: w?.width ?? maxWidth,
+      accent: w?.accent ?? _accentOn(null),
+      offset: w?.offset ?? Offset.zero,
+      plate: plate == null || plate.a == 0 ? null : plate,
+      plateBlur: w?.plateBlur ?? 0,
+      behind: w?.behind ?? false,
+      style: base.copyWith(
+        fontWeight: fw,
+        fontVariations: fw == null
+            ? null
+            : [FontVariation('wght', fw.value.toDouble())],
+        shadows: glow == null ? null : [Shadow(color: glow, blurRadius: 12)],
+      ),
+    );
+  }
+
+  /// The opening: its lines, one after another, then [open] arriving out
+  /// of the dark, for a zoom through into the first beat.
   Scene openScene() {
     final length = openLength;
     final f = _frame;
+    // The lines share the time before the logo, which keeps 1.6 s for
+    // itself; with no logo they have all of it.
+    final n = openLines.length;
+    final logoAt = open == null || n == 0
+        ? Duration.zero
+        : length - const Duration(milliseconds: 1600);
+    final each = n == 0
+        ? Duration.zero
+        : (open == null ? length : logoAt) * (1 / n);
+    final wide = !format.isTall;
     return Scene(
       name: 'open',
       length: length,
       camera: Camera.tracks(zoom: Track.from(1).to(length, 1.08, Ease.linear)),
       layers: [
-        Layer.timed(
-          open!,
-          size: openSize,
-          position: Offset(0, -f.stage.height * 0.02),
-          motion: Motion(
-            z: Track.from(-420).to(1400.ms, 0, Ease.out),
-            roll: Track.from(10).to(1400.ms, 0, Ease.out),
-            blur: Track.from(14).to(1100.ms, 0, Ease.out),
-            opacity: Track.from(0).to(600.ms, 1, Ease.out),
+        if (open != null)
+          Layer.timed(
+            open!,
+            size: openSize * openLogoScale,
+            position: Offset(
+              f.stage.width * openLogoOffset.dx,
+              f.stage.height * (openLogoOffset.dy - 0.02),
+            ),
+            motion: Motion(
+              z: Track.from(
+                -420,
+              ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
+              roll: Track.from(
+                10,
+              ).hold(logoAt).to(logoAt + 1400.ms, 0, Ease.out),
+              blur: Track.from(
+                14,
+              ).hold(logoAt).to(logoAt + 1100.ms, 0, Ease.out),
+              opacity: Track.from(
+                0,
+              ).hold(logoAt).to(logoAt + 600.ms, 1, Ease.out),
+            ),
           ),
-        ),
       ],
-      cues: [const Cue(Duration(milliseconds: 150), 'rise')],
+      words: [
+        for (final (i, line) in openLines.indexed)
+          _styled(
+            line,
+            openWords,
+            at: each * i + 120.ms,
+            // Each leaves as the next comes; the last before the logo, or
+            // just before the cut into the first beat.
+            until: i < n - 1
+                ? each * (i + 1)
+                : open == null
+                ? length - 350.ms
+                : logoAt,
+            reveal: openReveal,
+            align: Alignment.center,
+            maxWidth: wide ? 0.72 : 0.9,
+            size: f.wordSize * (wide ? 0.72 : 0.6),
+            color: _inkOn(null),
+          ),
+      ],
+      cues: [
+        if (open != null) Cue(logoAt + 150.ms, 'rise'),
+        for (var i = 0; i < n; i++) Cue(each * i + 120.ms, 'tick'),
+      ],
     );
   }
 
@@ -892,7 +1042,7 @@ class GlassLayers {
       camera: Camera.tracks(
         zoom: Track.from(0.96).to(l, 1.04, Ease.linear),
         focus: Track.constant(0),
-        aperture: Track.constant(1.6),
+        aperture: Track.constant(end.blur),
       ),
       layers: [
         if (end.fan)
@@ -926,8 +1076,11 @@ class GlassLayers {
             ),
         Layer.timed(
           end.logo,
-          size: end.logoSize,
-          position: Offset(0, -stage.height * (wide ? 0.08 : 0.06)),
+          size: end.logoSize * end.logoScale,
+          position: Offset(
+            stage.width * end.logoOffset.dx,
+            stage.height * (end.logoOffset.dy - (wide ? 0.08 : 0.06)),
+          ),
           motion: Motion(
             z: Track.from(-160).hold(500.ms).to(1600.ms, 0, Ease.out),
             blur: Track.from(10).hold(500.ms).to(1400.ms, 0, Ease.out),
@@ -937,39 +1090,34 @@ class GlassLayers {
       ],
       words: [
         if (end.line != null)
-          Words(
+          _styled(
             end.line!,
+            end.lineWords,
             at: 1.5.s,
             reveal: Reveal.words,
             stagger: 70.ms,
             align: Alignment(0, wide ? 0.46 : 0.36),
-            textAlign: TextAlign.center,
             maxWidth: wide ? 0.7 : 0.9,
-            style: brand.words(f.lineSize, _inkOn(null), tracking: -0.02),
+            size: f.lineSize,
+            color: _inkOn(null),
+            tracking: -0.02,
           ),
         if (end.url != null)
-          Words(
+          _styled(
             end.url!,
+            end.urlWords,
             at: 2.2.s,
             reveal: Reveal.fade,
             rise: 600.ms,
             align: Alignment(0, wide ? 0.74 : 0.6),
-            textAlign: TextAlign.center,
-            style: brand
-                .small(
-                  f.lineSize * 0.42,
-                  _lightOf(null) ? brand.ink : brand.accent,
-                  weight: 600,
-                )
-                .copyWith(
-                  shadows: [
-                    Shadow(
-                      color: (_lightOf(null) ? brand.paper : brand.ink)
-                          .withValues(alpha: 0.9),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
+            maxWidth: 0.9,
+            size: f.lineSize * 0.42,
+            color: _lightOf(null) ? brand.ink : brand.accent,
+            small: true,
+            weight: FontWeight.w600,
+            glow: (_lightOf(null) ? brand.paper : brand.ink).withValues(
+              alpha: 0.9,
+            ),
           ),
       ],
       cues: const [Cue(Duration(milliseconds: 900), 'chime')],

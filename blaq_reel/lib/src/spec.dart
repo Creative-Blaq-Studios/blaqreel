@@ -145,15 +145,58 @@ class ReelSpec {
   Object? get _openLogo {
     final o = json['open'];
     if (o is Map && o['off'] == true) return null;
-    final key = o is Map ? o['logo'] ?? 'mark' : o;
-    return key == false || key == 'none' ? null : key;
+    // A map without a logo has the mark; with "logo": null, none.
+    final key = o is Map ? (o.containsKey('logo') ? o['logo'] : 'mark') : o;
+    return key == null || key == false || key == 'none' ? null : key;
+  }
+
+  /// An end card's logo: the wordmark unless it names another, or none
+  /// (`"logo": null` or `"none"`).
+  static Object? _endLogo(Map<String, Object?> end) {
+    final key = end.containsKey('logo') ? end['logo'] : 'wordmark';
+    return key == 'none' ? null : key;
+  }
+
+  /// Where a logo is moved to in [format]: `"logoPlaces": {"vertical":
+  /// {"dx": 0, "dy": -5}}`, in percent of the frame.
+  static Offset _logoAt(Map<String, Object?> j, Format format) {
+    final p = (j['logoPlaces'] as Map?)?[format.name];
+    if (p is! Map) return Offset.zero;
+    double n(Object? x) => x is num ? x.toDouble() : 0;
+    return Offset(n(p['dx']) / 100, n(p['dy']) / 100);
+  }
+
+  /// What the opening says before its logo: `"open": {"lines": [...]}`.
+  List<String> get _openLines {
+    final o = json['open'];
+    if (o is! Map || o['off'] == true || o['lines'] is! List) return const [];
+    return [
+      for (final l in o['lines']! as List)
+        if ('$l'.trim().isNotEmpty) '$l'.trim(),
+    ];
+  }
+
+  /// How the opening's lines arrive: `"reveal": "words"` (or "letters",
+  /// "typewriter", "fade").
+  Reveal get _openReveal {
+    final o = json['open'];
+    final r = o is Map ? o['reveal'] : null;
+    return Reveal.values.firstWhere(
+      (v) => v.name == r || (r == 'type' && v == Reveal.typewriter),
+      orElse: () => Reveal.words,
+    );
   }
 
   /// How long the opening runs, from `"open": {"length": seconds}`.
   Duration get _openLength {
     final o = json['open'];
-    final s = o is Map && o['length'] is num ? (o['length']! as num) : 2.6;
-    return Duration(milliseconds: (s.clamp(1.2, 6) * 1000).round());
+    final lines = _openLines.length, logo = _openLogo != null;
+    final s = o is Map && o['length'] is num
+        ? (o['length']! as num)
+        : lines == 0
+        ? 2.6
+        : lines * 1.4 + (logo ? 1.6 : 0.2);
+    return Duration(milliseconds: (s.clamp(1.2, 12) * 1000).round());
   }
 
   /// The beats that play: a beat marked `"skip": true` stays in the spec,
@@ -407,15 +450,18 @@ class ReelSpec {
     GlassEnd? glassEnd() => end == null
         ? null
         : GlassEnd(
-            logo:
-                logo(end['logo'] ?? 'wordmark', look) ??
-                (t) => const SizedBox(),
-            logoSize: logoSize(end['logo'] ?? 'wordmark', const Size(340, 110)),
+            logo: logo(_endLogo(end), look) ?? (t) => const SizedBox(),
+            logoSize: logoSize(_endLogo(end), const Size(340, 110)),
             line: end['line'] as String?,
             // The app's address unless the card says its own, or none ("" or false).
             url: _url(end, kit),
             length: _num(end['length'], 4.7).s,
             fan: end['fan'] != false,
+            lineWords: _words(end['lineWords'], format),
+            urlWords: _words(end['urlWords'], format),
+            logoOffset: _logoAt(end, format),
+            logoScale: _num(end['logoScale'], 1),
+            blur: _num(end['blur'], 1.6).clamp(0, 4),
           );
 
     final reel = switch (_pack) {
@@ -433,6 +479,17 @@ class ReelSpec {
         open: logo(_openLogo, look),
         openSize: logoSize(_openLogo, const Size(220, 220)),
         openLength: _openLength,
+        openLines: _openLines,
+        openReveal: _openReveal,
+        openWords: json['open'] is Map
+            ? _words((json['open']! as Map)['words'], format)
+            : null,
+        openLogoOffset: json['open'] is Map
+            ? _logoAt((json['open']! as Map).cast(), format)
+            : Offset.zero,
+        openLogoScale: json['open'] is Map
+            ? _num((json['open']! as Map)['logoScale'], 1)
+            : 1,
         beats: [for (final b in _beats) glassBeat(b)],
         end: glassEnd(),
       ).build(name),
@@ -462,7 +519,7 @@ class ReelSpec {
         ],
         logo: end == null
             ? null
-            : logo(end['logo'] ?? 'wordmark', GlassLook.mesh),
+            : logo(_endLogo(end), GlassLook.mesh),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
         line: end?['line'] as String?,
         url: _url(end, kit),
@@ -490,7 +547,7 @@ class ReelSpec {
         ],
         logo: end == null
             ? null
-            : logo(end['logo'] ?? 'wordmark', GlassLook.ink),
+            : logo(_endLogo(end), GlassLook.ink),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
         url: _url(end, kit),
       ).build(name),

@@ -68,10 +68,13 @@ const animatorCss = r'''
 .bk-sketch.still * { animation: none !important; }
 .bk-sketch.still .bk-scr { opacity: .5; }
 .bk-play { padding: 3px 9px; }
-.bk-logo { position: absolute; transform: translate(-50%, -50%); object-fit: contain; }
+.bk-logo { position: absolute; transform: translate(-50%, -50%); object-fit: contain; pointer-events: auto; cursor: grab; }
+.bk-text { position: absolute; line-height: 1.08; pointer-events: auto; cursor: grab; white-space: normal; width: max-content; }
+.bk-text.sel, .bk-logo.sel { outline: 2px dashed var(--accent); outline-offset: 4px; }
+.bk-moments button { padding: 3px 8px; font-size: 10px; }
+.tl-grid button.near { border-color: var(--accent); }
+.bk-ai textarea { resize: vertical; }
 .bk-scr { position: absolute; width: 64px; filter: blur(1.5px); border-radius: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.3); transform-origin: 50% 0; }
-.bk-line { position: absolute; text-align: center; font-weight: 800; font-size: 31px; line-height: 1.1; letter-spacing: -0.02em; }
-.bk-url { position: absolute; left: 0; right: 0; text-align: center; font-weight: 600; font-size: 14px; }
 .bk-off { position: absolute; left: 10%; right: 10%; top: 45%; text-align: center; font: 600 14px var(--mono); color: var(--text2); background: rgba(8,8,8,.7); padding: 10px; }
 .bk-foot { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line2); }
 .bk-foot b { font: 600 12px var(--mono); }
@@ -248,10 +251,10 @@ const STAGES = { vertical: [360, 640], wide: [640, 360], square: [360, 360], por
 const SAFE = { vertical: [0.06, 0.08, 0.12, 0.2], portrait: [0.06, 0.06, 0.06, 0.08] };
 function layoutOf(format) {
   const [w, h] = STAGES[format] || STAGES.vertical, a = h / w;
-  if (a > 1.5) return { w, h, zoom: 0.5, pan: [8, -70], align: [-1, 1], size: 80, width: 1 };
-  if (a > 1.1) return { w, h, zoom: 0.4, pan: [40, -30], align: [-1, 1], size: 64, width: 1 };
-  if (a > 0.8) return { w, h, zoom: 0.36, pan: [w * 0.2, 0], align: [-1, 0], size: 54, width: 0.5 };
-  return { w, h, zoom: 0.36, pan: [w * 0.2, 6], align: [-0.85, 0.1], size: 66, width: 0.45 };
+  if (a > 1.5) return { w, h, zoom: 0.5, pan: [8, -70], align: [-1, 1], size: 80, width: 1, line: 34 };
+  if (a > 1.1) return { w, h, zoom: 0.4, pan: [40, -30], align: [-1, 1], size: 64, width: 1, line: 30 };
+  if (a > 0.8) return { w, h, zoom: 0.36, pan: [w * 0.2, 0], align: [-1, 0], size: 54, width: 0.5, line: 26 };
+  return { w, h, zoom: 0.36, pan: [w * 0.2, 6], align: [-0.85, 0.1], size: 66, width: 0.45, line: 28 };
 }
 const SCREEN = [393, 852], DIST = 1100, SETTLE = 1500, RISE = 1500;
 const HEIGHTS = { spread: [190, 170, 150, 160, 180, 140], fan: [150, 170, 190, 210, 230, 250], zoom: [240, 150, 130, 120, 110, 100], _: [220, 180, 145, 125, 110, 100] };
@@ -332,6 +335,8 @@ let animStop = null;
 function stopAnimator() { if (animStop) animStop(); animStop = null; }
 
 const hexMix = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
+// [a] mixed toward [b] by [t], as Color.lerp does.
+const mixHex = (a, b, t) => { const c = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); const [x, y] = [c(a), c(b)]; return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
 const isDark = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2] < 0.4; };
 const LIGHT_LOOKS = ['mesh', 'butter', 'studio'];
 const POS_ALIGN = (pos) => [{ l: -1, c: 0, r: 1 }[pos[1]], { t: -1, m: 0, b: 1 }[pos[0]]];
@@ -560,28 +565,60 @@ function realRender(root, index, keyOf) {
   if (typeof state !== 'undefined' && state) window.beatState(state);
 }
 
-// The intro and the outro: the reel's opening logo, and its end card (the
-// logo, a line, an address, the screens fanned behind). Sketched from the
-// logo as the catalogue drew it; Render shows them as they will be.
+// A labelled slider with its value, as the inspectors draw them.
+const knob = (id, label, min, max, step, value, fmt, set) => `<div class="tl-knob"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" data-fmt="${fmt}"><output class="${set ? 'set' : ''}">${fmtv(fmt, value)}</output></div>`;
+const fmtv = (fmt, v) => ({ n: Math.round(v), x: (+v).toFixed(2) + '×', deg: Math.round(v) + '°', s: (v / 1000).toFixed(2) + 's', pc: Math.round(v) + '%' }[fmt]);
+// The intro and the outro: what the reel says before its first beat (lines,
+// then its logo), and its end card (the logo, a line, an address, the
+// screens fanned behind, softly). Each piece can be chosen, dragged and
+// styled as the beats' words are; the AI can write the intro. Sketched with
+// the logos as the catalogue drew them; Render shows the real thing.
+const bk = { intro: { sel: 'intro', moment: 0 }, outro: { sel: 'card' } };
 function bookendEditor(kind, side, lead) {
   stopAnimator();
   if (!ed.frame) ed.frame = spec.format || 'vertical';
-  const intro = kind === 'intro';
+  const intro = kind === 'intro', st8 = bk[kind];
   const logos = Object.keys((catalogue && catalogue.logos) || { mark: {}, wordmark: {} });
-  // The spec's own shapes: "open": "mark" or {logo, length, off}; "end":
-  // {logo, line, url, length, fan, off}.
-  const get = () => {
-    if (intro) { const o = spec.open; return o && typeof o === 'object' ? { ...o } : { logo: o === false || o == null ? 'mark' : o, length: 2.6, off: o === false || o == null }; }
-    return { logo: 'wordmark', length: 4.7, fan: true, ...(spec.end || {}), off: !spec.end || !!spec.end.off };
+  // The spec's own shapes: "open": "mark" | false | {logo, length, lines,
+  // reveal, words, logoScale, logoPlaces, off}; "end": {logo, line, url,
+  // length, fan, blur, lineWords, urlWords, logoScale, logoPlaces, off}.
+  // A logo left out is the mark (intro) or wordmark (outro), as the
+  // renderer reads it; "logo": null is none.
+  const read = () => {
+    const o = intro ? spec.open : spec.end, dflt = intro ? 'mark' : 'wordmark';
+    if (o && typeof o === 'object') return 'logo' in o ? o : { ...o, logo: dflt };
+    if (intro) return { logo: o === false || o == null ? 'mark' : o, off: o === false || o == null };
+    return { logo: dflt, off: true };
   };
-  const put = (v) => {
-    const clean = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== '' && x !== false));
-    if (intro) spec.open = v.off ? false : clean;
-    else spec.end = { ...clean, ...(v.fan === false ? { fan: false } : {}), ...(v.url === false ? { url: false } : {}), ...(v.off ? { off: true } : {}) };
-    save();
+  // The object to change, made into the long form first.
+  const own = () => {
+    if (intro) { if (!spec.open || typeof spec.open !== 'object') spec.open = { ...read() }; if (!spec.open.off) delete spec.open.off; return spec.open; }
+    if (!spec.end) spec.end = { logo: 'wordmark' };
+    return spec.end;
   };
-  const f = layoutOf(ed.frame), look = spec.look, moving = spec.ground || null;
+  const changed = (again) => { save(); paint(); if (again) inspector(); };
+  const f = layoutOf(ed.frame), look = spec.look, moving = spec.ground || null, wide = f.w > f.h;
   const light = moving ? !!moving.palette.light : LIGHT_LOOKS.includes(look);
+  const [sl, stp, sr, sb] = SAFE[ed.frame] || [0.06, 0.06, 0.06, 0.06];
+  const safe = { x: f.w * sl, y: f.h * stp, w: f.w * (1 - sl - sr), h: f.h * (1 - stp - sb) };
+  const ink = light ? BRAND.ink : BRAND.paper;
+  const accentDefault = look === 'butter' ? BRAND.paper : LIGHT_LOOKS.includes(look) ? mixHex(BRAND.accent, BRAND.ink, 0.35) : BRAND.accent;
+  // The texts: their style object in the spec, and the card's own look.
+  const TEXTS = intro
+    ? { words: { key: 'words', name: 'Words', size: f.size * (wide ? 0.72 : 0.6), weight: 800, align: [0, 0], width: wide ? 0.72 : 0.9, color: ink } }
+    : {
+      line: { key: 'lineWords', name: 'Line', size: f.line, weight: 800, align: [0, wide ? 0.46 : 0.36], width: wide ? 0.7 : 0.9, color: ink },
+      url: { key: 'urlWords', name: 'Address', size: f.line * 0.42, weight: 600, align: [0, wide ? 0.74 : 0.6], width: 0.9, color: light ? BRAND.ink : BRAND.accent, small: true },
+    };
+  const styleOf = (t) => (read()[TEXTS[t].key] || {});
+  const placeOf = (t) => ((styleOf(t).places || {})[ed.frame] || {});
+  const ownStyle = (t) => { const o = own(); o[TEXTS[t].key] = o[TEXTS[t].key] || {}; return o[TEXTS[t].key]; };
+  const ownPlace = (t) => { const s2 = ownStyle(t); s2.places = s2.places || {}; s2.places[ed.frame] = s2.places[ed.frame] || {}; return s2.places[ed.frame]; };
+  const logoPlace = () => ((read().logoPlaces || {})[ed.frame] || {});
+  const ownLogoPlace = () => { const o = own(); o.logoPlaces = o.logoPlaces || {}; o.logoPlaces[ed.frame] = o.logoPlaces[ed.frame] || {}; return o.logoPlaces[ed.frame]; };
+  const lenOf = () => { const v = read(); return v.length || (intro ? ((v.lines || []).length ? (v.lines || []).length * 1.4 + (v.logo ? 1.6 : 0.2) : 2.6) : 4.7); };
+  const url = () => { const v = read(); return v.url === false || v.url === '' ? null : v.url || (catalogue && catalogue.url) || null; };
+
   const root = B(`<div class="tled bk">
     <div class="tl-bar"><span style="flex:1"></span>
       <button class="tl-render" id="tlRender" title="Render the ${intro ? 'intro' : 'outro'} with the real logo and screens">▶ Render</button></div>
@@ -599,7 +636,6 @@ function bookendEditor(kind, side, lead) {
     // Once on the page: the ground's blur needs the canvas attached.
     requestAnimationFrame(() => paintGroundIn(g.getContext('2d'), g.width, g.height, 1, moving));
   }
-  // Settled while being edited; Play runs it as the reel times it.
   const sketch = B('<div class="bk-sketch still"></div>'); stage.appendChild(sketch);
   let k = 1;
   function fit() {
@@ -611,64 +647,193 @@ function bookendEditor(kind, side, lead) {
     stage.style.transform = `scale(${k})`;
     frameEl.style.width = f.w * k + 'px'; frameEl.style.height = f.h * k + 'px';
   }
-  // The sketch: the logo arriving, and for the outro the screens, the line
-  // and the address, on the ground, timed as the reel times them.
+  // A text as the renderer sets it: in its style, wrapped at its width, put
+  // by its anchor in the safe area and moved by its offset.
+  function placeText(t, text, el) {
+    const d = TEXTS[t], sty = styleOf(t), pl = placeOf(t);
+    const size = sty.size ? (sty.size * f.size) / 80 : d.size;
+    const align = pl.pos ? POS_ALIGN(pl.pos) : d.align;
+    const fam = d.small ? (BRAND.fonts.text ? `'${BRAND.fonts.text}', ` : '') + 'var(--body, sans-serif)' : (BRAND.fonts.display ? `'${BRAND.fonts.display}', ` : '') + 'var(--display), sans-serif';
+    const plate = sty.plate && sty.plate !== 'none' ? (isDark(sty.color || d.color) ? (sty.plate === 'solid' ? '#FFF8EC' : 'rgba(255,248,236,.62)') : (sty.plate === 'solid' ? '#141414' : 'rgba(14,14,14,.55)')) : 'transparent';
+    Object.assign(el.style, { fontFamily: fam, fontSize: size + 'px', fontWeight: sty.weight || d.weight, color: sty.color || d.color, maxWidth: ((pl.width != null ? pl.width / 100 : d.width) * safe.w) + 'px', textAlign: align[0] < -0.3 ? 'left' : align[0] > 0.3 ? 'right' : 'center', background: plate, padding: plate === 'transparent' ? '0' : `${size * 0.12}px ${size * 0.28}px`, letterSpacing: d.small ? '0' : '-0.03em' });
+    const acc = sty.accent || accentDefault;
+    el.innerHTML = escB(text).replace(/\{([^}]*)\}/g, (_, x) => `<i style="font-style:normal;color:${acc}">${x}</i>`);
+    const bw = el.offsetWidth, bh = el.offsetHeight;
+    el.style.left = safe.x + ((align[0] + 1) / 2) * (safe.w - bw) + ((pl.dx || 0) / 100) * f.w + 'px';
+    el.style.top = safe.y + ((align[1] + 1) / 2) * (safe.h - bh) + ((pl.dy || 0) / 100) * f.h + 'px';
+  }
+  // The sketch: settled (or, for the intro, at the line chosen below), or
+  // playing as the reel times it.
   function paint() {
-    const v = get(), len = Math.max(1.2, v.length || (intro ? 2.6 : 4.7));
+    const v = read(), len = lenOf(), lines = intro ? (v.lines || []).filter((x) => `${x}`.trim()) : [];
+    const playing = !sketch.classList.contains('still');
     const size = (catalogue && catalogue.logos && catalogue.logos[v.logo]) || { width: 220, height: 220 };
-    const tone = light ? 'ink' : 'paper', wide = f.w > f.h;
-    const pct = (sec) => Math.min(100, (sec / len) * 100).toFixed(1) + '%';
+    const sc = v.logoScale || 1, lp = logoPlace();
+    const logoX = f.w / 2 + ((lp.dx || 0) / 100) * f.w, logoY = f.h / 2 + ((lp.dy || 0) / 100 - (intro ? 0.02 : wide ? 0.08 : 0.06)) * f.h;
+    const pct = (sec) => Math.max(0, Math.min(100, (sec / len) * 100)).toFixed(1) + '%';
+    const n = lines.length, logoAt = intro && v.logo && n ? len - 1.6 : 0, each = n ? (v.logo ? logoAt : len) / n : 0;
+    // Which moment the settled intro shows: a line, or the logo.
+    const moment = Math.min(st8.moment || 0, n);
+    const showLogo = v.logo && !v.off && (!intro || playing || !n || moment === n);
     const css = intro
-      ? `@keyframes bk-logo { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6) rotate(10deg); filter: blur(10px) } ${pct(0.6)} { opacity: 1 } ${pct(1.4)} { transform: translate(-50%,-50%) scale(1) rotate(0); filter: blur(0) } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1.08) } }`
-      : `@keyframes bk-logo { 0%, ${pct(0.5)} { opacity: 0; transform: translate(-50%,-50%) scale(.85); filter: blur(8px) } ${pct(1.6)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); filter: blur(0) } }
-         @keyframes bk-line { 0%, ${pct(1.5)} { opacity: 0; transform: translateY(14px) } ${pct(2.2)}, 100% { opacity: 1; transform: none } }
+      ? `@keyframes bk-logo { 0%, ${pct(logoAt)} { opacity: 0; transform: translate(-50%,-50%) scale(${0.6 * sc}) rotate(10deg); filter: blur(10px) } ${pct(logoAt + 0.6)} { opacity: 1 } ${pct(logoAt + 1.4)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(${sc}) rotate(0); filter: blur(0) } }
+         ${lines.map((_, i) => `@keyframes bk-l${i} { 0%, ${pct(each * i + 0.12)} { opacity: 0; transform: translateY(18px) } ${pct(each * i + 0.6)}, ${pct(i < n - 1 ? each * (i + 1) - 0.1 : v.logo ? logoAt - 0.1 : len - 0.45)} { opacity: 1; transform: none } ${pct(i < n - 1 ? each * (i + 1) : v.logo ? logoAt : len - 0.35)}, 100% { opacity: 0 } }`).join('\n')}`
+      : `@keyframes bk-logo { 0%, ${pct(0.5)} { opacity: 0; transform: translate(-50%,-50%) scale(${0.85 * sc}); filter: blur(8px) } ${pct(1.6)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(${sc}); filter: blur(0) } }
+         @keyframes bk-line { 0%, ${pct(1.5)} { opacity: 0; translate: 0 14px } ${pct(2.2)}, 100% { opacity: 1; translate: 0 0 } }
          @keyframes bk-url { 0%, ${pct(2.2)} { opacity: 0 } ${pct(2.8)}, 100% { opacity: 1 } }
          @keyframes bk-fan { 0%, ${pct(0.3)} { opacity: 0; transform: translateY(80px) } ${pct(1.5)}, 100% { opacity: .5; transform: none } }`;
-    const screens = intro || v.fan === false ? [] : spec.beats.filter((b) => !b.skip && !isComp(b.screen)).map((b) => screenOf(b.screen)).filter(Boolean);
-    // The app's address unless the card gives its own, or none.
-    const url = v.url === false || v.url === '' ? null : v.url || (catalogue && catalogue.url) || null;
-    const n = screens.length, logoY = f.h / 2 - f.h * (intro ? 0.02 : wide ? 0.08 : 0.06);
-    const ink = light ? BRAND.ink : BRAND.paper, fam = BRAND.fonts.display ? `'${BRAND.fonts.display}', ` : '';
+    const screens = intro || v.fan === false || v.off ? [] : spec.beats.filter((b) => !b.skip && !isComp(b.screen)).map((b) => screenOf(b.screen)).filter(Boolean);
+    const blur = v.blur == null ? 1.6 : v.blur, m = screens.length;
     sketch.innerHTML = `<style>${css}</style>
-      ${screens.map((sc, i) => `<img class="bk-scr" src="/catalogue/${sc.image}" style="left:${f.w / 2 + (i - (n - 1) / 2) * (wide ? f.w * 0.12 : 56) - 32}px;top:${f.h * (wide ? 0.86 : 0.78)}px;animation:bk-fan ${len}s ${0.09 * i}s infinite both">`).join('')}
-      ${v.logo && !v.off ? `<img class="bk-logo" src="/catalogue/logo-${v.logo}-${tone}.png" style="left:${f.w / 2}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;animation:bk-logo ${len}s infinite both" alt="">` : ''}
-      ${!intro && v.line ? `<div class="bk-line" style="top:${f.h * (wide ? 0.555 : 0.495)}px;color:${ink};font-family:${fam}var(--display),sans-serif;width:${f.w * (wide ? 0.7 : 0.9)}px;left:${f.w * (wide ? 0.15 : 0.05)}px;animation:bk-line ${len}s infinite both">${escB(v.line)}</div>` : ''}
-      ${!intro && url ? `<div class="bk-url" style="top:${f.h * (wide ? 0.72 : 0.638)}px;font-family:${BRAND.fonts.text ? `'${BRAND.fonts.text}', ` : ''}var(--body, sans-serif);color:${light ? BRAND.ink : BRAND.accent};animation:bk-url ${len}s infinite both">${escB(url)}</div>` : ''}
+      ${screens.map((s2, i) => `<img class="bk-scr" src="/catalogue/${s2.image}" style="left:${f.w / 2 + (i - (m - 1) / 2) * (wide ? f.w * 0.12 : 56) - 32}px;top:${f.h * (wide ? 0.86 : 0.78)}px;filter:blur(${(blur * 1.1).toFixed(1)}px);animation:bk-fan ${len}s ${0.09 * i}s infinite both">`).join('')}
+      ${showLogo ? `<img class="bk-logo ${st8.sel === 'logo' ? 'sel' : ''}" data-pick="logo" src="/catalogue/logo-${v.logo}-${light ? 'ink' : 'paper'}.png" style="left:${logoX}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;transform:translate(-50%,-50%) scale(${sc});animation:bk-logo ${len}s infinite both" alt="">` : ''}
       ${v.off ? `<div class="bk-off">No ${intro ? 'intro' : 'outro'}: the reel ${intro ? 'opens on its first beat' : 'ends on its last beat'}</div>` : ''}`;
-    const still = sketch.classList.contains('still');
-    root.querySelector('.bk-foot').innerHTML = `<button class="tl-play bk-play" aria-label="Play or pause">${still ? '▶' : '❚❚'}</button><span class="lbl2">${intro ? 'Intro' : 'Outro'}</span><b>${v.off ? 'off' : len.toFixed(1) + ' s'}</b><span class="hint" style="margin:0">${intro ? 'Before the first beat; the first beat zooms through it.' : 'After the last beat; it rises in.'} The sketch uses the logo as the catalogue drew it. Render for the real thing.</span>`;
+    // The texts, placed once the sketch is on the page.
+    const texts = v.off ? [] : intro ? lines.map((x, i) => ['words', x, i]).filter(([, , i]) => playing || i === moment) : [['line', v.line], ['url', url()]].filter(([, x]) => x);
+    texts.forEach(([t, text, i]) => {
+      const el = B(`<div class="bk-text ${st8.sel === t ? 'sel' : ''}" data-pick="${t}" tabindex="0" aria-label="${TEXTS[t].name}: drag to place"></div>`);
+      el.style.animation = intro ? `bk-l${i} ${len}s infinite both` : `bk-${t} ${len}s infinite both`;
+      sketch.appendChild(el); placeText(t, text, el);
+    });
+    sketch.querySelectorAll('[data-pick]').forEach((el) => (el.onpointerdown = (e) => drag(e, el.dataset.pick)));
+    // The foot: play, the length, and for the intro which moment to show.
+    root.querySelector('.bk-foot').innerHTML = `<button class="tl-play bk-play" aria-label="Play or pause">${playing ? '❚❚' : '▶'}</button><span class="lbl2">${intro ? 'Intro' : 'Outro'}</span><b>${v.off ? 'off' : len.toFixed(1) + ' s'}</b>
+      ${intro && n ? `<div class="seg bk-moments">${lines.map((_, i) => `<button data-m="${i}" class="${!playing && moment === i ? 'on' : ''}">Line ${i + 1}</button>`).join('')}${v.logo ? `<button data-m="${n}" class="${!playing && moment === n ? 'on' : ''}">Logo</button>` : ''}</div>` : ''}
+      <span class="hint" style="margin:0">Click a piece to style it; drag it to place it. Render for the real thing.</span>`;
     root.querySelector('.bk-play').onclick = () => { sketch.classList.toggle('still'); paint(); };
+    root.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => { st8.moment = +b.dataset.m; sketch.classList.add('still'); paint(); }));
   }
-  // The panel.
+  // Dragging a text or the logo moves it from its place, in percent of the
+  // frame, for this frame only.
+  function drag(e, what) {
+    e.preventDefault();
+    if (st8.sel !== what) { st8.sel = what; inspector(); }
+    const x0 = e.clientX, y0 = e.clientY;
+    const p0 = what === 'logo' ? { ...logoPlace() } : { ...placeOf(what) };
+    const mv = (ev) => {
+      const p = what === 'logo' ? ownLogoPlace() : ownPlace(what);
+      p.dx = Math.round(((p0.dx || 0) + ((ev.clientX - x0) / k / f.w) * 100) * 10) / 10;
+      p.dy = Math.round(((p0.dy || 0) + ((ev.clientY - y0) / k / f.h) * 100) * 10) / 10;
+      paint();
+    };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); save(); inspector(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }
+  // The panel: the whole intro or card, each text, the logo.
   function inspector() {
-    const v = get();
+    const v = read();
     side.innerHTML = '';
+    const tabs = intro ? [['intro', 'Intro'], ['words', 'Words'], ['logo', 'Logo']] : [['card', 'Card'], ['line', 'Line'], ['url', 'Address'], ['logo', 'Logo']];
+    const bar = B(`<div class="tl-choose" role="tablist">${tabs.map(([id, n]) => `<button data-tab="${id}" class="${st8.sel === id ? 'on' : ''}">${n}</button>`).join('')}</div>`);
+    bar.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { st8.sel = b.dataset.tab; inspector(); paint(); }));
+    side.appendChild(bar);
+    const sel = st8.sel;
+    if (sel === 'intro' || sel === 'card') return side.appendChild(wholePanel(v));
+    if (sel === 'logo') return side.appendChild(logoPanel(v));
+    return side.appendChild(textPanel(sel));
+  }
+  function wholePanel(v) {
+    const len = lenOf();
     const el = B(`<div class="tl-insp">
-      <div class="tl-ih"><span class="lbl2">${intro ? 'The intro' : 'The outro'}</span><b>${intro ? 'Opening logo' : 'End card'}</b></div>
-      <div class="tl-sec"><label class="tl-chk"><input type="checkbox" id="bkOn" ${v.off ? '' : 'checked'}> ${intro ? 'Open with the logo' : 'End on a card'}</label></div>
-      ${v.off ? '' : `<div class="tl-sec"><div class="lbl2">Logo</div><div class="seg">${logos.map((x) => `<button data-logo="${x}" class="${v.logo === x ? 'on' : ''}">${escB(x)}</button>`).join('')}${intro ? '' : `<button data-logo="" class="${v.logo ? '' : 'on'}">none</button>`}</div></div>
-      <div class="tl-sec"><div class="lbl2">Timing</div>${(() => { const min = intro ? 1.2 : 2, max = intro ? 6 : 8; return `<div class="tl-knob"><label for="bkLen">Length</label><input type="range" id="bkLen" min="${min}" max="${max}" step="0.1" value="${v.length || (intro ? 2.6 : 4.7)}"><output class="set">${(v.length || (intro ? 2.6 : 4.7)).toFixed(1)}s</output></div>`; })()}</div>
-      ${intro ? '' : `<div class="tl-sec"><div class="lbl2">Words</div><input class="input" id="bkLine" placeholder="A closing line" value="${escB(v.line || '')}"><input class="input" id="bkUrl" placeholder="${escB((catalogue && catalogue.url) || 'An address')} (the app's)" value="${escB(typeof v.url === 'string' ? v.url : '')}" style="margin-top:6px">
+      <div class="tl-ih"><span class="lbl2">${intro ? 'The intro' : 'The outro'}</span><b>${intro ? 'Before the first beat' : 'End card'}</b></div>
+      <div class="tl-sec"><label class="tl-chk"><input type="checkbox" id="bkOn" ${v.off ? '' : 'checked'}> ${intro ? 'Open the reel with an intro' : 'End on a card'}</label></div>
+      ${v.off ? '' : intro ? `
+      <div class="tl-sec bk-ai"><div class="lbl2">Ask the AI</div>
+        <textarea class="input" id="bkAsk" rows="3" placeholder="e.g. Open on the question every housemate asks, then the logo">${escB(st8.ask || '')}</textarea>
+        <button class="primary" id="bkWrite">Write the intro</button><span class="hint" id="bkNote" style="margin:0">${escB(st8.note || 'Claude writes the lines from your brief, the beats and the app’s own copy. You can change anything after.')}</span></div>
+      <div class="tl-sec"><div class="lbl2">Lines, one per line</div><textarea class="input" id="bkLines" rows="3" placeholder="Leave empty for just the logo. {Braces} take the accent.">${escB((v.lines || []).join('\n'))}</textarea>
+        <div class="seg">${[['words', 'Words'], ['letters', 'Letters'], ['typewriter', 'Typed'], ['fade', 'Fade']].map(([r, n]) => `<button data-rev="${r}" class="${(v.reveal || 'words') === r ? 'on' : ''}">${n}</button>`).join('')}</div></div>` : `
+      <div class="tl-sec"><div class="lbl2">Words</div><input class="input" id="bkLine" placeholder="A closing line" value="${escB(v.line || '')}">
+        <input class="input" id="bkUrl" placeholder="${escB((catalogue && catalogue.url) || 'An address')} (the app’s)" value="${escB(typeof v.url === 'string' ? v.url : '')}" style="margin-top:6px">
         <label class="tl-chk"><input type="checkbox" id="bkNoUrl" ${v.url === false || v.url === '' ? 'checked' : ''}> No address</label></div>
-      <div class="tl-sec"><label class="tl-chk"><input type="checkbox" id="bkFan" ${v.fan === false ? '' : 'checked'}> The reel's screens fan out behind it</label></div>`}`}
+      <div class="tl-sec"><div class="lbl2">Behind it</div><label class="tl-chk"><input type="checkbox" id="bkFan" ${v.fan === false ? '' : 'checked'}> The reel’s screens fan out behind it</label>
+        ${v.fan === false ? '' : `<div class="tl-knob"><label for="bkBlur">Blur</label><input type="range" id="bkBlur" min="0" max="4" step="0.1" value="${v.blur == null ? 1.6 : v.blur}"><output class="${v.blur != null ? 'set' : ''}">${(v.blur == null ? 1.6 : v.blur).toFixed(1)}</output></div>`}</div>`}
+      ${v.off ? '' : `<div class="tl-sec"><div class="lbl2">Timing</div><div class="tl-knob"><label for="bkLen">Length</label><input type="range" id="bkLen" min="1.2" max="${intro ? 10 : 8}" step="0.1" value="${len}"><output class="${v.length ? 'set' : ''}">${len.toFixed(1)}s</output></div>
+        ${v.length ? '<button id="bkLenAuto">Length by its lines</button>' : ''}</div>`}
     </div>`);
-    side.appendChild(el);
-    const set = (patch, again) => { put({ ...get(), ...patch }); paint(); if (again) inspector(); };
-    el.querySelector('#bkOn').onchange = (e) => set({ off: !e.target.checked }, true);
-    el.querySelectorAll('[data-logo]').forEach((b) => (b.onclick = () => set({ logo: b.dataset.logo || undefined }, true)));
-    const len = el.querySelector('#bkLen');
-    if (len) len.oninput = () => { len.nextElementSibling.textContent = (+len.value).toFixed(1) + 's'; set({ length: +len.value }); };
-    const line = el.querySelector('#bkLine'), url = el.querySelector('#bkUrl'), fan = el.querySelector('#bkFan');
-    if (line) line.oninput = () => set({ line: line.value || undefined });
-    if (url) url.oninput = () => set({ url: url.value || undefined });
-    const noUrl = el.querySelector('#bkNoUrl');
-    if (noUrl) noUrl.onchange = () => set({ url: noUrl.checked ? false : undefined }, true);
-    if (fan) fan.onchange = () => set({ fan: fan.checked });
+    el.querySelector('#bkOn').onchange = (e) => { const o = own(); if (e.target.checked) delete o.off; else o.off = true; changed(true); };
+    const q = (id) => el.querySelector(id);
+    if (q('#bkLines')) q('#bkLines').oninput = (e) => { own().lines = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (!own().lines.length) delete own().lines; changed(); };
+    if (q('#bkLines')) q('#bkLines').onchange = () => inspector();
+    el.querySelectorAll('[data-rev]').forEach((b) => (b.onclick = () => { own().reveal = b.dataset.rev; changed(true); }));
+    if (q('#bkLine')) q('#bkLine').oninput = (e) => { own().line = e.target.value || undefined; changed(); };
+    if (q('#bkUrl')) q('#bkUrl').oninput = (e) => { own().url = e.target.value || undefined; changed(); };
+    if (q('#bkNoUrl')) q('#bkNoUrl').onchange = (e) => { const o = own(); if (e.target.checked) o.url = false; else delete o.url; changed(true); };
+    if (q('#bkFan')) q('#bkFan').onchange = (e) => { const o = own(); if (e.target.checked) delete o.fan; else o.fan = false; changed(true); };
+    if (q('#bkBlur')) q('#bkBlur').oninput = (e) => { own().blur = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(1); e.target.nextElementSibling.classList.add('set'); changed(); };
+    if (q('#bkLen')) q('#bkLen').oninput = (e) => { own().length = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(1) + 's'; e.target.nextElementSibling.classList.add('set'); changed(); };
+    if (q('#bkLenAuto')) q('#bkLenAuto').onclick = () => { delete own().length; changed(true); };
+    if (q('#bkAsk')) q('#bkAsk').oninput = (e) => (st8.ask = e.target.value);
+    if (q('#bkWrite')) q('#bkWrite').onclick = async (e) => {
+      const b = e.target; b.disabled = true; b.textContent = 'Writing…'; q('#bkNote').textContent = 'Claude is writing the intro; it takes a little while.';
+      try {
+        const r = await fetch('/api/ai/intro', { method: 'POST', body: JSON.stringify({ spec, asks: st8.ask || '' }) }).then((x) => x.json());
+        if (!r.ok) throw new Error(r.error || 'No answer');
+        const d = r.intro, o = own();
+        o.lines = (d.lines || []).map((x) => `${x}`.trim()).filter(Boolean); if (!o.lines.length) delete o.lines;
+        if (d.logo === null || d.logo === 'none') o.logo = null; else if (logos.includes(d.logo)) o.logo = d.logo;
+        if (typeof d.length === 'number') o.length = Math.round(Math.max(1.2, Math.min(10, d.length)) * 10) / 10;
+        if (d.reveal) o.reveal = d.reveal === 'type' ? 'typewriter' : d.reveal;
+        delete o.off; st8.moment = 0; st8.note = d.note || 'Written. Change anything you like.';
+        changed(true);
+      } catch (err) { st8.note = 'It did not work: ' + err.message; inspector(); }
+    };
+    return el;
+  }
+  function logoPanel(v) {
+    const lp = logoPlace();
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">The logo</span><b>${v.logo ? escB(v.logo) : 'None'}</b></div>
+      <div class="tl-sec"><div class="seg">${logos.map((x) => `<button data-logo="${x}" class="${v.logo === x ? 'on' : ''}">${escB(x)}</button>`).join('')}<button data-logo="" class="${v.logo ? '' : 'on'}">none</button></div></div>
+      ${v.logo ? `<div class="tl-sec"><div class="lbl2">Size</div><div class="tl-knob"><label for="lgS">Size</label><input type="range" id="lgS" min="0.3" max="2.5" step="0.05" value="${v.logoScale || 1}"><output class="${v.logoScale ? 'set' : ''}">${(v.logoScale || 1).toFixed(2)}×</output></div></div>
+      <div class="tl-sec"><div class="lbl2"><span>Place · ${FRAMES[ed.frame][0]}</span><span>${lp.dx || lp.dy ? 'moved' : 'in the middle'}</span></div>
+        <div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="lgX" value="${lp.dx || 0}"><span class="lbl2">%</span><span class="lbl2">Y</span><input class="input tl-num" id="lgY" value="${lp.dy || 0}"><span class="lbl2">%</span></div>
+        <span class="hint" style="margin:0">Or drag the logo on the preview.</span>${lp.dx || lp.dy ? '<button id="lgBack">Back to the middle</button>' : ''}</div>` : ''}
+    </div>`);
+    el.querySelectorAll('[data-logo]').forEach((b) => (b.onclick = () => { own().logo = b.dataset.logo || null; changed(true); }));
+    const s2 = el.querySelector('#lgS'); if (s2) s2.oninput = () => { own().logoScale = +s2.value; s2.nextElementSibling.textContent = (+s2.value).toFixed(2) + '×'; s2.nextElementSibling.classList.add('set'); changed(); };
+    const xy = () => { const p = ownLogoPlace(), x = parseFloat(el.querySelector('#lgX').value), y = parseFloat(el.querySelector('#lgY').value); if (!isNaN(x)) p.dx = x; if (!isNaN(y)) p.dy = y; changed(); };
+    if (el.querySelector('#lgX')) { el.querySelector('#lgX').oninput = xy; el.querySelector('#lgY').oninput = xy; scrubbable(el.querySelector('#lgX'), 0.5, el.querySelector('#lgX').previousElementSibling); scrubbable(el.querySelector('#lgY'), 0.5, el.querySelector('#lgY').previousElementSibling); }
+    const back = el.querySelector('#lgBack'); if (back) back.onclick = () => { delete own().logoPlaces[ed.frame]; changed(true); };
+    return el;
+  }
+  function textPanel(t) {
+    const d = TEXTS[t], sty = styleOf(t), pl = placeOf(t);
+    const align = pl.pos ? POS_ALIGN(pl.pos) : d.align;
+    const curPos = (align[1] < -0.5 ? 't' : align[1] > 0.5 ? 'b' : 'm') + (align[0] < -0.5 ? 'l' : align[0] > 0.5 ? 'r' : 'c');
+    const swatches = (key, cur) => [BRAND.ink, BRAND.paper, BRAND.accent, '#FFFFFF', '#000000', '#FF6B00'].filter((c, j, a) => a.indexOf(c) === j)
+      .map((c) => `<button class="tl-sw ${cur.toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-sw="${key}" data-v="${c}" style="background:${c}" title="${c}"></button>`).join('') + `<input type="color" class="tl-cc" data-cc="${key}" value="${cur}" aria-label="Any ${key}">`;
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">${intro ? 'The intro’s words' : 'The ' + d.name.toLowerCase()}</span><b>${escB(intro ? (read().lines || [])[0] || 'No lines yet' : t === 'line' ? read().line || 'No line yet' : url() || 'No address')}</b></div>
+      <div class="tl-sec"><div class="lbl2">Colour</div><div class="tl-sws">${swatches('color', sty.color || d.color)}</div>${d.small ? '' : `<div class="lbl2">Accent · the {braced} part</div><div class="tl-sws">${swatches('accent', sty.accent || accentDefault)}</div>`}</div>
+      <div class="tl-sec"><div class="lbl2">Type</div>${knob('txS', 'Size', 10, 160, 1, sty.size || Math.round((d.size * 80) / f.size), 'n', sty.size != null)}
+        <div class="seg">${[[400, 'Regular'], [600, 'Semi'], [700, 'Bold'], [800, 'Extra'], [900, 'Black']].map(([w, n]) => `<button data-wt="${w}" class="${(sty.weight || d.weight) === w ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+      <div class="tl-sec"><div class="lbl2"><span>Place · ${FRAMES[ed.frame][0]}</span><span>${pl.pos || pl.dx || pl.dy || pl.width != null ? 'set by you' : 'the card’s own'}</span></div>
+        <div class="tl-place"><div class="tl-grid">${['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'].map((q) => `<button data-pos="${q}" class="${pl.pos === q ? 'on' : !pl.pos && curPos === q ? 'near' : ''}" aria-label="Anchor ${q}"></button>`).join('')}</div>
+          <div class="tl-col"><div class="tl-row2"><span class="lbl2">X</span><input class="input tl-num" id="txX" value="${pl.dx || 0}"><span class="lbl2">%</span></div><div class="tl-row2"><span class="lbl2">Y</span><input class="input tl-num" id="txY" value="${pl.dy || 0}"><span class="lbl2">%</span></div></div></div>
+        ${knob('txW', 'Width', 20, 100, 1, pl.width != null ? pl.width : Math.round(d.width * 100), 'pc', pl.width != null)}
+        <span class="hint" style="margin:0">Or drag it on the preview.</span>${pl.pos || pl.dx || pl.dy || pl.width != null ? '<button id="txBack">Back to the card’s own place</button>' : ''}</div>
+      <div class="tl-sec"><div class="lbl2">Plate</div><div class="seg">${[['none', 'None'], ['soft', 'Soft'], ['solid', 'Solid']].map(([p, n]) => `<button data-plate="${p}" class="${(sty.plate || 'none') === p ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+    </div>`);
+    const setS = (key, val, again) => { const o = ownStyle(t); if (val == null) delete o[key]; else o[key] = val; changed(again); };
+    el.querySelectorAll('[data-sw]').forEach((b) => (b.onclick = () => setS(b.dataset.sw, b.dataset.v, true)));
+    el.querySelectorAll('[data-cc]').forEach((i) => (i.oninput = () => setS(i.dataset.cc, i.value)));
+    const sz = el.querySelector('#txS'); sz.oninput = () => { sz.nextElementSibling.textContent = sz.value; sz.nextElementSibling.classList.add('set'); setS('size', +sz.value); };
+    el.querySelectorAll('[data-wt]').forEach((b) => (b.onclick = () => setS('weight', +b.dataset.wt, true)));
+    el.querySelectorAll('[data-pos]').forEach((b) => (b.onclick = () => { Object.assign(ownPlace(t), { pos: b.dataset.pos, dx: 0, dy: 0 }); changed(true); }));
+    const xy = () => { const p = ownPlace(t), x = parseFloat(el.querySelector('#txX').value), y = parseFloat(el.querySelector('#txY').value); if (!isNaN(x)) p.dx = x; if (!isNaN(y)) p.dy = y; changed(); };
+    el.querySelector('#txX').oninput = xy; el.querySelector('#txY').oninput = xy;
+    scrubbable(el.querySelector('#txX'), 0.1, el.querySelector('#txX').previousElementSibling);
+    scrubbable(el.querySelector('#txY'), 0.1, el.querySelector('#txY').previousElementSibling);
+    const wd = el.querySelector('#txW'); wd.oninput = () => { ownPlace(t).width = +wd.value; wd.nextElementSibling.textContent = wd.value + '%'; wd.nextElementSibling.classList.add('set'); changed(); };
+    const back = el.querySelector('#txBack'); if (back) back.onclick = () => { delete ownStyle(t).places[ed.frame]; changed(true); };
+    el.querySelectorAll('[data-plate]').forEach((b) => (b.onclick = () => setS('plate', b.dataset.plate === 'none' ? null : b.dataset.plate, true)));
+    return el;
   }
   root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
-  inspector(); paint();
+  inspector();
+  requestAnimationFrame(() => { fit(); paint(); });
   realRender(root, kind, () => JSON.stringify([spec.open, spec.end, spec.look, spec.ground, spec.beats.map((b) => [b.screen, !!b.skip])]));
-  requestAnimationFrame(fit);
   new ResizeObserver(() => fit()).observe(box);
   return root;
 }
