@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show PictureRecorder;
+import 'dart:ui' show Canvas, ImageByteFormat, Paint, PictureRecorder;
 
 import 'package:blaq_reel/blaq_reel.dart';
 import 'package:blaq_reel/packs.dart';
@@ -504,6 +504,106 @@ void main() {
       expect(paced.atVideo(8.s), 12.s);
     },
   );
+
+  testWidgets('Given pictures for the ground, the frame and the hand, when '
+      'rendered, then each is drawn where it was put', (tester) async {
+    final dir = Directory.systemTemp.createTempSync('blaq_media');
+    Future<String> png(String name, Color color, Size size) async {
+      final path = '${dir.path}/$name.png';
+      await tester.runAsync(() async {
+        final recorder = PictureRecorder();
+        Canvas(recorder).drawRect(Offset.zero & size, Paint()..color = color);
+        final image = await recorder.endRecording().toImage(
+          size.width.round(),
+          size.height.round(),
+        );
+        final bytes = await image.toByteData(format: ImageByteFormat.png);
+        File(path).writeAsBytesSync(bytes!.buffer.asUint8List());
+      });
+      return path;
+    }
+
+    final ground = await png(
+      'ground',
+      const Color(0xFFFF0000),
+      const Size(90, 160),
+    );
+    final sticker = await png(
+      'sticker',
+      const Color(0xFF0000FF),
+      const Size(40, 40),
+    );
+    final hand = await png('hand', const Color(0xFF00FF00), const Size(50, 70));
+    expect(ReelImage.sizeOf(hand), const Size(50, 70));
+    final reel = Reel(
+      name: 'media',
+      backdrop: Backdrop(
+        top: const Color(0xFF000000),
+        bottom: const Color(0xFF000000),
+        vignette: 0,
+        image: ground,
+      ),
+      format: const Format('small', Size(360, 640), pixelRatio: 1),
+      hand: TapHand(hand, tip: const Offset(0.5, 0), width: 60),
+      scenes: [
+        Scene(
+          name: 'one',
+          length: 2.s,
+          camera: Camera.still(const CameraPose(zoom: 0.5)),
+          media: [
+            Media(
+              image: sticker,
+              box: const Rect.fromLTWH(0.05, 0.05, 0.2, 0.1),
+              fit: BoxFit.fill,
+            ),
+          ],
+          layers: [
+            Layer.screen(
+              const Center(child: _Card('Go')),
+              taps: [Tap(where: Pick.type<_Card>(), at: 1.s)],
+            ),
+          ],
+        ),
+      ],
+    );
+    final r = ReelRenderer(tester, reel, host: host);
+    await r.mount();
+    for (var t = 0; t <= 1000; t += 100) {
+      await r.seek(Duration(milliseconds: t));
+    }
+    final image = await r.capture();
+    final rgba = (await tester.runAsync(
+      () => image.toByteData(format: ImageByteFormat.rawRgba),
+    ))!;
+    Color at(int x, int y) {
+      final i = (y * image.width + x) * 4;
+      return Color.fromARGB(
+        255,
+        rgba.getUint8(i),
+        rgba.getUint8(i + 1),
+        rgba.getUint8(i + 2),
+      );
+    }
+
+    // The ground in a corner the screen does not reach; the picture in its
+    // box; the hand's colour somewhere on the frame.
+    expect(at(350, 630).r, greaterThan(0.8));
+    expect(at(36, 50).b, greaterThan(0.8));
+    var green = false;
+    for (var y = 0; y < image.height && !green; y += 4) {
+      for (var x = 0; x < image.width; x += 4) {
+        final c = at(x, y);
+        if (c.g > 0.8 && c.r < 0.3 && c.b < 0.3) {
+          green = true;
+          break;
+        }
+      }
+    }
+    expect(green, isTrue);
+    image.dispose();
+    await r.close();
+    dir.deleteSync(recursive: true);
+  });
 
   test('Given a spec part with its own move, when read, then every setting '
       'comes through and the rest is left to the beat\'s move', () {

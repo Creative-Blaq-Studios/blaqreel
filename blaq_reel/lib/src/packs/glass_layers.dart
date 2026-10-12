@@ -9,6 +9,7 @@ import '../backdrop.dart';
 import '../camera.dart';
 import '../format.dart';
 import '../layer.dart';
+import '../media.dart';
 import '../motion.dart';
 import '../scene.dart';
 import '../time.dart';
@@ -94,6 +95,9 @@ class GlassBeat {
   /// scanned. A null (or a missing one) leaves that part to [move].
   final List<PartMove?> partMoves;
 
+  /// Pictures and clips set in the beat's frame.
+  final List<Media> media;
+
   /// A beat.
   const GlassBeat(
     this.word, {
@@ -114,6 +118,7 @@ class GlassBeat {
     this.sweep = false,
     this.move = GlassMove.lift,
     this.partMoves = const [],
+    this.media = const [],
     this.piece,
     this.words,
   });
@@ -159,6 +164,9 @@ class GlassEnd {
   /// animation alone.
   final bool logoZoom;
 
+  /// Pictures and clips set in the end card's frame.
+  final List<Media> media;
+
   /// An end card.
   const GlassEnd({
     required this.logo,
@@ -173,6 +181,7 @@ class GlassEnd {
     this.logoScale = 1,
     this.blur = 1.6,
     this.logoZoom = false,
+    this.media = const [],
   });
 }
 
@@ -223,6 +232,9 @@ class GlassLayers {
   /// than its own animation alone.
   final bool openLogoZoom;
 
+  /// Pictures and clips set in the opening's frame.
+  final List<Media> openMedia;
+
   /// How it ends. Null ends on the last beat.
   final GlassEnd? end;
 
@@ -272,6 +284,7 @@ class GlassLayers {
     this.openLogoOffset = Offset.zero,
     this.openLogoScale = 1,
     this.openLogoZoom = false,
+    this.openMedia = const [],
     this.end,
     this.hole,
     this.statusBar,
@@ -600,6 +613,7 @@ class GlassLayers {
     final wide = !format.isTall;
     return Scene(
       name: 'open',
+      media: openMedia,
       length: length,
       camera: Camera.tracks(zoom: Track.from(1).to(length, 1.08, Ease.linear)),
       layers: [
@@ -731,6 +745,7 @@ class GlassLayers {
     final highlight = beat.highlight ?? (beat.word.endsWith('.') ? '.' : null);
     return Scene(
       name: beat.word,
+      media: beat.media,
       length: l,
       camera: camera,
       backdrop: _override == null
@@ -981,6 +996,7 @@ class GlassLayers {
     final highlight = beat.highlight ?? (beat.word.endsWith('.') ? '.' : null);
     return Scene(
       name: beat.word,
+      media: beat.media,
       length: l,
       camera: Camera.tracks(
         tilt: Track.from(12).to(settle, 4, Ease.arrive).to(l, 7, Ease.linear),
@@ -1056,6 +1072,7 @@ class GlassLayers {
     final wide = !format.isTall;
     return Scene(
       name: 'end',
+      media: end.media,
       length: l,
       camera: Camera.tracks(
         zoom: Track.from(0.96).to(l, 1.04, Ease.linear),

@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'backdrop.dart';
 import 'camera.dart';
 import 'layer.dart';
+import 'media.dart';
 import 'reel.dart';
 import 'scene.dart';
 import 'time.dart';
@@ -818,14 +819,45 @@ class ReelStageState extends State<ReelStage> {
                     painter: BackdropPainter(widget.reel.backdrop, t),
                   ),
                 ),
+                ?_backdropImage(widget.reel.backdrop, t),
                 for (final span in widget.reel.timeline)
                   Positioned.fill(
                     key: ValueKey('scene ${span.index}'),
                     child: _scene(span, t),
                   ),
+                // Over the whole reel, on its clock.
+                for (final m in widget.reel.media) m.drawn(t, stage),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// [b]'s picture, if it has one: filling the frame, pushing in slowly,
+  /// dimmed toward the ground's own colour so what sits on it reads.
+  Widget? _backdropImage(Backdrop b, Duration t) {
+    final image = b.image;
+    if (image == null) return null;
+    final dim = b.imageDim.clamp(0.0, 1.0);
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Transform.scale(
+              // A slow push in and out, however long the reel runs.
+              scale: 1.04 + 0.025 * math.sin(secondsOf(t) * 0.25),
+              child: ReelImage(image),
+            ),
+            if (dim > 0)
+              ColoredBox(
+                color: (b.light ?? false ? b.top : b.bottom).withValues(
+                  alpha: dim,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -900,10 +932,16 @@ class ReelStageState extends State<ReelStage> {
           Positioned.fill(
             child: CustomPaint(painter: BackdropPainter(scene.backdrop!, t)),
           ),
-        // Words set behind the layers, then the layers, then the rest.
+        if (scene.backdrop != null) ?_backdropImage(scene.backdrop!, t),
+        // Pictures and words set behind the layers, then the layers, then
+        // the rest.
+        for (final m in scene.media)
+          if (m.behind) m.drawn(local, stage),
         for (final (k, words) in fitted.indexed)
           if (words.behind) _words(k, words, local, stage, safe, safeWidth),
         for (final (_, _, child) in world) child,
+        for (final m in scene.media)
+          if (!m.behind) m.drawn(local, stage),
         for (final (k, words) in fitted.indexed)
           if (!words.behind) _words(k, words, local, stage, safe, safeWidth),
       ],
@@ -1377,6 +1415,36 @@ class ReelStageState extends State<ReelStage> {
     final fade = progress(t, tap.at + 300.ms, tap.leaves, curve: Ease.leave);
     final ripple = progress(t, tap.at, tap.at + 550.ms, curve: Ease.out);
     final down = press * (1 - release);
+    final hand = widget.reel.hand;
+    if (hand != null) {
+      // The hand comes in from below and to the side, its fingertip on the
+      // point, and presses: it dips and shrinks a touch.
+      final size = ReelImage.sizeOf(hand.image);
+      final w = hand.width,
+          h = size == null ? w * 1.4 : w * size.height / size.width;
+      final from = Offset(60, 120) * (1 - arrive);
+      final s = 1 - 0.05 * down;
+      return Positioned(
+        left: point.dx - hand.tip.dx * w + from.dx,
+        top: point.dy - hand.tip.dy * h + from.dy + 4 * down,
+        width: w,
+        height: h,
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: (arrive * (1 - fade)).clamp(0, 1),
+            child: Transform.scale(
+              scale: s,
+              alignment: Alignment(hand.tip.dx * 2 - 1, hand.tip.dy * 2 - 1),
+              child: ReelImage(
+                hand.image,
+                fit: BoxFit.contain,
+                alignment: Alignment.topLeft,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     const size = 46.0;
     final scale = 1.25 - 0.25 * arrive - 0.14 * down;
     final drift = const Offset(26, 34) * (1 - arrive);

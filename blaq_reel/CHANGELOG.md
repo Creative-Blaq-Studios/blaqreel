@@ -63,6 +63,23 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- Media: pictures and clips in a reel. `Backdrop.image` (spec `"ground":
+  {"image", "dim", "light"}`) puts a picture behind everything, breathing
+  slowly; `Media` (spec `"media"` on a reel, beat, intro or end card) sets
+  a picture or a folder of frames in the frame, timed, in front of or behind
+  the screens, with a move (float, rise, drift, zoom, spin, pop);
+  `TapHand` (spec `"hand"`) does the taps with a hand picture, its fingertip
+  on the point. `ReelImage` reads and decodes pictures so they draw inside
+  the test's clock. `blaq_reel media frames <video>` turns a clip into
+  frames. For pictures an AI generates, or any the person has.
+- `blaq_reel clean`: clears out `app_reels/out/` (scratch previews, stills,
+  pages, thumbnails, stray files); `--finals` also removes older finished
+  videos, keeping the newest (`--keep`); `--dry-run` lists what would go.
+  The studio's Library has the same as **Clean up…**.
+- Where a render went: `render` prints each video's path and a link, and
+  `--reveal` shows it in Finder; the studio has **Reveal in Finder** and
+  **Open** on a rendered video, and the Preview step lists the reel's
+  finals with both.
 - Sound: `"sound": "all" | "effects" | "silent"` in a spec, chosen in
   Brief & style and in Preview's Export panel (Music & effects, Effects
   only, Silent). Silent renders with no audio track at all; "No music" had

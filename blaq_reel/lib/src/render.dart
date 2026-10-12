@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'audio.dart';
 import 'reel.dart';
+import 'media.dart';
 import 'scene.dart';
 import 'stage.dart';
 import 'time.dart';
@@ -114,6 +115,12 @@ class ReelRenderer {
       // The app's own clock moves a frame at a time too, so anything
       // animating inside a screen keeps pace with the reel.
       await tester.pump(step ?? clock.frame);
+      // A picture used for the first time decodes on the real clock, then
+      // the frame is drawn again with it.
+      if (ReelImage.hasPending) {
+        await tester.runAsync(ReelImage.decodePending);
+        await tester.pump(Duration.zero);
+      }
     } finally {
       debugDisableShadows = true;
     }

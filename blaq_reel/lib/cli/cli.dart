@@ -8,6 +8,7 @@ import 'package:yaml/yaml.dart';
 
 import '../src/sfx.dart';
 import 'ai.dart';
+import 'files.dart';
 import 'init.dart';
 import 'pages.dart';
 import 'project.dart';
@@ -31,7 +32,9 @@ Future<int> runCli(List<String> args) async {
         ..addCommand(_Map())
         ..addCommand(_Looks())
         ..addCommand(_Storyboard())
-        ..addCommand(_Inventory());
+        ..addCommand(_Inventory())
+        ..addCommand(_Clean())
+        ..addCommand(_Media());
   try {
     return await runner.run(args) ?? 0;
   } on UsageException catch (e) {
@@ -45,13 +48,7 @@ Future<int> runCli(List<String> args) async {
 
 String _formats(ArgResults r) => r['format'] as String? ?? '';
 
-Future<void> _open(String path) async {
-  if (Platform.isMacOS) {
-    await Process.run('open', [path]);
-  } else if (Platform.isLinux) {
-    await Process.run('xdg-open', [path]);
-  }
-}
+Future<void> _open(String path) => openFile(path);
 
 class _Init extends Command<int> {
   _Init() {
@@ -220,7 +217,13 @@ abstract class _ReelCommand extends Command<int> {
 
 class _Render extends _ReelCommand {
   _Render() {
-    argParser.addFlag('audio', defaultsTo: true, help: 'Mix the soundtrack.');
+    argParser
+      ..addFlag('audio', defaultsTo: true, help: 'Mix the soundtrack.')
+      ..addFlag(
+        'reveal',
+        negatable: false,
+        help: 'Show the video in Finder (or Explorer) when it is done.',
+      );
   }
 
   @override
@@ -238,6 +241,7 @@ class _Render extends _ReelCommand {
     final reel = reelName();
     final r = argResults!;
     stdout.writeln('Rendering $reel…');
+    final started = DateTime.now();
     final code = await project.renderTest({
       'BLAQ_REEL_TASK': 'video',
       'BLAQ_REEL_NAME': reel,
@@ -245,8 +249,25 @@ class _Render extends _ReelCommand {
       if (r['fps'] != null) 'BLAQ_REEL_FPS': r['fps'] as String,
       if (!(r['audio'] as bool)) 'BLAQ_REEL_AUDIO': 'off',
     });
-    if (code == 0 && r['open'] as bool) {
-      await _open('${project.out}/$reel.mp4');
+    if (code != 0) return code;
+    // Where each video landed: its path, and a link most terminals open.
+    final made = [
+      for (final f in Directory(project.out).listSync().whereType<File>())
+        if ((f.path.endsWith('/$reel.mp4') ||
+                RegExp(
+                  '/${RegExp.escape(reel)}-[a-z]+\\.mp4\$',
+                ).hasMatch(f.path)) &&
+            !f.lastModifiedSync().isBefore(started))
+          f,
+    ];
+    for (final f in made) {
+      stdout
+        ..writeln('  ✓ ${f.absolute.path}  (${readableSize(f.lengthSync())})')
+        ..writeln('    ${fileLink(f.path)}');
+    }
+    if (made.isNotEmpty) {
+      if (r['open'] as bool) await _open(made.first.path);
+      if (r['reveal'] as bool) await revealFile(made.first.path);
     }
     return code;
   }
@@ -703,6 +724,134 @@ class _Inventory extends Command<int> {
       );
     }
     stdout.writeln('${found.length} places → app_reels/inventory.json');
+    return 0;
+  }
+}
+
+class _Clean extends Command<int> {
+  _Clean() {
+    argParser
+      ..addFlag(
+        'finals',
+        negatable: false,
+        help: 'Also remove finished videos, all but the newest (see --keep).',
+      )
+      ..addOption(
+        'keep',
+        defaultsTo: '1',
+        help: 'With --finals, how many of the newest finals to keep.',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'List what would go; remove nothing.',
+      );
+  }
+
+  @override
+  String get name => 'clean';
+
+  @override
+  String get description =>
+      'Clear out app_reels/out/: previews of scratch reels, stills, pages, '
+      'thumbnails and stray files; with --finals, old finished videos too.';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final r = argResults!;
+    final keep = int.tryParse(r['keep'] as String) ?? 1;
+    final items = cleanPlan(project, finals: r['finals'] as bool, keep: keep);
+    if (items.isEmpty) {
+      stdout.writeln('Nothing to clean in ${project.out}.');
+      return 0;
+    }
+    final total = items.fold(0, (n, i) => n + i.bytes);
+    items.sort((a, b) => b.bytes.compareTo(a.bytes));
+    final root = '${project.root.path}/';
+    for (final i in items) {
+      stdout.writeln(
+        '  ${readableSize(i.bytes).padLeft(9)}  '
+        '${i.path.replaceFirst(root, '')}  · ${i.why}',
+      );
+    }
+    if (r['dry-run'] as bool) {
+      stdout.writeln('Would free ${readableSize(total)} (nothing removed).');
+      return 0;
+    }
+    final freed = cleanUp(items);
+    stdout.writeln('Freed ${readableSize(freed)}.');
+    return 0;
+  }
+}
+
+class _Media extends Command<int> {
+  _Media() {
+    addSubcommand(_MediaFrames());
+  }
+
+  @override
+  String get name => 'media';
+
+  @override
+  String get description =>
+      'Prepare pictures and clips for reels, in app_reels/media/.';
+}
+
+class _MediaFrames extends Command<int> {
+  _MediaFrames() {
+    argParser
+      ..addOption(
+        'name',
+        help:
+            'The folder under app_reels/media/; the video\'s name by default.',
+      )
+      ..addOption('fps', defaultsTo: '30', help: 'Frames per second to keep.')
+      ..addOption(
+        'width',
+        defaultsTo: '720',
+        help: 'Width in pixels; the height follows.',
+      );
+  }
+
+  @override
+  String get name => 'frames';
+
+  @override
+  String get description =>
+      'Turn a video (generated or filmed) into frames a reel can play: '
+      '"media": [{"frames": "app_reels/media/<name>", "fps": 30}].';
+
+  @override
+  String get invocation => 'blaq_reel media frames <video> [--name waves]';
+
+  @override
+  Future<int> run() async {
+    final project = Project.find();
+    final rest = argResults!.rest;
+    if (rest.isEmpty) throw UsageException('Which video?', usage);
+    final video = File(rest.first);
+    if (!video.existsSync()) throw CliError('No video at ${video.path}.');
+    final r = argResults!;
+    final stem = video.uri.pathSegments.last.split('.').first;
+    final name = (r['name'] as String?) ?? stem;
+    final dir = Directory('${project.reels}/media/$name')
+      ..createSync(recursive: true);
+    for (final f in dir.listSync().whereType<File>()) {
+      f.deleteSync();
+    }
+    final ffmpeg = project.ffmpeg;
+    final run = await Process.run(ffmpeg, [
+      '-y', '-loglevel', 'error', '-i', video.path, //
+      '-vf', 'fps=${r['fps']},scale=${r['width']}:-2',
+      '${dir.path}/frame-%04d.png',
+    ]);
+    if (run.exitCode != 0) throw CliError('FFmpeg failed: ${run.stderr}');
+    final n = dir.listSync().whereType<File>().length;
+    final rel = 'app_reels/media/$name';
+    stdout
+      ..writeln('  ✓ $n frames in $rel')
+      ..writeln('  Use it: "media": [{"frames": "$rel", "fps": ${r['fps']}}]');
     return 0;
   }
 }

@@ -16,6 +16,7 @@ export 'src/camera.dart';
 export 'src/format.dart';
 export 'src/ground.dart';
 export 'src/layer.dart';
+export 'src/media.dart';
 export 'src/motion.dart';
 export 'src/reel.dart';
 export 'src/render.dart';

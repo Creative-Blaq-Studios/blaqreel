@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'ai.dart';
 import 'claude_run.dart';
+import 'files.dart';
 import 'project.dart';
 import 'studio_page.dart';
 import 'worker.dart';
@@ -570,6 +571,7 @@ class Studio {
           final (r, fmt) = _parse(name);
           return {
             'file': name,
+            'path': f.absolute.path,
             'reel': r,
             'format': fmt,
             'bytes': f.lengthSync(),
@@ -776,6 +778,39 @@ class Studio {
             (q['looks'] ?? 'ink,mesh,butter,studio,grid').split(','),
           );
           _sendJson(req, {'ok': ok});
+        case '/api/reveal' || '/api/openfile' when req.method == 'POST':
+          // Only a file in the output folder, by its name.
+          final name = q['file'] ?? '';
+          final file = File('${project.out}/$name');
+          if (name.isEmpty || name.contains('/') || !file.existsSync()) {
+            _sendJson(req, {'ok': false, 'error': 'No such video'});
+          } else {
+            if (path == '/api/reveal') {
+              await revealFile(file.path);
+            } else {
+              await openFile(file.path);
+            }
+            _sendJson(req, {'ok': true, 'path': file.absolute.path});
+          }
+        case '/api/clean':
+          // GET: what would go; POST: clean it up.
+          final items = cleanPlan(
+            project,
+            finals: q['finals'] == '1',
+            keep: int.tryParse(q['keep'] ?? '') ?? 1,
+          );
+          final total = items.fold(0, (n, i) => n + i.bytes);
+          if (req.method == 'POST') {
+            final freed = cleanUp(items);
+            _library++;
+            _status = 'Cleaned up: freed ${readableSize(freed)}';
+            _sendJson(req, {'ok': true, 'freed': freed});
+          } else {
+            _sendJson(req, {
+              'items': [for (final i in items) i.toJson()],
+              'total': total,
+            });
+          }
         case '/api/library':
           _sendJson(req, {'reels': _reels(), 'videos': _videos()});
         case '/api/meta':

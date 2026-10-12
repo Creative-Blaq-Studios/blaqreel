@@ -93,6 +93,12 @@ textarea.input { min-height: 80px; resize: vertical; }
 /* The Preview step's theatre. */
 .th-top { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
 .th-top button { white-space: nowrap; }
+.pv-latest { display: flex; flex-direction: column; gap: 6px; }
+.pv-latest b { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text2); }
+.pv-file { display: flex; gap: 6px; align-items: center; }
+.pv-file span { flex: 1; min-width: 0; font: 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; flex-direction: column; }
+.pv-file i { font-style: normal; color: var(--text2); font-size: 10.5px; }
+.pv-file button { padding: 3px 8px; font-size: 10px; }
 .lenc { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lenc .lenc-n { width: 70px; padding: 5px 8px; text-align: right; font: 600 15px var(--mono); }
 .lenc .lenc-reset { padding: 4px 9px; font-size: 10.5px; }
@@ -1145,6 +1151,7 @@ function drawPreview(c, side) {
     <button class="primary" id="pvFinal"></button>
     <button id="pvAgain">Preview again</button>
     <span class="mono2" id="pvMeta"></span>
+    <div class="pv-latest" id="pvLatest"></div>
     <span class="hint" style="margin:0">Finals land in the Library, one per format. The reel is <code>app_reels/specs/${escB(spec.name)}.json</code>.</span></div>`);
   ex.querySelector('#pvSound').replaceWith(soundControl());
   side.appendChild(ex);
@@ -1170,6 +1177,18 @@ function previewState(st) {
   if (go) { go.disabled = !!rendering; go.textContent = rendering ? 'Rendering…' : 'Render the preview'; }
   const again = document.getElementById('pvAgain'); if (again) again.disabled = !!rendering;
   const p = st.preview, mine = p && p.name === spec.name && st.reel === spec.name && p.format === spec.format;
+  // This reel's finals, newest first: where they are, one click away.
+  const latest = document.getElementById('pvLatest');
+  if (latest && typeof library !== 'undefined') {
+    const mine = library.videos.filter((v) => v.reel === spec.name).slice(0, 4);
+    const key = mine.map((v) => v.file + v.modified).join('|');
+    if (latest.dataset.key !== key) {
+      latest.dataset.key = key;
+      latest.innerHTML = mine.length ? `<b>Finals</b>${mine.map((v) => `<div class="pv-file" title="${escB(v.path || v.file)}"><span>${escB(v.file)}<i>${(v.bytes / 1048576).toFixed(1)} MB · ${ago(v.modified)}</i></span><button data-reveal="${escB(v.file)}">Reveal</button><button data-open="${escB(v.file)}">Open</button></div>`).join('')}` : '';
+      latest.querySelectorAll('[data-reveal]').forEach((b) => (b.onclick = () => fetch(`/api/reveal?file=${encodeURIComponent(b.dataset.reveal)}`, { method: 'POST' })));
+      latest.querySelectorAll('[data-open]').forEach((b) => (b.onclick = () => fetch(`/api/openfile?file=${encodeURIComponent(b.dataset.open)}`, { method: 'POST' })));
+    }
+  }
   const meta = document.getElementById('pvMeta');
   if (meta) meta.textContent = mine ? `${p.format} ${p.width}×${p.height} · ${p.fps} fps · ${(+p.length).toFixed(1)} s${st.renderedAt ? ' · ' + new Date(st.renderedAt).toLocaleTimeString() : ''}` : 'No preview of this reel yet';
   area.style.aspectRatio = mine ? `${p.width} / ${p.height}` : spec.format === 'wide' ? '16 / 9' : spec.format === 'square' ? '1 / 1' : spec.format === 'portrait' ? '4 / 5' : '9 / 16';

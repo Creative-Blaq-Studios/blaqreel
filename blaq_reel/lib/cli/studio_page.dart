@@ -19,6 +19,15 @@ const _studioBase = r'''<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
+  .lib-clean { margin-left: auto; padding: 2px 8px; font-size: 10px; }
+  nav h2 { display: flex; align-items: center; gap: 6px; }
+  #cleanBox { border: 1px solid var(--line2); padding: 10px; margin: 6px 0 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+  #cleanBox .clean-opt { display: flex; gap: 6px; align-items: center; color: var(--text2); }
+  #cleanBox .clean-opt input[type=checkbox] { accent-color: var(--accent); }
+  #cleanBox #cleanKeep { width: 2.4em; background: var(--bg); color: var(--text); border: 1px solid var(--line2); padding: 1px 4px; }
+  #cleanBox details ul { margin: 6px 0 0; padding-left: 16px; max-height: 180px; overflow: auto; font: 11px var(--mono); }
+  #cleanBox details li span { color: var(--text2); }
+  #cleanBox .clean-row { display: flex; gap: 6px; }
   /*SCROLLBARS*/
   :root {
     color-scheme: dark;
@@ -188,12 +197,15 @@ const _studioBase = r'''<!doctype html>
   <button id="renderBtn" title="R — render the preview again">Re-render</button>
   <button class="primary" id="finalBtn" title="Render the finished video of this reel and format">Render final</button>
   <button id="stillBtn" title="S — save a still of this frame">Still</button>
+  <button id="revealBtn" hidden title="Show this video in Finder">Reveal in Finder</button>
+  <button id="openBtn" hidden title="Open this video in your player">Open</button>
 </header>
 <div id="jobBar" hidden><i></i></div>
 <main>
   <nav>
     <section>
-      <h2>Rendered videos <span id="videoCount"></span></h2>
+      <h2>Rendered videos <span id="videoCount"></span><button class="lib-clean" id="cleanBtn" title="Clear out working files and, if you like, old finals">Clean up…</button></h2>
+      <div id="cleanBox" hidden></div>
       <div id="videos"><div class="empty-note">None yet.</div></div>
     </section>
     <section>
@@ -365,6 +377,7 @@ function load(src, meta, keepTime) {
 
 function showLive(keepTime) {
   mode = 'live'; playingFile = null;
+  $('revealBtn').hidden = true; $('openBtn').hidden = true;
   $('mode').textContent = 'Live preview'; $('mode').className = 'mode';
   const p = state && state.preview;
   $('nowName').textContent = state ? state.reel : '—';
@@ -381,6 +394,11 @@ function showLive(keepTime) {
 
 async function showVideo(v) {
   mode = 'video'; playingFile = v.file;
+  // Where it is: shown in Finder, or opened in the player.
+  for (const [id, api] of [['revealBtn', 'reveal'], ['openBtn', 'openfile']]) {
+    const b = $(id); b.hidden = false; b.title = v.path || v.file;
+    b.onclick = () => fetch(`/api/${api}?file=${encodeURIComponent(v.file)}`, { method: 'POST' });
+  }
   $('mode').textContent = 'Rendered'; $('mode').className = 'mode final';
   $('nowName').textContent = v.file;
   const meta = await fetch(`/api/meta?reel=${encodeURIComponent(v.reel)}&format=${v.format}`).then((r) => r.json());
@@ -433,6 +451,26 @@ function drawLibrary() {
     b.onclick = () => showVideo(v);
     vids.appendChild(b);
   });
+}
+
+// Cleaning up: what would go and how much it frees, then on confirm.
+$('cleanBtn').onclick = (e) => { e.stopPropagation(); const box = $('cleanBox'); box.hidden = !box.hidden; if (!box.hidden) drawClean(); };
+async function drawClean() {
+  const box = $('cleanBox'), finals = box.dataset.finals === '1', keep = box.dataset.keep || '1';
+  box.innerHTML = '<div class="empty-note">Looking…</div>';
+  const plan = await fetch(`/api/clean?finals=${finals ? 1 : 0}&keep=${keep}`).then((r) => r.json());
+  const n = plan.items.length;
+  box.innerHTML = `<div class="clean-sum">${n ? `<b>${mb(plan.total)}</b> in ${n} item${n === 1 ? '' : 's'}: previews of scratch reels, stills, pages, thumbnails${finals ? ', older finals' : ''}.` : 'Nothing to clean.'}</div>
+    <label class="clean-opt"><input type="checkbox" id="cleanFinals" ${finals ? 'checked' : ''}> Also older finals, keeping the newest <input id="cleanKeep" value="${keep}" size="2"></label>
+    ${n ? `<details><summary>What goes</summary><ul>${plan.items.map((i) => `<li>${mb(i.bytes)} · ${esc(i.path.split('/app_reels/').pop())} <span>${esc(i.why)}</span></li>`).join('')}</ul></details>` : ''}
+    <div class="clean-row"><button class="primary" id="cleanGo" ${n ? '' : 'disabled'}>Clean up ${n ? mb(plan.total) : ''}</button><button id="cleanNo">Cancel</button></div>`;
+  $('cleanFinals').onchange = (e) => { box.dataset.finals = e.target.checked ? '1' : '0'; drawClean(); };
+  $('cleanKeep').onchange = (e) => { box.dataset.keep = String(Math.max(0, parseInt(e.target.value, 10) || 0)); drawClean(); };
+  $('cleanNo').onclick = () => (box.hidden = true);
+  $('cleanGo').onclick = async () => {
+    const r = await fetch(`/api/clean?finals=${finals ? 1 : 0}&keep=${keep}`, { method: 'POST' }).then((x) => x.json());
+    box.hidden = true; toast(`Freed ${mb(r.freed)}`); refreshLibrary();
+  };
 }
 
 // ?video=<file> opens the studio on that finished video.

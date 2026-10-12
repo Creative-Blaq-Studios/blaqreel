@@ -61,6 +61,14 @@ class Backdrop {
   /// pack's look.
   final bool? light;
 
+  /// A picture over the gradient, filling the frame and pushing in slowly:
+  /// a generated or photographed background. Relative to the app's folder.
+  final String? image;
+
+  /// How much the picture is darkened (or, on a light ground, lightened),
+  /// 0 to 1, so screens and words stand clear of it.
+  final double imageDim;
+
   /// A backdrop.
   const Backdrop({
     required this.top,
@@ -70,6 +78,8 @@ class Backdrop {
     this.floor,
     this.motion,
     this.light,
+    this.image,
+    this.imageDim = 0,
   });
 
   /// A plain [base] with one [glow] of light behind the middle.

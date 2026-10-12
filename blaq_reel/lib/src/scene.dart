@@ -7,6 +7,7 @@ import 'backdrop.dart';
 import 'camera.dart';
 import 'format.dart';
 import 'layer.dart';
+import 'media.dart';
 import 'time.dart';
 import 'words.dart';
 
@@ -35,6 +36,9 @@ class Scene {
   /// Sounds, at the scene's own times.
   final List<Cue> cues;
 
+  /// Pictures and clips set in the frame, on the scene's clock.
+  final List<Media> media;
+
   /// Playback speed over time on screen: below 1 is slow motion.
   final TimeWarp? speed;
 
@@ -47,6 +51,7 @@ class Scene {
     this.words = const [],
     this.backdrop,
     this.cues = const [],
+    this.media = const [],
     Track? speed,
   }) : speed = speed == null ? null : TimeWarp(speed);
 
@@ -334,6 +339,13 @@ class Reel {
   /// second while the beats between them speed up.
   final Set<String> steady;
 
+  /// Pictures and clips over the whole reel, on its clock as made: a
+  /// watermark, a texture, a sticker that stays.
+  final List<Media> media;
+
+  /// A hand that does the reel's taps, in place of the round fingertip.
+  final TapHand? hand;
+
   /// A reel.
   Reel({
     required this.name,
@@ -346,35 +358,40 @@ class Reel {
     this.motionBlur = 1,
     this.pace = 1,
     this.steady = const {},
+    this.media = const [],
+    this.hand,
   }) : assert(pace > 0);
 
-  /// This reel at [pace], [steady] scenes keeping their own speed.
-  Reel withPace(double pace, {Set<String>? steady}) => Reel(
+  /// This reel with some of its settings changed.
+  Reel copyWith({
+    Backdrop? backdrop,
+    Soundtrack? soundtrack,
+    double? pace,
+    Set<String>? steady,
+    List<Media>? media,
+    TapHand? hand,
+  }) => Reel(
     name: name,
-    backdrop: backdrop,
+    backdrop: backdrop ?? this.backdrop,
     scenes: scenes,
     format: format,
     fps: fps,
     transitions: transitions,
-    soundtrack: soundtrack,
+    soundtrack: soundtrack ?? this.soundtrack,
     motionBlur: motionBlur,
-    pace: pace,
+    pace: pace ?? this.pace,
     steady: steady ?? this.steady,
+    media: media ?? this.media,
+    hand: hand ?? this.hand,
   );
 
+  /// This reel at [pace], [steady] scenes keeping their own speed.
+  Reel withPace(double pace, {Set<String>? steady}) =>
+      copyWith(pace: pace, steady: steady);
+
   /// This reel with [soundtrack] in place of its own.
-  Reel withSoundtrack(Soundtrack soundtrack) => Reel(
-    name: name,
-    backdrop: backdrop,
-    scenes: scenes,
-    format: format,
-    fps: fps,
-    transitions: transitions,
-    soundtrack: soundtrack,
-    motionBlur: motionBlur,
-    pace: pace,
-    steady: steady,
-  );
+  Reel withSoundtrack(Soundtrack soundtrack) =>
+      copyWith(soundtrack: soundtrack);
 
   /// Where the steady scenes at the start end, and those at the end begin,
   /// on the reel's clock: the stretch between runs at the [pace].

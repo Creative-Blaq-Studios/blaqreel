@@ -8,6 +8,7 @@ import 'backdrop.dart';
 import 'format.dart';
 import 'ground.dart';
 import 'layer.dart';
+import 'media.dart';
 import 'packs/brand.dart';
 import 'packs/dark_glow.dart';
 import 'packs/glass_layers.dart';
@@ -157,6 +158,63 @@ class ReelSpec {
     return key == 'none' ? null : key;
   }
 
+  /// Pictures and clips: `"media": [{"image": "app_reels/media/sticker.png"
+  /// (or "frames": a folder, "fps"), "box": [left, top, width, height] in
+  /// percent of the frame, "at", "until" (seconds), "behind", "fit":
+  /// contain|cover|fill, "move": none|float|rise|drift|zoom|spin|pop,
+  /// "opacity"}]`.
+  static List<Media> _media(Object? v) {
+    if (v is! List) return const [];
+    double? n(Object? x) => x is num ? x.toDouble() : null;
+    Duration? secs(Object? x) =>
+        x is num ? Duration(milliseconds: (x * 1000).round()) : null;
+    return [
+      for (final m in v)
+        if (m is Map && (m['image'] is String || m['frames'] is String))
+          () {
+            final box = m['box'];
+            final b =
+                box is List && box.length == 4 && box.every((x) => x is num)
+                ? [for (final x in box) (x as num).toDouble() / 100]
+                : const [0.0, 0.0, 1.0, 1.0];
+            return Media(
+              image: m['image'] as String?,
+              frames: m['frames'] as String?,
+              fps: n(m['fps']) ?? 30,
+              box: Rect.fromLTWH(b[0], b[1], b[2], b[3]),
+              at: secs(m['at']),
+              until: secs(m['until']),
+              behind: m['behind'] == true,
+              fit: switch (m['fit']) {
+                'cover' => BoxFit.cover,
+                'fill' => BoxFit.fill,
+                _ => BoxFit.contain,
+              },
+              move: MediaMove.values.firstWhere(
+                (x) => x.name == m['move'],
+                orElse: () => MediaMove.none,
+              ),
+              opacity: (n(m['opacity']) ?? 1).clamp(0, 1),
+            );
+          }(),
+    ];
+  }
+
+  /// A hand for the taps: `"hand": {"image": "app_reels/media/hand.png",
+  /// "tip": [x, y] (where the fingertip is, in fractions of the picture),
+  /// "width"}`.
+  static TapHand? _hand(Object? v) {
+    if (v is! Map || v['image'] is! String) return null;
+    final tip = v['tip'];
+    return TapHand(
+      v['image']! as String,
+      tip: tip is List && tip.length == 2 && tip.every((x) => x is num)
+          ? Offset((tip[0] as num).toDouble(), (tip[1] as num).toDouble())
+          : const Offset(0.3, 0.05),
+      width: _num(v['width'], 200),
+    );
+  }
+
   /// Where a logo is moved to in [format]: `"logoPlaces": {"vertical":
   /// {"dx": 0, "dy": -5}}`, in percent of the frame.
   static Offset _logoAt(Map<String, Object?> j, Format format) {
@@ -299,29 +357,41 @@ class ReelSpec {
     if (v is! Map) return null;
     final j = v.cast<String, Object?>();
     final pal = (j['palette'] as Map?)?.cast<String, Object?>() ?? const {};
-    final top = _color(pal['top']), bottom = _color(pal['bottom']);
+    // A picture for a ground: "image", how much it is dimmed, whether it is
+    // light; the palette and pattern are optional with one.
+    final image = j['image'] is String ? j['image']! as String : null;
+    final light = pal['light'] == true || j['light'] == true;
+    final top =
+        _color(pal['top']) ??
+        (image == null
+            ? null
+            : (light ? const Color(0xFFF2F2F2) : const Color(0xFF0B0B0C)));
+    final bottom = _color(pal['bottom']) ?? top;
     if (top == null || bottom == null) return null;
     final colours = [
       for (final c in (pal['colours'] as List?) ?? const []) ?_color(c),
     ];
-    final light = pal['light'] == true;
     return Backdrop(
       top: top,
       bottom: bottom,
       vignette: light ? 0.12 : 0.45,
       light: light,
-      motion: GroundMotion(
-        pattern: GroundPattern.values.firstWhere(
-          (p) => p.name == j['pattern'],
-          orElse: () => GroundPattern.drift,
-        ),
-        colours: colours.isEmpty ? [top] : colours,
-        speed: j['speed'] is num ? (j['speed']! as num).toDouble() : 1,
-        seed: j['seed'] is num ? (j['seed']! as num).toInt() : 7,
-        bpm: j['beat'] is num ? (j['beat']! as num).toDouble() : null,
-        light: light,
-        grain: j['grain'] == true ? 0.6 : 0,
-      ),
+      image: image,
+      imageDim: _num(j['dim'], 0).clamp(0, 1),
+      motion: image != null && j['pattern'] == null
+          ? null
+          : GroundMotion(
+              pattern: GroundPattern.values.firstWhere(
+                (p) => p.name == j['pattern'],
+                orElse: () => GroundPattern.drift,
+              ),
+              colours: colours.isEmpty ? [top] : colours,
+              speed: j['speed'] is num ? (j['speed']! as num).toDouble() : 1,
+              seed: j['seed'] is num ? (j['seed']! as num).toInt() : 7,
+              bpm: j['beat'] is num ? (j['beat']! as num).toDouble() : null,
+              light: light,
+              grain: j['grain'] == true ? 0.6 : 0,
+            ),
     );
   }
 
@@ -427,6 +497,7 @@ class ReelSpec {
         words: _over(_words(b['words'], format), reelWords),
         ground: _ground(b['ground']),
         // Each part's own landing place, height, size, turn, timing, scan.
+        media: _media(b['media']),
         partMoves: [
           for (final p in (b['parts'] as List?) ?? const [])
             PartMove.fromJson((p as Map).cast<String, Object?>()),
@@ -457,6 +528,7 @@ class ReelSpec {
             url: _url(end, kit),
             length: _num(end['length'], 4.7).s,
             fan: end['fan'] != false,
+            media: _media(end['media']),
             lineWords: _words(end['lineWords'], format),
             urlWords: _words(end['urlWords'], format),
             logoOffset: _logoAt(end, format),
@@ -488,6 +560,9 @@ class ReelSpec {
         openLogoOffset: json['open'] is Map
             ? _logoAt((json['open']! as Map).cast(), format)
             : Offset.zero,
+        openMedia: json['open'] is Map
+            ? _media((json['open']! as Map)['media'])
+            : const [],
         openLogoScale: json['open'] is Map
             ? _num((json['open']! as Map)['logoScale'], 1)
             : 1,
@@ -573,6 +648,11 @@ class ReelSpec {
     };
     // How long it should run: every beat stays, every timing scales to fit
     // ("length", in seconds). Or a pace of its own ("pace").
+    // Pictures over the whole reel, and a hand for its taps.
+    final media = _media(json['media']), hand = _hand(json['hand']);
+    if (media.isNotEmpty || hand != null) {
+      reel = reel.copyWith(media: media, hand: hand);
+    }
     // What it sounds like: "sound": "all" (music and effects), "effects"
     // (no music), or "silent" (no audio at all).
     final sound = json['sound'];
