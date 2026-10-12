@@ -63,6 +63,10 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- Sound: `"sound": "all" | "effects" | "silent"` in a spec, chosen in
+  Brief & style and in Preview's Export panel (Music & effects, Effects
+  only, Silent). Silent renders with no audio track at all; "No music" had
+  left the effects (taps, ticks, whooshes) in. `Reel.withSoundtrack`.
 - Fixed: a beat rendered on its own took the reel's length as its own,
   so with a reel set to 60 s one 5.6 s beat played over a minute, in slow
   motion. It now plays at the speed the reel's beats play at; the editor's

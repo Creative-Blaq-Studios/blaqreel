@@ -550,6 +550,21 @@ const paceOf = () => {
   const fixed = introSecs() + outroSecs(), room = spec.length - fixed;
   return room > 0.5 ? (naturalLength() - fixed) / room : 4;
 };
+// What the reel sounds like: music and effects, effects alone, or nothing
+// ("sound" in the spec; "music": "none" is the older way to say effects).
+const soundOf = () => spec.sound === 'silent' ? 'silent' : spec.sound === 'effects' || spec.music === 'none' ? 'effects' : 'all';
+function soundControl(then) {
+  const el = B(`<div class="seg" role="radiogroup" aria-label="Sound">${[['all', 'Music & effects'], ['effects', 'Effects only'], ['silent', 'Silent']].map(([v, n]) => `<button data-snd="${v}" class="${soundOf() === v ? 'on' : ''}">${n}</button>`).join('')}</div>`);
+  el.querySelectorAll('[data-snd]').forEach((b) => (b.onclick = () => {
+    const v = b.dataset.snd;
+    if (v === 'all') { delete spec.sound; if (spec.music === 'none') delete spec.music; } else spec.sound = v;
+    save();
+    el.querySelectorAll('[data-snd]').forEach((x) => x.classList.toggle('on', x.dataset.snd === v));
+    if (then) then();
+  }));
+  return el;
+}
+
 function lengthControl() {
   const el = B(`<div class="lenc" title="How long the reel runs. Every beat stays; everything plays faster or slower to fit."><span class="lbl2">Length</span>
     <input class="input lenc-n" aria-label="Length in seconds"><span class="lbl2">s</span><button class="lenc-reset">As made</button><span class="mono2 lenc-info"></span></div>`);
@@ -715,8 +730,9 @@ function drawBrief(c, side) {
   const brief = B(`<div class="field"><label for="bBrief">What should it get across, and to whom?</label><textarea class="input" id="bBrief" placeholder="e.g. For couples who share bills: Khumio makes shared money easy, without the awkward chats.">${escB(spec.brief)}</textarea></div>`);
   brief.querySelector('textarea').oninput = (e) => { spec.brief = e.target.value; save(); };
   c.appendChild(brief);
-  const sound = B('<div class="field"><span>Sound</span><div class="seg"></div></div>');
-  [['Placeholder pad', null], ['No music', 'none']].forEach(([label, v]) => { const b = B(`<button class="${spec.music === v ? 'on' : ''}">${label}</button>`); b.onclick = () => change(() => (spec.music = v)); sound.querySelector('.seg').appendChild(b); });
+  const sound = B('<div class="field"><span>Sound</span></div>');
+  sound.appendChild(soundControl(() => draw()));
+  sound.appendChild(B('<span class="hint" style="margin:0">Effects are the taps, ticks and whooshes as things move. Silent renders with no audio track at all.</span>'));
   c.appendChild(sound);
   const who = B('<div class="field"><span>Who writes the story?</span><div class="cards"></div></div>');
   [['all', 'The AI, all of it', 'It picks the parts, the moves and the words for your screens (and the screens too, if you have not chosen any). You review and change anything.'],
@@ -1124,11 +1140,13 @@ function drawPreview(c, side) {
   const fmts = [['vertical', 'Vertical 9:16', 'Shorts · Reels · TikTok'], ['wide', 'Wide 16:9', 'YouTube · site'], ['square', 'Square 1:1', 'Feeds'], ['portrait', 'Portrait 4:5', 'Instagram feed']];
   const ex = B(`<div class="th-export"><div class="lbl2">Export</div>
     <div class="panel2"><b>Formats</b>${fmts.map(([id, n, w]) => `<label class="tl-chk"><input type="checkbox" data-fmt="${id}" ${id === spec.format ? 'checked' : ''}> ${n}<span class="mono2" style="margin-left:auto">${w}</span></label>`).join('')}</div>
+    <div class="panel2"><b>Sound</b><span id="pvSound"></span></div>
     <div class="panel2"><b>Quality</b><label class="tl-chk"><input type="radio" name="pvq" value="full" checked> Full · 1080p, motion blur</label><label class="tl-chk"><input type="radio" name="pvq" value="quick"> Quick · half size</label></div>
     <button class="primary" id="pvFinal"></button>
     <button id="pvAgain">Preview again</button>
     <span class="mono2" id="pvMeta"></span>
     <span class="hint" style="margin:0">Finals land in the Library, one per format. The reel is <code>app_reels/specs/${escB(spec.name)}.json</code>.</span></div>`);
+  ex.querySelector('#pvSound').replaceWith(soundControl());
   side.appendChild(ex);
   const count = () => ex.querySelectorAll('[data-fmt]:checked').length;
   const label = () => { const n = count(); ex.querySelector('#pvFinal').textContent = n ? `Render ${n} final${n === 1 ? '' : 's'} →` : 'Choose a format'; ex.querySelector('#pvFinal').disabled = !n; };

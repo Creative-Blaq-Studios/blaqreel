@@ -465,7 +465,7 @@ class ReelSpec {
             logoZoom: end['entrance'] == 'zoom',
           );
 
-    final reel = switch (_pack) {
+    var reel = switch (_pack) {
       'glass' => GlassLayers(
         ground: reelGround,
         brand: brand,
@@ -573,6 +573,20 @@ class ReelSpec {
     };
     // How long it should run: every beat stays, every timing scales to fit
     // ("length", in seconds). Or a pace of its own ("pace").
+    // What it sounds like: "sound": "all" (music and effects), "effects"
+    // (no music), or "silent" (no audio at all).
+    final sound = json['sound'];
+    if (sound == 'effects' || sound == 'silent') {
+      final t = reel.soundtrack;
+      reel = reel.withSoundtrack(
+        Soundtrack(
+          voice: sound == 'silent' ? const [] : t.voice,
+          cues: sound != 'silent' && t.cues,
+          cueGain: t.cueGain,
+          duck: t.duck,
+        ),
+      );
+    }
     // The intro and the end card keep the seconds they are given; the
     // beats between speed up or slow down to fit.
     final target = json['length'], pace = json['pace'];

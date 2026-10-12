@@ -362,6 +362,20 @@ class Reel {
     steady: steady ?? this.steady,
   );
 
+  /// This reel with [soundtrack] in place of its own.
+  Reel withSoundtrack(Soundtrack soundtrack) => Reel(
+    name: name,
+    backdrop: backdrop,
+    scenes: scenes,
+    format: format,
+    fps: fps,
+    transitions: transitions,
+    soundtrack: soundtrack,
+    motionBlur: motionBlur,
+    pace: pace,
+    steady: steady,
+  );
+
   /// Where the steady scenes at the start end, and those at the end begin,
   /// on the reel's clock: the stretch between runs at the [pace].
   late final (Duration, Duration) _paced = () {

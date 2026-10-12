@@ -109,6 +109,8 @@ Pick.key(ValueKey('x'))
 //   "end": {"logo", "line", "url" (false for none), "length", "fan", "off"};
 //   a beat's "skip": true leaves it out; "length": 30 runs the whole reel in
 //   30 s, every timing scaled to fit (it sets the pace).
+// Specs: "sound": "all" (default), "effects" (no music) or "silent" (no
+//   audio track at all).
 // Reel.pace / reel.withPace(1.25): the whole reel plays faster (or slower,
 //   below 1); every timing scales, music and voice keep their speed. Specs:
 //   "pace" at the top. reel.played(t) and reel.atVideo(t) convert clocks.
