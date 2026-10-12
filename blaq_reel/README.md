@@ -16,8 +16,17 @@ Khumio is the first app: `Khumio/khumio/app_reels/`.
 # pubspec.yaml
 dev_dependencies:
   blaq_reel:
-    path: ../../BlaqReel/blaq_reel   # or git, once it has a remote
+    git:
+      url: https://github.com/Creative-Blaq-Studios/blaqreel.git
+      path: blaq_reel
+      ref: main
+  # or, with a checkout beside the app:
+  #   path: ../../BlaqReel/blaq_reel
 ```
+
+The repository is private: the machine needs access to it (`gh auth login`).
+The Claude Code skill is in `skill/blaq-reel`; link it once per machine:
+`ln -s <checkout>/skill/blaq-reel ~/.claude/skills/blaq-reel`.
 
 ```bash
 dart run blaq_reel init      # app_reels/: reel.yaml, host.dart, a first reel, REELS.md
