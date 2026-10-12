@@ -63,6 +63,10 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- Fixed: a beat rendered on its own took the reel's length as its own,
+  so with a reel set to 60 s one 5.6 s beat played over a minute, in slow
+  motion. It now plays at the speed the reel's beats play at; the editor's
+  playhead stays within the beat, and its pace reads to two places.
 - The intro and the end card keep the seconds they are given: a reel's
   length (or pace) speeds the beats between them up or down to fit what is
   left (`Reel.steady`, `Reel.paceFor`). Housemates at 30 s with its 1.6 s

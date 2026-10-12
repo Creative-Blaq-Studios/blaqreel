@@ -536,7 +536,8 @@ function realRender(root, index, keyOf) {
     if (b && !ed.real && (b.state !== 'done' || ed.realKey === keyOf())) { ed.real = true; window.beatState(lastSt); return; }
     ed.real = true; ed.realKey = keyOf(); ed.playing = false;
     real.hidden = false; real.innerHTML = '<div class="rcard"><div class="rc-k">Asking for the render</div></div>';
-    await fetch('/api/beat', { method: 'POST', body: JSON.stringify({ spec, index, format: ed.frame }) });
+    // A beat alone plays at the speed the reel's beats play at.
+    await fetch('/api/beat', { method: 'POST', body: JSON.stringify({ spec, index, format: ed.frame, pace: paceOf() }) });
   };
   let realShown = '';
   window.beatState = (st) => {
@@ -1058,7 +1059,7 @@ function timelineEditor(beat, s, index, side, lead) {
     if (ow) { ow.hidden = !hits.length; ow.querySelector('span').textContent = hits.length ? `The words cover part ${hits.join(', ')}. Move them, give them a plate, or put them behind.` : ''; }
     // The timeline.
     root.querySelector('.tl-ph').style.left = (t / TL) * 100 + '%';
-    root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's' + (paceOf() !== 1 ? ` · ${paceOf()}×` : '');
+    root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's' + (Math.abs(paceOf() - 1) > 0.005 ? ` · ${paceOf().toFixed(2)}×` : '');
     const rv = realVideo();
     root.querySelector('.tl-play').textContent = (rv ? !rv.paused : ed.playing) ? '❚❚' : '▶';
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
@@ -1435,7 +1436,7 @@ function timelineEditor(beat, s, index, side, lead) {
     if (!alive) return;
     if (!root.isConnected) { alive = false; return; }
     const rv = realVideo();
-    if (rv) ed.t = rv.currentTime * 1000 * paceOf();
+    if (rv) ed.t = Math.min(l, rv.currentTime * 1000 * paceOf());
     // At the reel's pace, as the render plays it.
     else if (ed.playing) { ed.t += (now - last) * paceOf(); if (ed.t > l) ed.t = 0; }
     last = now; render();

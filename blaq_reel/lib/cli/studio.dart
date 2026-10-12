@@ -350,7 +350,12 @@ class Studio {
   /// in [format]: the real screens, so what the editor only sketches (text
   /// typed into a field, a tap) shows as it will. Written as the hidden
   /// spec `_beat` and rendered as a studio preview, `_beat-<format>.mp4`.
-  Future<void> beat(Map<String, Object?> spec, Object index, String format) {
+  Future<void> beat(
+    Map<String, Object?> spec,
+    Object index,
+    String format, {
+    double? pace,
+  }) {
     final beats = (spec['beats'] as List? ?? const []);
     // The opening or the end: the reel as it is, only that scene drawn.
     final bookend = index == 'intro' || index == 'outro';
@@ -396,6 +401,9 @@ class Studio {
                   ],
                   'music': 'none',
                   'flip': place.isOdd,
+                  // At the speed the beats play at in the whole reel: the
+                  // reel's length is for the whole reel, not this beat.
+                  'pace': ?pace,
                 }
                 // The beat alone: no opening, ending, story around it or music.
                 ..remove('name')
@@ -404,7 +412,8 @@ class Studio {
                 ..remove('hook')
                 ..remove('problem')
                 ..remove('meetLine')
-                ..remove('proof'));
+                ..remove('proof')
+                ..remove('length'));
         File('$_specs/_beat.json').writeAsStringSync(jsonEncode(one));
         final watch = Stopwatch()..start();
         final code = await _run({
@@ -795,6 +804,7 @@ class Studio {
                   ? (body['index']! as num).toInt()
                   : '${body['index']}',
               '${body['format'] ?? format}',
+              pace: (body['pace'] as num?)?.toDouble(),
             ),
           );
           _sendJson(req, {'ok': true});
