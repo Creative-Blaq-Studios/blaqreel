@@ -133,7 +133,8 @@ List<String> initReels(Project project, {bool force = false}) {
     'render_test.dart': _renderTest(s),
     'cuts/first.dart': _firstCut(s, first),
     'REELS.md': _guide(s),
-    '.gitignore': 'out/\nsound/\n',
+    // The studio's scratch reel: a beat, the intro or the outro on its own.
+    '.gitignore': 'out/\nsound/\nspecs/_beat.json\n',
     'music/.gitkeep': '',
     'voice/.gitkeep': '',
     'scenes/.gitkeep': '',

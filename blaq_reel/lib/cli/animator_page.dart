@@ -63,6 +63,18 @@ const animatorCss = r'''
 .tl-realbar button:hover, .tl-real > .tl-realx:hover { border-color: var(--accent); }
 .tl-realtag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #22C55E; }
 .tl-stale { font: 600 9.5px var(--mono); text-transform: uppercase; color: #FBBF24; }
+.bk { grid-template-rows: auto minmax(0, 1fr) auto; }
+.bk-sketch { position: absolute; inset: 0; pointer-events: none; }
+.bk-sketch.still * { animation: none !important; }
+.bk-sketch.still .bk-scr { opacity: .5; }
+.bk-play { padding: 3px 9px; }
+.bk-logo { position: absolute; transform: translate(-50%, -50%); object-fit: contain; }
+.bk-scr { position: absolute; width: 64px; filter: blur(1.5px); border-radius: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.3); transform-origin: 50% 0; }
+.bk-line { position: absolute; text-align: center; font-weight: 800; font-size: 31px; line-height: 1.1; letter-spacing: -0.02em; }
+.bk-url { position: absolute; left: 0; right: 0; text-align: center; font-weight: 600; font-size: 14px; }
+.bk-off { position: absolute; left: 10%; right: 10%; top: 45%; text-align: center; font: 600 14px var(--mono); color: var(--text2); background: rgba(8,8,8,.7); padding: 10px; }
+.bk-foot { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line2); }
+.bk-foot b { font: 600 12px var(--mono); }
 .tl-safetog { display: flex; gap: 5px; align-items: center; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .tl-safetog input { accent-color: var(--accent); margin: 0; }
 .tl-safe { border: 1px dashed rgba(120,120,120,.55); pointer-events: none; z-index: 300; }
@@ -501,11 +513,172 @@ function groundCss(look, w, h) {
   }
 }
 
+// Render, for a beat or the intro or outro ([index] a number, or 'intro' or
+// 'outro'): the render over the frame, progress while it renders, then the
+// clip until put away. It belongs to this one in this frame, and says so
+// when it has changed since ([keyOf] is what it is now).
+function realRender(root, index, keyOf) {
+  // The beat rendered for real, over the frame: progress while it renders,
+  // then the clip, until put away. It belongs to this beat in this frame,
+  // and says so when the beat has changed since.
+  const real = root.querySelector('.tl-real'), renderBtn = root.querySelector('#tlRender');
+  let lastSt = null;
+  const mineOf = (st) => { const b = st && st.beat; return b && b.reel === spec.name && b.index === index && b.format === ed.frame ? b : null; };
+  renderBtn.onclick = async () => {
+    // A render of the beat as it stands is shown; anything else renders.
+    const b = mineOf(lastSt);
+    if (b && !ed.real && (b.state !== 'done' || ed.realKey === keyOf())) { ed.real = true; window.beatState(lastSt); return; }
+    ed.real = true; ed.realKey = keyOf(); ed.playing = false;
+    real.hidden = false; real.innerHTML = '<div class="rcard"><div class="rc-k">Asking for the render</div></div>';
+    await fetch('/api/beat', { method: 'POST', body: JSON.stringify({ spec, index, format: ed.frame }) });
+  };
+  let realShown = '';
+  window.beatState = (st) => {
+    if (!root.isConnected) return;
+    lastSt = st;
+    const b = mineOf(st), mine = !!b;
+    renderBtn.textContent = mine && (b.state === 'queued' || b.state === 'rendering') ? '● Rendering…' : mine && !ed.real && (b.state !== 'done' || ed.realKey === keyOf()) ? '▶ Show render' : '▶ Render';
+    if (!ed.real || !mine) { real.hidden = true; realShown = ''; return; }
+    real.hidden = false;
+    if (b.state === 'queued' || b.state === 'rendering') {
+      const card = b.state === 'rendering' && /^Rendering/.test(st.job || '') ? renderCardHtml(st) : `<div class="rc-k">Waiting for ${escB(st.job || 'the renderer')}</div>`;
+      real.innerHTML = `<div class="rcard">${card}</div><button class="tl-realx" title="Back to the editor; the render goes on">✕</button>`;
+      realShown = '';
+    } else if (b.state === 'failed') {
+      real.innerHTML = `<div class="rcard"><div class="rc-k">It failed to render</div><div class="rc-phase">The log under Library says why.</div></div><button class="tl-realx">✕</button>`;
+      realShown = '';
+    } else if (realShown !== b.video) {
+      realShown = b.video;
+      real.innerHTML = `<video src="${b.video}" autoplay loop muted playsinline controls></video>
+        <div class="tl-realbar"><span class="tl-realtag" title="Rendered with the real screens, in ${b.seconds} s">Rendered</span><span class="tl-stale" hidden>Changed since</span><span style="flex:1"></span><button data-again>↻ Again</button><button class="tl-realx" title="Back to the editor">✕ Editor</button></div>`;
+      real.querySelector('[data-again]').onclick = () => renderBtn.click();
+    }
+    const stale = real.querySelector('.tl-stale');
+    if (stale) stale.hidden = ed.realKey === keyOf();
+    real.querySelectorAll('.tl-realx').forEach((x) => (x.onclick = () => { ed.real = false; real.hidden = true; realShown = ''; window.beatState(st); }));
+  };
+  if (typeof state !== 'undefined' && state) window.beatState(state);
+}
+
+// The intro and the outro: the reel's opening logo, and its end card (the
+// logo, a line, an address, the screens fanned behind). Sketched from the
+// logo as the catalogue drew it; Render shows them as they will be.
+function bookendEditor(kind, side, lead) {
+  stopAnimator();
+  if (!ed.frame) ed.frame = spec.format || 'vertical';
+  const intro = kind === 'intro';
+  const logos = Object.keys((catalogue && catalogue.logos) || { mark: {}, wordmark: {} });
+  // The spec's own shapes: "open": "mark" or {logo, length, off}; "end":
+  // {logo, line, url, length, fan, off}.
+  const get = () => {
+    if (intro) { const o = spec.open; return o && typeof o === 'object' ? { ...o } : { logo: o === false || o == null ? 'mark' : o, length: 2.6, off: o === false || o == null }; }
+    return { logo: 'wordmark', length: 4.7, fan: true, ...(spec.end || {}), off: !spec.end || !!spec.end.off };
+  };
+  const put = (v) => {
+    const clean = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== '' && x !== false));
+    if (intro) spec.open = v.off ? false : clean;
+    else spec.end = { ...clean, ...(v.fan === false ? { fan: false } : {}), ...(v.url === false ? { url: false } : {}), ...(v.off ? { off: true } : {}) };
+    save();
+  };
+  const f = layoutOf(ed.frame), look = spec.look, moving = spec.ground || null;
+  const light = moving ? !!moving.palette.light : LIGHT_LOOKS.includes(look);
+  const root = B(`<div class="tled bk">
+    <div class="tl-bar"><span style="flex:1"></span>
+      <button class="tl-render" id="tlRender" title="Render the ${intro ? 'intro' : 'outro'} with the real logo and screens">▶ Render</button></div>
+    <div class="tl-stagebox"><div class="tl-view"><select class="input tl-frame-pick" id="tlFrame" aria-label="Frame">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select></div>
+      <div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div></div></div>
+    <div class="bk-foot"></div>
+  </div>`);
+  if (lead) root.querySelector('.tl-bar').prepend(...lead);
+  const stage = root.querySelector('.tl-stage'), frameEl = root.querySelector('.tl-frame'), box = root.querySelector('.tl-stagebox');
+  stage.style.width = f.w + 'px'; stage.style.height = f.h + 'px'; stage.style.background = groundCss(look, f.w, f.h);
+  if (moving) {
+    const g = document.createElement('canvas'); g.className = 'tl-groundc';
+    g.width = Math.round(f.w * 0.75); g.height = Math.round(f.h * 0.75); g.style.width = f.w + 'px'; g.style.height = f.h + 'px';
+    stage.appendChild(g);
+    // Once on the page: the ground's blur needs the canvas attached.
+    requestAnimationFrame(() => paintGroundIn(g.getContext('2d'), g.width, g.height, 1, moving));
+  }
+  // Settled while being edited; Play runs it as the reel times it.
+  const sketch = B('<div class="bk-sketch still"></div>'); stage.appendChild(sketch);
+  let k = 1;
+  function fit() {
+    const W = box.clientWidth - 12, H = box.clientHeight - 12, view = root.querySelector('.tl-view');
+    k = Math.max(0.1, Math.min(W / f.w, H / f.h));
+    const above = (box.clientWidth - f.w * k) / 2 < view.offsetWidth + 16;
+    if (above) k = Math.max(0.1, Math.min(W / f.w, (H - 36) / f.h));
+    box.style.paddingTop = above ? '36px' : '0';
+    stage.style.transform = `scale(${k})`;
+    frameEl.style.width = f.w * k + 'px'; frameEl.style.height = f.h * k + 'px';
+  }
+  // The sketch: the logo arriving, and for the outro the screens, the line
+  // and the address, on the ground, timed as the reel times them.
+  function paint() {
+    const v = get(), len = Math.max(1.2, v.length || (intro ? 2.6 : 4.7));
+    const size = (catalogue && catalogue.logos && catalogue.logos[v.logo]) || { width: 220, height: 220 };
+    const tone = light ? 'ink' : 'paper', wide = f.w > f.h;
+    const pct = (sec) => Math.min(100, (sec / len) * 100).toFixed(1) + '%';
+    const css = intro
+      ? `@keyframes bk-logo { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6) rotate(10deg); filter: blur(10px) } ${pct(0.6)} { opacity: 1 } ${pct(1.4)} { transform: translate(-50%,-50%) scale(1) rotate(0); filter: blur(0) } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1.08) } }`
+      : `@keyframes bk-logo { 0%, ${pct(0.5)} { opacity: 0; transform: translate(-50%,-50%) scale(.85); filter: blur(8px) } ${pct(1.6)}, 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); filter: blur(0) } }
+         @keyframes bk-line { 0%, ${pct(1.5)} { opacity: 0; transform: translateY(14px) } ${pct(2.2)}, 100% { opacity: 1; transform: none } }
+         @keyframes bk-url { 0%, ${pct(2.2)} { opacity: 0 } ${pct(2.8)}, 100% { opacity: 1 } }
+         @keyframes bk-fan { 0%, ${pct(0.3)} { opacity: 0; transform: translateY(80px) } ${pct(1.5)}, 100% { opacity: .5; transform: none } }`;
+    const screens = intro || v.fan === false ? [] : spec.beats.filter((b) => !b.skip && !isComp(b.screen)).map((b) => screenOf(b.screen)).filter(Boolean);
+    // The app's address unless the card gives its own, or none.
+    const url = v.url === false || v.url === '' ? null : v.url || (catalogue && catalogue.url) || null;
+    const n = screens.length, logoY = f.h / 2 - f.h * (intro ? 0.02 : wide ? 0.08 : 0.06);
+    const ink = light ? BRAND.ink : BRAND.paper, fam = BRAND.fonts.display ? `'${BRAND.fonts.display}', ` : '';
+    sketch.innerHTML = `<style>${css}</style>
+      ${screens.map((sc, i) => `<img class="bk-scr" src="/catalogue/${sc.image}" style="left:${f.w / 2 + (i - (n - 1) / 2) * (wide ? f.w * 0.12 : 56) - 32}px;top:${f.h * (wide ? 0.86 : 0.78)}px;animation:bk-fan ${len}s ${0.09 * i}s infinite both">`).join('')}
+      ${v.logo && !v.off ? `<img class="bk-logo" src="/catalogue/logo-${v.logo}-${tone}.png" style="left:${f.w / 2}px;top:${logoY}px;width:${size.width}px;height:${size.height}px;animation:bk-logo ${len}s infinite both" alt="">` : ''}
+      ${!intro && v.line ? `<div class="bk-line" style="top:${f.h * (wide ? 0.555 : 0.495)}px;color:${ink};font-family:${fam}var(--display),sans-serif;width:${f.w * (wide ? 0.7 : 0.9)}px;left:${f.w * (wide ? 0.15 : 0.05)}px;animation:bk-line ${len}s infinite both">${escB(v.line)}</div>` : ''}
+      ${!intro && url ? `<div class="bk-url" style="top:${f.h * (wide ? 0.72 : 0.638)}px;font-family:${BRAND.fonts.text ? `'${BRAND.fonts.text}', ` : ''}var(--body, sans-serif);color:${light ? BRAND.ink : BRAND.accent};animation:bk-url ${len}s infinite both">${escB(url)}</div>` : ''}
+      ${v.off ? `<div class="bk-off">No ${intro ? 'intro' : 'outro'}: the reel ${intro ? 'opens on its first beat' : 'ends on its last beat'}</div>` : ''}`;
+    const still = sketch.classList.contains('still');
+    root.querySelector('.bk-foot').innerHTML = `<button class="tl-play bk-play" aria-label="Play or pause">${still ? '▶' : '❚❚'}</button><span class="lbl2">${intro ? 'Intro' : 'Outro'}</span><b>${v.off ? 'off' : len.toFixed(1) + ' s'}</b><span class="hint" style="margin:0">${intro ? 'Before the first beat; the first beat zooms through it.' : 'After the last beat; it rises in.'} The sketch uses the logo as the catalogue drew it. Render for the real thing.</span>`;
+    root.querySelector('.bk-play').onclick = () => { sketch.classList.toggle('still'); paint(); };
+  }
+  // The panel.
+  function inspector() {
+    const v = get();
+    side.innerHTML = '';
+    const el = B(`<div class="tl-insp">
+      <div class="tl-ih"><span class="lbl2">${intro ? 'The intro' : 'The outro'}</span><b>${intro ? 'Opening logo' : 'End card'}</b></div>
+      <div class="tl-sec"><label class="tl-chk"><input type="checkbox" id="bkOn" ${v.off ? '' : 'checked'}> ${intro ? 'Open with the logo' : 'End on a card'}</label></div>
+      ${v.off ? '' : `<div class="tl-sec"><div class="lbl2">Logo</div><div class="seg">${logos.map((x) => `<button data-logo="${x}" class="${v.logo === x ? 'on' : ''}">${escB(x)}</button>`).join('')}${intro ? '' : `<button data-logo="" class="${v.logo ? '' : 'on'}">none</button>`}</div></div>
+      <div class="tl-sec"><div class="lbl2">Timing</div>${(() => { const min = intro ? 1.2 : 2, max = intro ? 6 : 8; return `<div class="tl-knob"><label for="bkLen">Length</label><input type="range" id="bkLen" min="${min}" max="${max}" step="0.1" value="${v.length || (intro ? 2.6 : 4.7)}"><output class="set">${(v.length || (intro ? 2.6 : 4.7)).toFixed(1)}s</output></div>`; })()}</div>
+      ${intro ? '' : `<div class="tl-sec"><div class="lbl2">Words</div><input class="input" id="bkLine" placeholder="A closing line" value="${escB(v.line || '')}"><input class="input" id="bkUrl" placeholder="${escB((catalogue && catalogue.url) || 'An address')} (the app's)" value="${escB(typeof v.url === 'string' ? v.url : '')}" style="margin-top:6px">
+        <label class="tl-chk"><input type="checkbox" id="bkNoUrl" ${v.url === false || v.url === '' ? 'checked' : ''}> No address</label></div>
+      <div class="tl-sec"><label class="tl-chk"><input type="checkbox" id="bkFan" ${v.fan === false ? '' : 'checked'}> The reel's screens fan out behind it</label></div>`}`}
+    </div>`);
+    side.appendChild(el);
+    const set = (patch, again) => { put({ ...get(), ...patch }); paint(); if (again) inspector(); };
+    el.querySelector('#bkOn').onchange = (e) => set({ off: !e.target.checked }, true);
+    el.querySelectorAll('[data-logo]').forEach((b) => (b.onclick = () => set({ logo: b.dataset.logo || undefined }, true)));
+    const len = el.querySelector('#bkLen');
+    if (len) len.oninput = () => { len.nextElementSibling.textContent = (+len.value).toFixed(1) + 's'; set({ length: +len.value }); };
+    const line = el.querySelector('#bkLine'), url = el.querySelector('#bkUrl'), fan = el.querySelector('#bkFan');
+    if (line) line.oninput = () => set({ line: line.value || undefined });
+    if (url) url.oninput = () => set({ url: url.value || undefined });
+    const noUrl = el.querySelector('#bkNoUrl');
+    if (noUrl) noUrl.onchange = () => set({ url: noUrl.checked ? false : undefined }, true);
+    if (fan) fan.onchange = () => set({ fan: fan.checked });
+  }
+  root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
+  inspector(); paint();
+  realRender(root, kind, () => JSON.stringify([spec.open, spec.end, spec.look, spec.ground, spec.beats.map((b) => [b.screen, !!b.skip])]));
+  requestAnimationFrame(fit);
+  new ResizeObserver(() => fit()).observe(box);
+  return root;
+}
+
 function timelineEditor(beat, s, index, side, lead) {
   stopAnimator();
   if (ed.beat !== index) { ed.beat = index; ed.sel = beat.parts.length ? 0 : 'words'; ed.t = SETTLE + RISE + 600; ed.playing = true; }
   if (!ed.frame) ed.frame = spec.format || 'vertical';
-  const dir = index % 2 === 0 ? 1 : -1, l = (beat.length || 5.6) * 1000;
+  // Its swing, by its place among the beats that play.
+  const dir = spec.beats.slice(0, index).filter((b) => !b.skip).length % 2 === 0 ? 1 : -1, l = (beat.length || 5.6) * 1000;
   // The timeline runs a little past the beat, so its end can be dragged out.
   const TL = Math.ceil((Math.max(l, 4000) + 2000) / 1000) * 1000;
   const f = layoutOf(ed.frame);
@@ -530,7 +703,8 @@ function timelineEditor(beat, s, index, side, lead) {
 
     </div>
     <div class="tl-stagebox"><div class="tl-view"><select class="input tl-frame-pick" id="tlFrame" aria-label="Frame" title="The frame to preview in; each keeps its own placement of the words">${Object.entries(FRAMES).map(([id, [r, where]]) => `<option value="${id}" ${ed.frame === id ? 'selected' : ''} title="${where}">${r}${id === spec.format ? ' ★' : ''}</option>`).join('')}</select>
-      <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe</label></div><div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div></div></div>
+      <label class="tl-safetog" title="Show the safe zone: what the platform's buttons and captions cover. It shows by itself while you drag the words."><input type="checkbox" data-safe ${ed.safe ? 'checked' : ''}> Safe</label>
+      <label class="tl-safetog" title="Leave this beat out of the video; it stays here to bring back"><input type="checkbox" data-skip ${beat.skip ? 'checked' : ''}> Skip</label></div><div class="tl-frame"><div class="tl-stage"></div><div class="tl-real" hidden></div>${beat.skip ? '<div class="bk-off" style="z-index:350">Skipped: this beat is left out of the video</div>' : ''}</div></div>
     <div class="tl-time">
       <div class="tl-names"><div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div></div>
       <div class="tl-tracks"><div class="tl-ruler">${Array.from({ length: TL / 1000 }, (_, i) => `<span style="left:${(i * 1000 / TL) * 100}%">${i}s</span>`).join('')}<div class="tl-after" style="left:${(l / TL) * 100}%"></div></div><div class="tl-rows"></div><div class="tl-ph"></div></div>
@@ -1064,49 +1238,10 @@ function timelineEditor(beat, s, index, side, lead) {
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
   root.querySelector('[data-safe]').onchange = (e) => { ed.safe = e.target.checked; };
+  root.querySelector('[data-skip]').onchange = (e) => { if (e.target.checked) beat.skip = true; else delete beat.skip; save(); draw(); };
   root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); const rv = realVideo(); if (rv) rv.currentTime = ed.t / 1000 / paceOf(); };
 
-  // The beat rendered for real, over the frame: progress while it renders,
-  // then the clip, until put away. It belongs to this beat in this frame,
-  // and says so when the beat has changed since.
-  const real = root.querySelector('.tl-real'), renderBtn = root.querySelector('#tlRender');
-  const beatKey = () => JSON.stringify([spec.look, spec.ground, spec.words, beat]);
-  let lastSt = null;
-  const mineOf = (st) => { const b = st && st.beat; return b && b.reel === spec.name && b.index === index && b.format === ed.frame ? b : null; };
-  renderBtn.onclick = async () => {
-    // A render of the beat as it stands is shown; anything else renders.
-    const b = mineOf(lastSt);
-    if (b && !ed.real && (b.state !== 'done' || ed.realKey === beatKey())) { ed.real = true; window.beatState(lastSt); return; }
-    ed.real = true; ed.realKey = beatKey(); ed.playing = false;
-    real.hidden = false; real.innerHTML = '<div class="rcard"><div class="rc-k">Asking for the render</div></div>';
-    await fetch('/api/beat', { method: 'POST', body: JSON.stringify({ spec, index, format: ed.frame }) });
-  };
-  let realShown = '';
-  window.beatState = (st) => {
-    if (!root.isConnected) return;
-    lastSt = st;
-    const b = mineOf(st), mine = !!b;
-    renderBtn.textContent = mine && (b.state === 'queued' || b.state === 'rendering') ? '● Rendering…' : mine && !ed.real && (b.state !== 'done' || ed.realKey === beatKey()) ? '▶ Show render' : '▶ Render';
-    if (!ed.real || !mine) { real.hidden = true; realShown = ''; return; }
-    real.hidden = false;
-    if (b.state === 'queued' || b.state === 'rendering') {
-      const card = b.state === 'rendering' && /^Rendering beat/.test(st.job || '') ? renderCardHtml(st) : `<div class="rc-k">Waiting for ${escB(st.job || 'the renderer')}</div>`;
-      real.innerHTML = `<div class="rcard">${card}</div><button class="tl-realx" title="Back to the editor; the render goes on">✕</button>`;
-      realShown = '';
-    } else if (b.state === 'failed') {
-      real.innerHTML = `<div class="rcard"><div class="rc-k">The beat failed to render</div><div class="rc-phase">The log under Library says why.</div></div><button class="tl-realx">✕</button>`;
-      realShown = '';
-    } else if (realShown !== b.video) {
-      realShown = b.video;
-      real.innerHTML = `<video src="${b.video}" autoplay loop muted playsinline controls></video>
-        <div class="tl-realbar"><span class="tl-realtag" title="This beat rendered with the real screens, in ${b.seconds} s">Rendered</span><span class="tl-stale" hidden>Changed since</span><span style="flex:1"></span><button data-again>↻ Again</button><button class="tl-realx" title="Back to the editor">✕ Editor</button></div>`;
-      real.querySelector('[data-again]').onclick = () => renderBtn.click();
-    }
-    const stale = real.querySelector('.tl-stale');
-    if (stale) stale.hidden = ed.realKey === beatKey();
-    real.querySelectorAll('.tl-realx').forEach((x) => (x.onclick = () => { ed.real = false; real.hidden = true; realShown = ''; window.beatState(st); }));
-  };
-  if (typeof state !== 'undefined' && state) window.beatState(state);
+  realRender(root, index, () => JSON.stringify([spec.look, spec.ground, spec.words, beat]));
 
   let raf = 0, alive = true, last = performance.now();
   function tick(now) {

@@ -100,6 +100,9 @@ Pick.key(ValueKey('x'))
 //   into the field in a lifted part once it lands (or at `at`, from the
 //   beat's start), through the field's own formatters, so "186" in a money
 //   field shows R186.00; the lifted copy shows it.
+// Specs: "open": {"logo": "mark", "length": 1.6} (or "mark", or false);
+//   "end": {"logo", "line", "url" (false for none), "length", "fan", "off"};
+//   a beat's "skip": true leaves it out; "target" is the length last fitted.
 // Reel.pace / reel.withPace(1.25): the whole reel plays faster (or slower,
 //   below 1); every timing scales, music and voice keep their speed. Specs:
 //   "pace" at the top. reel.played(t) and reel.atVideo(t) convert clocks.

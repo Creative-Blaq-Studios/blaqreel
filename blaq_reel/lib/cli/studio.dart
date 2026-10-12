@@ -294,6 +294,8 @@ class Studio {
           'at': [
             for (final a in list(defines['BLAQ_REEL_AT'])) double.parse(a),
           ],
+          if (defines['BLAQ_REEL_SCENE'] != null)
+            'scene': defines['BLAQ_REEL_SCENE'],
           if (defines['BLAQ_REEL_FPS'] != null)
             'fps': int.parse(defines['BLAQ_REEL_FPS']!),
         }, onLine: onLine);
@@ -348,47 +350,69 @@ class Studio {
   /// in [format]: the real screens, so what the editor only sketches (text
   /// typed into a field, a tap) shows as it will. Written as the hidden
   /// spec `_beat` and rendered as a studio preview, `_beat-<format>.mp4`.
-  Future<void> beat(Map<String, Object?> spec, int index, String format) {
+  Future<void> beat(Map<String, Object?> spec, Object index, String format) {
     final beats = (spec['beats'] as List? ?? const []);
-    if (index < 0 || index >= beats.length) return Future.value();
-    final b = (beats[index] as Map).cast<String, Object?>();
+    // The opening or the end: the reel as it is, only that scene drawn.
+    final bookend = index == 'intro' || index == 'outro';
+    if (!bookend && (index is! int || index < 0 || index >= beats.length)) {
+      return Future.value();
+    }
+    final b = bookend
+        ? const <String, Object?>{}
+        : (beats[index as int] as Map).cast<String, Object?>();
+    final name = index == 'intro'
+        ? 'The intro'
+        : index == 'outro'
+        ? 'The outro'
+        : 'Beat ${(index as int) + 1} · ${b['word'] ?? ''}';
     final version = ((_beat?['version'] as int?) ?? 0) + 1;
     final about = {
       'reel': spec['name'],
       'index': index,
-      'word': b['word'],
+      'word': bookend ? name : b['word'],
       'format': format,
       'version': version,
     };
     _beat = {...about, 'state': 'queued'};
     return _serial(
-      'Rendering beat ${index + 1} · ${b['word'] ?? ''}',
+      'Rendering ${name.toLowerCase().startsWith('the') ? name.toLowerCase() : name}',
       () async {
         _beat = {...about, 'state': 'rendering'};
         Directory(_specs).createSync(recursive: true);
-        // The beat alone: no opening, ending, story around it or music.
-        final one =
-            {
-                ...spec,
-                'beats': [b],
-                'music': 'none',
-                // An odd beat swings the other way in its reel; alone, it
-                // still does.
-                'flip': index.isOdd,
-              }
-              ..remove('name')
-              ..remove('open')
-              ..remove('end')
-              ..remove('hook')
-              ..remove('problem')
-              ..remove('meetLine')
-              ..remove('proof');
+        // Where the beat plays among the beats that play: an odd one swings
+        // the other way in its reel, and alone it still does.
+        final place = bookend
+            ? 0
+            : beats
+                  .take(index as int)
+                  .where((x) => (x as Map)['skip'] != true)
+                  .length;
+        final one = bookend
+            ? ({...spec, 'music': 'none'}..remove('name'))
+            : ({
+                  ...spec,
+                  'beats': [
+                    {...b}..remove('skip'),
+                  ],
+                  'music': 'none',
+                  'flip': place.isOdd,
+                }
+                // The beat alone: no opening, ending, story around it or music.
+                ..remove('name')
+                ..remove('open')
+                ..remove('end')
+                ..remove('hook')
+                ..remove('problem')
+                ..remove('meetLine')
+                ..remove('proof'));
         File('$_specs/_beat.json').writeAsStringSync(jsonEncode(one));
         final watch = Stopwatch()..start();
         final code = await _run({
           'BLAQ_REEL_TASK': 'preview',
           'BLAQ_REEL_NAME': '_beat',
           'BLAQ_REEL_FORMATS': format,
+          if (index == 'intro') 'BLAQ_REEL_SCENE': 'open',
+          if (index == 'outro') 'BLAQ_REEL_SCENE': 'end',
         });
         _beat = {
           ...about,
@@ -398,8 +422,8 @@ class Studio {
           'rendered': DateTime.now().toIso8601String(),
         };
         _status = code == 0
-            ? 'Beat ${index + 1} rendered in ${watch.elapsed.inSeconds}s'
-            : 'The beat failed to render — see the log';
+            ? '$name rendered in ${watch.elapsed.inSeconds}s'
+            : '$name failed to render — see the log';
       },
     );
   }
@@ -749,7 +773,9 @@ class Studio {
           unawaited(
             beat(
               (body['spec']! as Map).cast<String, Object?>(),
-              (body['index'] as num?)?.toInt() ?? 0,
+              body['index'] is num
+                  ? (body['index']! as num).toInt()
+                  : '${body['index']}',
               '${body['format'] ?? format}',
             ),
           );

@@ -153,8 +153,33 @@ class ReelRenderer {
       _encode(path, scale: 1, crf: 15, preset: 'slow', audio: audio);
 
   /// A quick, smaller render for the studio: half size, faster encoding.
-  Future<void> preview(String path) =>
-      _encode(path, scale: 0.5, crf: 24, preset: 'veryfast', audio: true);
+  /// With [scene], only that scene (by name), without sound: a look at the
+  /// opening or the end on its own.
+  Future<void> preview(String path, {String? scene}) {
+    if (scene == null) {
+      return _encode(
+        path,
+        scale: 0.5,
+        crf: 24,
+        preset: 'veryfast',
+        audio: true,
+      );
+    }
+    final span = reel.timeline.firstWhere(
+      (s) => s.scene.name == scene,
+      orElse: () =>
+          throw ArgumentError.value(scene, 'scene', 'not in the reel'),
+    );
+    return _encode(
+      path,
+      scale: 0.5,
+      crf: 24,
+      preset: 'veryfast',
+      audio: false,
+      from: reel.played(span.start),
+      to: reel.played(span.end),
+    );
+  }
 
   Future<void> _encode(
     String path, {
@@ -162,15 +187,19 @@ class ReelRenderer {
     required int crf,
     required String preset,
     required bool audio,
+    Duration from = Duration.zero,
+    Duration? to,
   }) async {
     final blur = reel.motionBlur < 1 ? 1 : reel.motionBlur;
     // Even sizes: H.264 in 4:2:0 needs them.
     final w = (reel.format.pixels.width * scale / 2).round() * 2;
     final h = (reel.format.pixels.height * scale / 2).round() * 2;
     // At a pace, each frame moves the reel's clock that much further.
-    final frames = clock.frames(reel.playedLength) * blur;
     final step = Duration(microseconds: (1e6 / (fps * blur)).round());
     final reelStep = reel.atVideo(step);
+    // A stretch of it, from [from] to [to] in the video.
+    final first = clock.frames(from) * blur;
+    final frames = clock.frames(to ?? reel.playedLength) * blur - first;
     File(path).parent.createSync(recursive: true);
     final silent = audio ? '$path.silent.mp4' : path;
 
@@ -212,7 +241,7 @@ class ReelRenderer {
 
     final watch = Stopwatch()..start();
     for (var n = 0; n < frames; n++) {
-      await seek(reel.atVideo(step * n), step: reelStep);
+      await seek(reel.atVideo(step * (first + n)), step: reelStep);
       final image = await capture(scale: w / reel.format.pixels.width);
       await tester.runAsync(() async {
         final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);

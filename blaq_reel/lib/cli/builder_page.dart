@@ -92,7 +92,18 @@ textarea.input { min-height: 80px; resize: vertical; }
 .canvas.fixed > button { align-self: flex-start; }
 /* The Preview step's theatre. */
 .th-top { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
-.th-top .primary { white-space: nowrap; }
+.th-top button { white-space: nowrap; }
+.plan { display: flex; flex-direction: column; gap: 10px; }
+.plan-t { display: flex; gap: 6px; align-items: center; }
+.plan-t .input { width: 64px; font: 600 16px var(--mono); text-align: right; padding: 6px 8px; }
+.plan-t .seg button { padding: 5px 9px; font: 600 11px var(--mono); }
+.plan-now { color: var(--text2); font-size: 13px; }
+.plan-steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.plan-steps .warn { color: var(--warn); }
+.plan-res { font: 900 28px var(--display, Outfit), sans-serif; color: var(--accent); }
+.plan-res.bad { color: var(--bad, #EF4444); font-size: 18px; }
+.plan-beats { display: flex; flex-direction: column; gap: 2px; max-height: 38vh; overflow-y: auto; border: 1px solid var(--line2); padding: 6px 8px; }
+.plan-beats .tl-chk { font-size: 13px; }
 .pace { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pace .seg button { padding: 5px 9px; font: 600 11px var(--mono); }
 .pace .pace-n { width: 58px; padding: 5px 8px; text-align: right; font: 600 12px var(--mono); }
@@ -397,7 +408,9 @@ document.addEventListener('keydown', (e) => {
   if (!document.body.classList.contains('building') || !spec) return;
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
   if ((e.key === '[' || e.key === ']') && spec.beats.length && (step === 'parts' || step === 'story')) {
-    const to = clampBeat(beatIndex + (e.key === ']' ? 1 : -1));
+    const by = beatIndex + (e.key === ']' ? 1 : -1);
+    // In Parts the intro and outro sit either side of the beats.
+    const to = step === 'parts' ? Math.max(-1, Math.min(spec.beats.length, by)) : clampBeat(by);
     if (to !== beatIndex) { beatIndex = to; draw(); }
   } else if (e.code === 'Space' && step === 'parts' && document.querySelector('.tled')) { e.preventDefault(); togglePlay(); }
 });
@@ -531,6 +544,110 @@ function designedLength() {
   const p = typeof state !== 'undefined' && state && state.preview;
   return p && state.reel === spec.name && p.length ? p.length * (p.pace || 1) : null;
 }
+// ── Fitting the reel to a length ──
+// The reel's length as the renderer lays it out: the intro, the beats and
+// the outro, less the transitions they overlap by, at the pace.
+const FIT = { open: 0.8, swing: 0.9, end: 0.9, intro: [1.6, 2.6], outro: [3.0, 4.7], beat: 5.6, pace: 1.2 };
+const introOn = () => { const o = spec.open; return !(o === false || o == null || (typeof o === 'object' && o.off)); };
+const outroOn = () => !!spec.end && !spec.end.off;
+const introLen = () => (spec.open && typeof spec.open === 'object' && spec.open.length) || FIT.intro[1];
+const outroLen = () => (spec.end && spec.end.length) || FIT.outro[1];
+// The shortest a beat can run and still do what it does: its parts land,
+// anything typed is typed, and its words are up long enough to read.
+function shortestBeat(i) {
+  const b = spec.beats[i];
+  if (isComp(b.screen)) return 4.0;
+  const parts = b.parts.slice(0, 6);
+  if (!parts.length) return 3.4;
+  let last = 0;
+  parts.forEach((_, k) => { const p = partPlan(b, k, parts.length, 1); last = Math.max(last, p.end, p.typing ? p.typing.end : 0); });
+  return Math.ceil(Math.max(5.0, last / 1000 + 0.8) * 10) / 10;
+}
+const naturalBeat = (i) => Math.max(spec.beats[i].length || FIT.beat, FIT.beat);
+// Seconds of video for the beats [keep], each between its shortest (a = 0)
+// and its natural length (a = 1), at pace [p].
+function lengthOf(keep, a, p) {
+  const mid = (lo, hi) => lo + a * (Math.max(lo, hi) - lo);
+  let l = 0;
+  keep.forEach((i) => (l += mid(shortestBeat(i), naturalBeat(i))));
+  if (introOn()) l += mid(FIT.intro[0], Math.max(introLen(), FIT.intro[1])) - FIT.open;
+  if (outroOn()) l += mid(FIT.outro[0], Math.max(outroLen(), FIT.outro[1])) - FIT.end;
+  return (l - FIT.swing * Math.max(0, keep.length - 1)) / p;
+}
+// As an editor would: trim toward what each beat needs, then a gentle
+// pace; past that, not every beat fits.
+function planFor(target, keep) {
+  const l0 = lengthOf(keep, 0, 1), l1 = lengthOf(keep, 1, 1);
+  if (l1 <= target) return { a: 1, pace: 1, fits: true, length: l1 };
+  if (l0 <= target) return { a: (target - l0) / (l1 - l0), pace: 1, fits: true, length: target };
+  const pace = Math.ceil((l0 / target) * 100) / 100;
+  if (pace <= FIT.pace) return { a: 0, pace, fits: true, length: l0 / pace };
+  return { a: 0, pace: FIT.pace, fits: false, length: l0 / FIT.pace };
+}
+// Which beats to keep when not all fit: leave out first the ones that lift
+// nothing and a screen shown twice, then keep beats spread evenly through
+// the reel, so it still starts, travels and ends as it did.
+function suggestKeep(target) {
+  const all = spec.beats.map((_, i) => i);
+  if (planFor(target, all).fits) return all;
+  const seen = new Set(), dupes = new Set();
+  all.forEach((i) => { const sc = spec.beats[i].screen; if (seen.has(sc)) dupes.add(i); seen.add(sc); });
+  let pool = all.filter((i) => (spec.beats[i].parts.length || isComp(spec.beats[i].screen)) && !dupes.has(i));
+  if (!pool.length) pool = all;
+  for (let k = pool.length; k >= 1; k--) {
+    const keep = [...new Set(Array.from({ length: k }, (_, j) => pool[k === 1 ? 0 : Math.round((j * (pool.length - 1)) / (k - 1))]))];
+    if (planFor(target, keep).fits) return keep;
+  }
+  return [pool[0]];
+}
+function applyPlan(target, keep, plan) {
+  const r = (v) => Math.round(v * 10) / 10, mid = (lo, hi) => r(lo + plan.a * (Math.max(lo, hi) - lo));
+  spec.beats.forEach((b, i) => {
+    if (keep.includes(i)) { delete b.skip; b.length = mid(shortestBeat(i), naturalBeat(i)); } else b.skip = true;
+  });
+  if (introOn()) spec.open = { ...(typeof spec.open === 'object' ? spec.open : { logo: spec.open }), length: mid(FIT.intro[0], Math.max(introLen(), FIT.intro[1])) };
+  if (outroOn()) spec.end = { ...spec.end, length: mid(FIT.outro[0], Math.max(outroLen(), FIT.outro[1])) };
+  if (plan.pace === 1) delete spec.pace; else spec.pace = plan.pace;
+  spec.target = target;
+  save();
+}
+// The plan, in the side panel: the length to aim for, what it takes, and
+// which beats to keep when not all fit.
+let planOpen = false;
+function planPanel(side) {
+  let target = spec.target || 30, keep = null;
+  const el = B(`<div class="plan"><div class="lbl2">Fit to a length</div>
+    <div class="plan-t"><input class="input" id="plT" value="${target}"><span>s</span><div class="seg">${[15, 30, 45, 60].map((t) => `<button data-t="${t}">${t}</button>`).join('')}</div></div>
+    <div class="plan-body"></div>
+    <div class="row2"><button class="primary" id="plGo">Apply</button><button id="plNo">Cancel</button></div></div>`);
+  side.innerHTML = ''; side.appendChild(el);
+  const body = el.querySelector('.plan-body');
+  const now = () => lengthOf(spec.beats.map((_, i) => i).filter((i) => !spec.beats[i].skip), 1, 1) / (spec.pace || 1);
+  function show() {
+    if (!keep) keep = suggestKeep(target);
+    const plan = planFor(target, keep), all = spec.beats.length;
+    const lens = keep.map(shortestBeat), lo = Math.min(...lens), r1 = (v) => v.toFixed(1);
+    body.innerHTML = `<div class="plan-now">Now about <b>${r1(now())} s</b> · ${spec.beats.filter((b) => !b.skip).length} beats${spec.pace && spec.pace !== 1 ? ' · pace ' + spec.pace + '×' : ''}</div>
+      <ol class="plan-steps">
+        <li>${plan.a >= 1 ? 'Beats keep their length' : `Beats trimmed toward what their moves need (${r1(lo)} s at the least)`}</li>
+        ${introOn() || outroOn() ? `<li>${[introOn() ? 'Intro ' + r1(FIT.intro[0] + plan.a * (Math.max(introLen(), FIT.intro[1]) - FIT.intro[0])) + ' s' : '', outroOn() ? 'Outro ' + r1(FIT.outro[0] + plan.a * (Math.max(outroLen(), FIT.outro[1]) - FIT.outro[0])) + ' s' : ''].filter(Boolean).join(' · ')}</li>` : ''}
+        <li>${plan.pace === 1 ? 'Played at its own pace' : `Played a little faster: ${plan.pace}×`}</li>
+        <li class="${keep.length < all ? 'warn' : ''}">${keep.length < all ? `${keep.length} of ${all} beats fit; the rest are skipped, not deleted` : 'Every beat stays'}</li>
+      </ol>
+      <div class="plan-res ${plan.fits ? '' : 'bad'}">${plan.fits ? `≈ ${r1(plan.length)} s` : `Still ≈ ${r1(plan.length)} s: keep fewer beats`}</div>
+      <div class="lbl2" style="margin-top:6px">Beats to keep</div>
+      <div class="plan-beats">${spec.beats.map((b, i) => { const sc = screenOf(b.screen); return `<label class="tl-chk"><input type="checkbox" data-k="${i}" ${keep.includes(i) ? 'checked' : ''}> <span>${i + 1} · ${escB(b.word || (sc ? sc.label : b.screen))}</span><span class="mono2" style="margin-left:auto">${shortestBeat(i).toFixed(1)}s+</span></label>`; }).join('')}</div>`;
+    body.querySelectorAll('[data-k]').forEach((c) => (c.onchange = () => { const i = +c.dataset.k; keep = c.checked ? [...keep, i].sort((a, b) => a - b) : keep.filter((x) => x !== i); show(); }));
+    el.querySelector('#plGo').disabled = !keep.length;
+  }
+  const setT = (v) => { if (!(v > 3)) return; target = v; keep = null; el.querySelector('#plT').value = v; show(); };
+  el.querySelector('#plT').onchange = (e) => setT(parseFloat(e.target.value));
+  el.querySelectorAll('[data-t]').forEach((b) => (b.onclick = () => setT(+b.dataset.t)));
+  el.querySelector('#plGo').onclick = () => { applyPlan(target, keep, planFor(target, keep)); planOpen = false; draw(); };
+  el.querySelector('#plNo').onclick = () => { planOpen = false; draw(); };
+  show();
+}
+
 function paceControl() {
   const el = B(`<div class="pace" title="How fast the whole reel plays: every beat, move, word, typing and transition scales with it. Music and voice keep their speed."><span class="lbl2">Pace</span>
     <div class="seg">${PACES.map((p) => `<button data-pace="${p}" class="${paceOf() === p ? 'on' : ''}">${p}×</button>`).join('')}</div>
@@ -560,6 +677,8 @@ function done(id) {
     story: spec.beats.length > 0 && spec.beats.every((b) => (b.word || b.line)), ground: !!spec.look, preview: false }[id];
 }
 function draw() {
+  // Only Parts has the intro and outro either side of the beats.
+  if (spec && step !== 'parts' && spec.beats.length) beatIndex = clampBeat(beatIndex);
   stopAnimator();
   $('steps').innerHTML = '';
   STEPS.forEach((s, i) => {
@@ -684,7 +803,10 @@ function drawBrief(c, side) {
   c.appendChild(fmt);
   const pace = B('<div class="field"><span>Pace</span></div>');
   pace.appendChild(paceControl());
-  pace.appendChild(B('<span class="hint" style="margin:0">Plays the whole reel faster or slower; every timing you set scales with it.</span>'));
+  pace.appendChild(B('<span class="hint" style="margin:0">Plays the whole reel faster or slower; every timing you set scales with it. Or say how long it should be, and the studio works out how.</span>'));
+  const fit = B('<button style="align-self:flex-start">Fit to a length…</button>');
+  fit.onclick = () => { planOpen = true; step = 'preview'; draw(); };
+  pace.appendChild(fit);
   c.appendChild(pace);
   const brief = B(`<div class="field"><label for="bBrief">What should it get across, and to whom?</label><textarea class="input" id="bBrief" placeholder="e.g. For couples who share bills: Khumio makes shared money easy, without the awkward chats.">${escB(spec.brief)}</textarea></div>`);
   brief.querySelector('textarea').oninput = (e) => { spec.brief = e.target.value; save(); };
@@ -836,17 +958,29 @@ async function generate(ov) {
 // 3 ─ Parts
 function drawParts(c, side) {
   if (!spec.beats.length) { c.appendChild(B('<div><h1>Parts</h1><p class="why">Add screens first.</p></div>')); return; }
-  beatIndex = Math.min(beatIndex, spec.beats.length - 1);
-  const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
+  // The intro before the beats (-1) and the outro after them.
+  const last = spec.beats.length;
+  beatIndex = Math.max(-1, Math.min(beatIndex, last));
   // One slim row: which beat (step through, or jump), and Pick or Animate.
-  const nameOf = (i) => { const b = spec.beats[i], bs = screenOf(b.screen); return b.word || (bs ? bs.label : b.screen); };
-  const prow = B(`<div class="beatbar"><button class="bnav" title="${beatIndex > 0 ? 'Previous: ' + escB(nameOf(beatIndex - 1)) + ' ([)' : ''}" ${beatIndex === 0 ? 'disabled' : ''} aria-label="Previous beat">‹</button>
-    <select class="input beatSel" aria-label="Beat">${spec.beats.map((b, i) => { const ready = b.parts.length || isComp(b.screen); return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${ready ? '' : '○ '}${i + 1}/${spec.beats.length} · ${escB(nameOf(i))}</option>`; }).join('')}</select>
-    <button class="bnav" title="${beatIndex < spec.beats.length - 1 ? 'Next: ' + escB(nameOf(beatIndex + 1)) + ' (])' : ''}" ${beatIndex === spec.beats.length - 1 ? 'disabled' : ''} aria-label="Next beat">›</button></div>`);
+  const nameOf = (i) => { if (i < 0) return 'Intro'; if (i >= last) return 'Outro'; const b = spec.beats[i], bs = screenOf(b.screen); return b.word || (bs ? bs.label : b.screen); };
+  const optOf = (i) => {
+    if (i < 0 || i >= last) return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${nameOf(i)}${(i < 0 ? spec.open === false || spec.open == null || spec.open.off : !spec.end || spec.end.off) ? ' · off' : ''}</option>`;
+    const b = spec.beats[i], ready = b.parts.length || isComp(b.screen);
+    return `<option value="${i}" ${i === beatIndex ? 'selected' : ''}>${b.skip ? '⊘ ' : ready ? '' : '○ '}${i + 1}/${last} · ${escB(nameOf(i))}${b.skip ? ' · skipped' : ''}</option>`;
+  };
+  const prow = B(`<div class="beatbar"><button class="bnav" title="${beatIndex > -1 ? 'Previous: ' + escB(nameOf(beatIndex - 1)) + ' ([)' : ''}" ${beatIndex === -1 ? 'disabled' : ''} aria-label="Previous beat">‹</button>
+    <select class="input beatSel" aria-label="Beat">${[-1, ...spec.beats.map((_, i) => i), last].map(optOf).join('')}</select>
+    <button class="bnav" title="${beatIndex < last ? 'Next: ' + escB(nameOf(beatIndex + 1)) + ' (])' : ''}" ${beatIndex === last ? 'disabled' : ''} aria-label="Next beat">›</button></div>`);
   const [prev, nextB] = prow.querySelectorAll('.bnav');
   prev.onclick = () => { beatIndex--; draw(); }; nextB.onclick = () => { beatIndex++; draw(); };
   prow.querySelector('.beatSel').onchange = (e) => { beatIndex = +e.target.value; draw(); };
   c.classList.add('fixed');
+  if (beatIndex < 0 || beatIndex >= last) {
+    c.appendChild(bookendEditor(beatIndex < 0 ? 'intro' : 'outro', side, [...prow.children])).classList.add('grow');
+    if (beatIndex >= last) { const on = next('On to the story'); on.style.marginTop = '10px'; c.appendChild(on); }
+    return;
+  }
+  const beat = spec.beats[beatIndex], s = screenOf(beat.screen);
   if (!s) { c.appendChild(B('<p class="hint">That screen is not in the catalogue.</p>')); return; }
   if (s.kind === 'component') {
     c.appendChild(B(`<div><h1>Beat ${beatIndex + 1}: ${escB(s.label)}</h1><p class="why"><b>${escB(s.label)}</b> is a piece of the app, so this beat shows it whole: large, on the ground, doing what it does. There is nothing to pick.</p></div>`));
@@ -863,7 +997,6 @@ function drawParts(c, side) {
   if (mode === 'animate') {
     // The beat picker and the switch join the editor's own toolbar.
     c.appendChild(timelineEditor(beat, s, beatIndex, side, [...prow.children])).classList.add('grow');
-    if (beatIndex === spec.beats.length - 1) { const on = next('On to the story'); on.style.marginTop = '10px'; c.appendChild(on); }
     return;
   }
   c.appendChild(prow);
@@ -1072,8 +1205,9 @@ function drawPreview(c, side) {
   pvKey = null;
   c.classList.add('fixed');
   const missing = spec.beats.filter((b) => !b.parts.length && !isComp(b.screen)).length;
-  c.appendChild(B(`<div class="th-top"><div><h1 style="font-size:24px;margin:0">Preview</h1><span class="hint" style="margin:0">${spec.beats.length} beats · ${escB(PACKS.find((p) => p.id === spec.pack).name)} · ${spec.format}${missing ? ` · ${missing} beat${missing === 1 ? '' : 's'} with nothing lifting` : ''}</span></div><span style="flex:1"></span><span id="pvPace"></span><button class="primary" id="pvGo">Render the preview</button></div>`));
+  c.appendChild(B(`<div class="th-top"><div><h1 style="font-size:24px;margin:0">Preview</h1><span class="hint" style="margin:0">${spec.beats.length} beats · ${escB(PACKS.find((p) => p.id === spec.pack).name)} · ${spec.format}${missing ? ` · ${missing} beat${missing === 1 ? '' : 's'} with nothing lifting` : ''}</span></div><span style="flex:1"></span><button id="pvFit" title="Say how long it should be; the studio works out how">Fit to a length…</button><span id="pvPace"></span><button class="primary" id="pvGo">Render the preview</button></div>`));
   c.querySelector('#pvPace').replaceWith(paceControl());
+  c.querySelector('#pvFit').onclick = () => { planOpen = true; draw(); };
   c.appendChild(B(`<div class="th grow"><div class="th-stage"><div class="th-player" id="pvArea"></div></div>
     <div class="th-scrub" id="pvScrub"></div><div class="th-chips" id="pvChips"></div>
     <span class="hint" style="margin:0;text-align:center">Click a beat to jump to it · double-click to edit it</span></div>`));
@@ -1092,7 +1226,8 @@ function drawPreview(c, side) {
     <button id="pvAgain">Preview again</button>
     <span class="mono2" id="pvMeta"></span>
     <span class="hint" style="margin:0">Finals land in the Library, one per format. The reel is <code>app_reels/specs/${escB(spec.name)}.json</code>.</span></div>`);
-  side.appendChild(ex);
+  // The plan to fit a length takes the panel while it is open.
+  if (planOpen) planPanel(side); else side.appendChild(ex);
   const count = () => ex.querySelectorAll('[data-fmt]:checked').length;
   const label = () => { const n = count(); ex.querySelector('#pvFinal').textContent = n ? `Render ${n} final${n === 1 ? '' : 's'} →` : 'Choose a format'; ex.querySelector('#pvFinal').disabled = !n; };
   ex.querySelectorAll('[data-fmt]').forEach((i) => (i.onchange = label)); label();

@@ -4,11 +4,13 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show debugPrintSynchronously;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'backdrop.dart';
 import 'format.dart';
+import 'packs/brand.dart';
 import 'reel.dart';
 import 'render.dart';
 import 'camera.dart';
@@ -64,6 +66,8 @@ void blaqReelMain({
   // A quick final: half size, as previews are, for a look before the real
   // one.
   const quick = bool.fromEnvironment('BLAQ_REEL_QUICK');
+  // One scene of the reel, by name: the studio's look at the opening or end.
+  const scene = String.fromEnvironment('BLAQ_REEL_SCENE');
   const long = Timeout(Duration(minutes: 60));
 
   if (task == 'serve') {
@@ -159,7 +163,10 @@ void blaqReelMain({
           final r = renderer(tester, reel);
           await r.mount();
           final dir = '${config.out}/studio';
-          await r.preview('$dir/$n-${f.name}.mp4');
+          await r.preview(
+            '$dir/$n-${f.name}.mp4',
+            scene: scene.isEmpty ? null : scene,
+          );
           await r.close();
           _writeJson('$dir/$n-${f.name}.json', {
             ...describeReel(reel, fps: r.fps),
@@ -279,7 +286,10 @@ Future<void> _job(
     switch (task) {
       case 'preview':
         final dir = '${config.out}/studio';
-        await r.preview('$dir/$n-${f.name}.mp4');
+        await r.preview(
+          '$dir/$n-${f.name}.mp4',
+          scene: job['scene'] as String?,
+        );
         _writeJson('$dir/$n-${f.name}.json', {
           ...describeReel(reel, fps: r.fps),
           'video': '$n-${f.name}.mp4',
@@ -417,5 +427,44 @@ Future<void> _catalogue(
     s['label'] = kit.screens[id]?.label ?? id;
     s['kind'] = kit.screens[id]?.isComponent ?? false ? 'component' : 'screen';
   }
+  // The logos as they settle, in the brand's ink and paper, so the builder
+  // can show an opening or an end as it will look.
+  final brand = Brand.from(config);
+  final logos = <String, Object?>{};
+  for (final MapEntry(:key, :value) in kit.logos.entries) {
+    final size = kit.logoSizes[key] ?? const Size(220, 220);
+    for (final (tone, color) in [('ink', brand.ink), ('paper', brand.paper)]) {
+      final boundary = GlobalKey();
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: RepaintBoundary(
+              key: boundary,
+              child: SizedBox.fromSize(
+                size: size,
+                child: value(const Duration(seconds: 6), color),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      final file = 'logo-$key-$tone.png';
+      await tester.runAsync(() async {
+        final ro =
+            boundary.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await ro.toImage(pixelRatio: 2);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        File('$dir/$file').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+    logos[key] = {'width': size.width, 'height': size.height};
+  }
+  map['logos'] = logos;
+  // The address an end card shows unless it gives its own.
+  if (kit.url != null) map['url'] = kit.url;
   _writeJson(file.path, map);
 }

@@ -67,6 +67,10 @@ widget tests already has this.
    tool's (drag the label, or ↑/↓; Shift ×10, Alt ×0.1). `[` and `]` step
    through the beats, Space plays and pauses, and the chips at the top of
    the inspector switch between the words and each part.
+   The **Intro** and **Outro** sit either side of the beats in the beat
+   picker: the opening logo, and the end card's logo, line, address and
+   fan of screens, each with its length, or off. A beat can be skipped:
+   left out of the video, kept in the reel.
    The editor sketches each beat from a flat shot of its screen, which is
    quick but cannot show what the app itself does (typed text formatting,
    a tap); **Render beat** renders just that beat with the real screens in
@@ -75,7 +79,10 @@ widget tests already has this.
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).
    **Let the AI build it** does the screens, parts and words from the brief alone.
-6. **Preview**: a theatre. The reel plays centred at its own shape, with
+6. **Preview**: **Fit to a length…** takes a length (30 s, say) and
+   plans it: beats trimmed toward what their moves need, a shorter intro and
+   outro, at most a 1.2× pace, and which beats to keep when not all fit.
+   Then a theatre. The reel plays centred at its own shape, with
    a card over it while it renders (the frames drawn, the time left, then
    the sound); any render in the Library shows the same card over the
    player. Under it, a scrub bar marked at each beat and a chip per beat:

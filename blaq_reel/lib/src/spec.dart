@@ -131,9 +131,36 @@ class ReelSpec {
 
   String get _pack => '${json['pack'] ?? 'glass'}';
 
+  /// An end card's address: its own, none for `""` or `false`, else the
+  /// app's.
+  static String? _url(Map<String, Object?>? end, ReelKit kit) =>
+      switch (end?['url']) {
+        false || '' => null,
+        final String u => u,
+        _ => kit.url,
+      };
+
+  /// The opening's logo: `"open": "mark"`, or `{"logo": "mark", "length":
+  /// 2.0}`; none for `false` or `"none"`.
+  Object? get _openLogo {
+    final o = json['open'];
+    if (o is Map && o['off'] == true) return null;
+    final key = o is Map ? o['logo'] ?? 'mark' : o;
+    return key == false || key == 'none' ? null : key;
+  }
+
+  /// How long the opening runs, from `"open": {"length": seconds}`.
+  Duration get _openLength {
+    final o = json['open'];
+    final s = o is Map && o['length'] is num ? (o['length']! as num) : 2.6;
+    return Duration(milliseconds: (s.clamp(1.2, 6) * 1000).round());
+  }
+
+  /// The beats that play: a beat marked `"skip": true` stays in the spec,
+  /// out of the video.
   List<Map<String, Object?>> get _beats => [
     for (final b in (json['beats'] as List?) ?? const [])
-      b as Map<String, Object?>,
+      if ((b as Map<String, Object?>)['skip'] != true) b,
   ];
 
   /// A part as the map names it: `{type, text?, nth?}`.
@@ -322,7 +349,11 @@ class ReelSpec {
       'none' => null,
       final m => Music('$m', gain: -8),
     };
-    final end = json['end'] as Map<String, Object?>?;
+    // An end card, unless turned off (`"off": true` keeps its settings).
+    final endRaw = json['end'];
+    final end = endRaw is Map && endRaw['off'] != true
+        ? endRaw.cast<String, Object?>()
+        : null;
     // The reel's words, which every beat's own sit over.
     final reelWords = _words(json['words'], format);
     final fps = (json['fps'] as int?) ?? config.fps;
@@ -381,8 +412,10 @@ class ReelSpec {
                 (t) => const SizedBox(),
             logoSize: logoSize(end['logo'] ?? 'wordmark', const Size(340, 110)),
             line: end['line'] as String?,
-            url: (end['url'] ?? kit.url) as String?,
+            // The app's address unless the card says its own, or none ("" or false).
+            url: _url(end, kit),
             length: _num(end['length'], 4.7).s,
+            fan: end['fan'] != false,
           );
 
     final reel = switch (_pack) {
@@ -397,8 +430,9 @@ class ReelSpec {
         music: music,
         motionBlur: (json['motionBlur'] as int?) ?? 1,
         flip: json['flip'] == true,
-        open: logo(json['open'], look),
-        openSize: logoSize(json['open'], const Size(220, 220)),
+        open: logo(_openLogo, look),
+        openSize: logoSize(_openLogo, const Size(220, 220)),
+        openLength: _openLength,
         beats: [for (final b in _beats) glassBeat(b)],
         end: glassEnd(),
       ).build(name),
@@ -431,7 +465,7 @@ class ReelSpec {
             : logo(end['logo'] ?? 'wordmark', GlassLook.mesh),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
         line: end?['line'] as String?,
-        url: (end?['url'] ?? kit.url) as String?,
+        url: _url(end, kit),
       ).build(name),
       'glow' => DarkGlow(
         brand: brand,
@@ -458,7 +492,7 @@ class ReelSpec {
             ? null
             : logo(end['logo'] ?? 'wordmark', GlassLook.ink),
         logoSize: logoSize(end?['logo'] ?? 'wordmark', const Size(320, 100)),
-        url: (end?['url'] ?? kit.url) as String?,
+        url: _url(end, kit),
       ).build(name),
       'story' => StoryAd(
         brand: brand,
@@ -470,9 +504,8 @@ class ReelSpec {
         hook: [for (final l in (json['hook'] as List?) ?? const []) '$l'],
         problem: [for (final l in (json['problem'] as List?) ?? const []) '$l'],
         meet:
-            logo(json['open'] ?? 'mark', GlassLook.ink) ??
-            (t) => const SizedBox(),
-        meetSize: logoSize(json['open'] ?? 'mark', const Size(200, 200)),
+            logo(_openLogo ?? 'mark', GlassLook.ink) ?? (t) => const SizedBox(),
+        meetSize: logoSize(_openLogo ?? 'mark', const Size(200, 200)),
         meetLine: json['meetLine'] as String?,
         beats: [for (final b in _beats) glassBeat(b)],
         proof: [for (final l in (json['proof'] as List?) ?? const []) '$l'],

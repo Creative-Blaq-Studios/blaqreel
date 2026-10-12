@@ -174,6 +174,9 @@ class GlassLayers {
   /// The opening widget's box.
   final Size openSize;
 
+  /// How long the opening runs.
+  final Duration openLength;
+
   /// How it ends. Null ends on the last beat.
   final GlassEnd? end;
 
@@ -216,6 +219,7 @@ class GlassLayers {
     this.format = Format.vertical,
     this.open,
     this.openSize = const Size(160, 160),
+    this.openLength = const Duration(milliseconds: 2600),
     this.end,
     this.hole,
     this.statusBar,
@@ -467,7 +471,7 @@ class GlassLayers {
   /// The opening: [open] arriving out of the dark, for a zoom through into
   /// the first beat.
   Scene openScene() {
-    const length = Duration(milliseconds: 2600);
+    final length = openLength;
     final f = _frame;
     return Scene(
       name: 'open',

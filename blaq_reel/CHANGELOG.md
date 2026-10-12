@@ -58,6 +58,23 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- Fit to a length: say how long the reel should be (Preview, or Brief &
+  style) and the studio plans it as an editor would: beats trimmed toward
+  what their moves need (their parts land, typing finishes, the words read),
+  the intro and outro shortened, a gentle pace of at most 1.2×, and when not
+  every beat fits, the ones to keep, spread through the reel, ticked for you
+  to change. The rest are skipped, not deleted. Housemates fitted to 30 s
+  rendered at 30.0 s.
+- The intro and the outro are in the editor, either side of the beats:
+  on or off, the logo, the length, and for the outro its line, its address
+  (the app's, its own, or none) and the screens fanned behind it. Sketched
+  from the logos as the catalogue draws them (it now captures every logo,
+  in ink and paper, and the app's address); Render renders just that one.
+- Specs: `"open": {"logo", "length", "off"}` (or the logo's name, or
+  `false`); `"end"` takes `"fan"`, `"off"` and `"url": false`; a beat's
+  `"skip": true` leaves it out of the video; `"target"` is the length last
+  fitted to. `GlassLayers.openLength`. `ReelRenderer.preview(scene:)`
+  renders one scene of a reel, silent.
 - Pace: `Reel.pace` (spec `"pace"`) plays the whole reel faster or
   slower. Every timing scales with it, beat lengths, moves, typing, words,
   transitions and the moving ground, so the beats keep their shape and the
