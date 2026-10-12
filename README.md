@@ -17,6 +17,28 @@ touched: everything lives in the app's own `app_reels/` folder.
 
 ---
 
+## Install with your AI agent
+
+Point your agent (Claude Code, Codex, Cursor or another) at the repository
+and ask. In the Flutter app's folder:
+
+> Install BlaqReel in this Flutter app by following
+> https://github.com/Creative-Blaq-Studios/blaqreel/blob/main/INSTALL.md
+
+Then:
+
+> Make a 30-second vertical promo of this app with BlaqReel.
+
+Or, to make it yourself: `dart run blaq_reel studio`, then **Build**.
+
+To update later:
+
+> Update BlaqReel: pull ~/.blaqreel and run flutter pub upgrade blaq_reel.
+
+While the repository is private, the machine needs access to it (signed
+in with `gh auth login`). [`INSTALL.md`](INSTALL.md) is the step-by-step
+the agent follows; the rest of this README is for people.
+
 ## Contents
 
 - [What's in this repository](#whats-in-this-repository)
@@ -46,6 +68,7 @@ touched: everything lives in the app's own `app_reels/` folder.
 | --- | --- |
 | [`blaq_reel/`](blaq_reel) | The Dart package: the engine (`package:blaq_reel/blaq_reel.dart`), four style packs (`package:blaq_reel/packs.dart`), and the command-line tool (`dart run blaq_reel …`) with the browser studio. |
 | [`skill/blaq-reel/`](skill/blaq-reel) | An agent skill for Claude Code, Codex, Cursor or any AI agent: it sets BlaqReel up in an app and makes reels by conversation, step by step, offering generated media when the agent can make images or video. |
+| [`INSTALL.md`](INSTALL.md) | How an AI agent installs BlaqReel in any Flutter app, step by step. |
 | [`AGENTS.md`](AGENTS.md) | The rules for AI agents working on BlaqReel itself. |
 
 ## How it works

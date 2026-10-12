@@ -80,6 +80,9 @@
   on the point. `ReelImage` reads and decodes pictures so they draw inside
   the test's clock. `blaq_reel media frames <video>` turns a clip into
   frames. For pictures an AI generates, or any the person has.
+- `INSTALL.md`: how any AI agent installs BlaqReel in a Flutter app, step
+  by step with a check at each; the README opens with the prompts to give
+  it ("Install BlaqReel in this Flutter app by following …/INSTALL.md").
 - `blaq_reel media cutout <photo>`: cuts a hand, person or object out of a
   photo into a transparent PNG (Apple's Vision on macOS, compiled once as a
   small Swift tool; `rembg` elsewhere), keeping only a region, solid inside,

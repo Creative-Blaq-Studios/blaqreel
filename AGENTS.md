@@ -36,7 +36,7 @@ When you change any of the following, update the files listed against it:
 | The engine's public API (`lib/src/`, `lib/src/packs/`) | `reference.md` → Reels in Dart; `README.md` → The building blocks |
 | The studio or its builder (`lib/cli/studio*.dart`, `builder_page.dart`, `animator_page.dart`) | `README.md` → The studio / The builder; `SKILL.md` if it changes how a person and an agent work together |
 | Where files go (`app_reels/out/`, `app_reels/media/`) | `reference.md` → Output; `README.md` → Output |
-| Setting up in an app (`init`, the host, the kit) | `SKILL.md` → Step 0; `reference.md` → Setting up; `README.md` → Set it up in an app |
+| Setting up in an app (`init`, the host, the kit) | `INSTALL.md`; `SKILL.md` → Step 0; `reference.md` → Setting up; `README.md` → Set it up in an app |
 | Anything a user would notice | `blaq_reel/CHANGELOG.md`, under the version being worked on |
 
 Before you finish, check:
