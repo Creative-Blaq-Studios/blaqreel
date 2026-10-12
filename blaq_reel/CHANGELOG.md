@@ -63,6 +63,14 @@
   faster or slower to fit; the renderer works out the pace from the reel
   itself, so housemates at 30 renders at 30.0 s. The builder shows the
   beats and about how long each runs, and As made goes back.
+- The skill works for any AI agent (Claude Code, Codex, Cursor…): no
+  machine paths or tool names, reels written as specs the studio opens,
+  everything BlaqReel does now, and an offer of generated media (a
+  background, a hand, stickers, a clip) when the agent can make images or
+  video. `reference.md` rewritten as a clean reference of the spec, media,
+  commands and Dart API. `AGENTS.md` (with `CLAUDE.md` pointing to it) tells
+  agents working on BlaqReel to update the skill, README and changelog with
+  every change.
 - Media: pictures and clips in a reel. `Backdrop.image` (spec `"ground":
   {"image", "dim", "light"}`) puts a picture behind everything, breathing
   slowly; `Media` (spec `"media"` on a reel, beat, intro or end card) sets

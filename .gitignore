@@ -35,5 +35,4 @@ migrate_working_dir/
 /blaq_reel/docs/api
 
 # ── Local-only / private (kept out of public history) ─────────────
-/CLAUDE.md
 /blaq_reel/docs/
