@@ -396,6 +396,7 @@ class ReelSpec {
         hole: kit.hole,
         music: music,
         motionBlur: (json['motionBlur'] as int?) ?? 1,
+        flip: json['flip'] == true,
         open: logo(json['open'], look),
         openSize: logoSize(json['open'], const Size(220, 220)),
         beats: [for (final b in _beats) glassBeat(b)],

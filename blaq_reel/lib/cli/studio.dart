@@ -335,6 +335,9 @@ class Studio {
                 ...spec,
                 'beats': [b],
                 'music': 'none',
+                // An odd beat swings the other way in its reel; alone, it
+                // still does.
+                'flip': index.isOdd,
               }
               ..remove('name')
               ..remove('open')

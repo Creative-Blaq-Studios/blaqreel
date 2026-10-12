@@ -202,6 +202,10 @@ class GlassLayers {
   /// Frames blended per output frame.
   final int motionBlur;
 
+  /// The beats swing the other way: the first one to the left. A beat
+  /// rendered on its own keeps the side it swings to in its reel this way.
+  final bool flip;
+
   /// Frames per second.
   final int fps;
 
@@ -220,6 +224,7 @@ class GlassLayers {
     this.music,
     this.voice = const [],
     this.motionBlur = 1,
+    this.flip = false,
     this.fps = 30,
     this.words,
   });
@@ -437,9 +442,10 @@ class GlassLayers {
       transitions.add(const Transition.zoomThrough());
     }
     for (final (i, beat) in beats.indexed) {
-      scenes.add(beatScene(beat, i.isEven ? 1 : -1));
+      final dir = i.isEven != flip ? 1.0 : -1.0;
+      scenes.add(beatScene(beat, dir));
       if (i < beats.length - 1) {
-        transitions.add(Transition.swing(direction: i.isEven ? 1 : -1));
+        transitions.add(Transition.swing(direction: dir));
       }
     }
     if (end != null) {
