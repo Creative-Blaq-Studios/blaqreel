@@ -19,11 +19,12 @@ const animatorCss = r'''
 .tl-bar > button.on, .tl-bar .seg button.on { background: var(--accent); color: #0A0A0A; }
 .tl-movel { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 6px; }
 .tl-bar > * { flex: none; }
-.tl-bar .tl-move { width: auto; min-width: 120px; padding: 5px 28px 5px 9px; appearance: none; -webkit-appearance: none; cursor: pointer;
+.tl-bar .tl-move { width: auto; min-width: 96px; padding: 5px 28px 5px 9px; appearance: none; -webkit-appearance: none; cursor: pointer;
   background: var(--bg2, #0D0D0D) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center; }
 .tl-bar .tl-move:hover { border-color: var(--accent); }
-.tl-bar .tl-scope button { padding: 5px 9px; font-size: 10px; }
-.tl-frame-pick { width: 84px; height: 28px; padding: 3px 8px; font-size: 13px; }
+.tl-bar .tl-scope button { padding: 5px 7px; font-size: 10px; }
+.tl-bar { gap: 5px; }
+.tl-frame-pick { width: 84px; padding: 4px 8px; font-size: 13px; }
 .tl-bar .bnav { padding: 5px 8px !important; font-size: 10.5px !important; }
 .tl-pats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .tl-pats button { padding: 5px 6px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -122,6 +123,9 @@ const animatorCss = r'''
 .tl-overlap { display: flex; gap: 8px; align-items: center; border: 1px solid var(--warn); color: var(--warn); padding: 8px; font-size: 12px; }
 .tl-overlap[hidden] { display: none; }
 .tl-overlap span { flex: 1; }
+.tl-issue { display: flex; gap: 8px; align-items: center; border: 1px solid var(--warn); color: var(--warn); padding: 8px; font-size: 12px; margin: 8px 0; }
+.tl-issue span { flex: 1; }
+.tl-flag { font-style: normal; color: var(--warn); }
 .pmode { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; }
 .pmode h1 { margin: 0; }
 
@@ -704,7 +708,7 @@ function timelineEditor(beat, s, index, side, lead) {
     root.querySelector('.tl-names').innerHTML = `<div class="tl-head"><button class="tl-play" aria-label="Play or pause">❚❚</button><b class="tl-tm">0.00s</b></div>`
       + `<div class="tl-name tl-beatname"><b>⏱</b>Beat<input class="input tl-len" id="tlLen" value="${(beat.length || 5.6).toFixed(1)}" aria-label="Beat length in seconds">s</div>`
       + `<div class="tl-name ${ed.sel === 'words' ? 'on' : ''}" data-sel="words"><b>T</b>Words · ${escB(beat.word || '—')}</div>`
-      + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
+      + parts.map((p, i) => `<div class="tl-name ${ed.sel === i ? 'on' : ''}" data-sel="${i}"><b>${i + 1}</b>${partIssues().some((x) => x.i === i) ? '<i class="tl-flag" title="See the warning in the panel">⚠</i>' : ''}${escB(p.type)}${p.text ? ' “' + escB(p.text) + '”' : ''}</div>`).join('');
     root.querySelector('.tl-rows').innerHTML = `<div class="tl-row tl-beatrow"><div class="tl-bar2 beat" data-k="beat" title="Drag the end to make the beat longer or shorter"><span></span><i class="tl-r"></i></div></div>`
       + `<div class="tl-row ${ed.sel === 'words' ? 'on' : ''}"><div class="tl-bar2 words" data-k="words" title="Drag to move; drag an end to change when they come in or go"><i class="tl-l"></i>${escB(w.reveal)} in<i class="tl-r"></i></div></div>`
       + parts.map((p, i) => { const plan = partPlan(beat, i, parts.length, dir); return `<div class="tl-row ${ed.sel === i ? 'on' : ''}${plan.typing ? ' typed' : ''}"><div class="tl-bar2" data-k="${i}" title="Drag to move when it starts; drag its end to change how long it takes">rise${plan.scanned ? ' · scan' : ''}<i class="tl-r"></i></div>${plan.typing ? `<div class="tl-bar2 typing" data-k="t${i}" title="Typing “${escB(plan.typing.text)}”: drag to move when it starts">type ${escB(plan.typing.text)}</div>` : ''}</div>`; }).join('');
@@ -872,9 +876,28 @@ function timelineEditor(beat, s, index, side, lead) {
     el.querySelector('#gLike').onclick = () => generate(true);
     show();
   }
+  // Parts that would spoil the beat: one the screen no longer has (it
+  // changed since it was picked), and one inside another lifted part, which
+  // then shows twice, once on its own and once in the other.
+  function partIssues() {
+    const rects = beat.parts.map((p) => { const sp = partOf(p); return sp && sp.rect; });
+    const inside = (a, b) => a[0] >= b[0] - 4 && a[1] >= b[1] - 4 && a[0] + a[2] <= b[0] + b[2] + 4 && a[1] + a[3] <= b[1] + b[3] + 4;
+    const out = [];
+    beat.parts.forEach((p, i) => {
+      if (!rects[i]) { out.push({ i, why: `Part ${i + 1} (${p.type.replace(/^_/, '')}) is not on this screen any more, so it may land anywhere.` }); return; }
+      const j = rects.findIndex((r, k) => k !== i && r && inside(rects[i], r) && !(inside(r, rects[i]) && k > i));
+      if (j >= 0) out.push({ i, why: `Part ${i + 1} sits inside part ${j + 1}, so it shows twice: on its own and in part ${j + 1}.` });
+    });
+    return out;
+  }
   function inspector() {
     side.innerHTML = '';
     chooser();
+    for (const issue of partIssues()) {
+      const w = B(`<div class="tl-issue"><span>⚠ ${escB(issue.why)}</span><button>Remove part ${issue.i + 1}</button></div>`);
+      w.querySelector('button').onclick = () => { beat.parts.splice(issue.i, 1); ed.sel = 'words'; save(); draw(); };
+      side.appendChild(w);
+    }
     if (ed.sel === 'words') return wordsInspector();
     if (ed.sel === 'ground') return groundInspector();
     if (!parts.length) { side.appendChild(B('<div class="ai"><b>No parts yet</b><span>Pick parts of the screen to lift, or style the words.</span></div>')); return; }
@@ -892,7 +915,8 @@ function timelineEditor(beat, s, index, side, lead) {
       ${isField(p) ? `<div class="tl-sec"><div class="lbl2"><span>Typing</span><span class="${plan.typing ? 'set' : ''}">${plan.typing ? 'on' : 'none'}</span></div>
         <input class="input" id="pType" value="${escB(p.typing?.text || '')}" placeholder="What is typed, e.g. 186">
         ${plan.typing ? `${knob('ptAt', 'Starts', 0, Math.round((beat.length || 5.6) * 1000) - 200, 50, plan.typing.at, 's', p.typing.at != null)}${knob('ptEvery', 'Each key', 30, 400, 10, plan.typing.every, 'n', p.typing.every != null)}
-        <label class="tl-chk"><input type="checkbox" id="ptSound" ${plan.typing.sound ? 'checked' : ''}> A soft tick for each key</label>` : ''}
+        <label class="tl-chk"><input type="checkbox" id="ptSound" ${plan.typing.sound ? 'checked' : ''}> A soft tick for each key</label>
+        ${plan.typing.at < plan.arrive ? `<div class="tl-issue"><span>⚠ It starts typing while the part is still rising, out of focus.</span><button id="ptLand">Once it lands</button></div>` : ''}` : ''}
         <span class="hint" style="margin:0">Typed as keys are pressed, into the real field, so it formats them as the app does: 186 in a money field shows R186.00. Starts once the part is in place, or drag its bar.</span></div>` : ''}
       <div class="tl-sec"><button id="pReset">Reset to ${escB((MOVES.find((m) => m[0] === (beat.move || 'lift')) || MOVES[0])[1])}</button></div>
     </div>`);
@@ -916,6 +940,8 @@ function timelineEditor(beat, s, index, side, lead) {
       if (every) every.oninput = () => { p.typing.every = +every.value; every.nextElementSibling.textContent = Math.round(+every.value) + ' ms'; every.nextElementSibling.classList.add('set'); save(); };
       if (every) every.nextElementSibling.textContent = Math.round(+every.value) + ' ms';
       if (at) at.onchange = rows; if (every) every.onchange = () => { rows(); ed.t = partPlan(beat, i, parts.length, dir).typing.at - 300; ed.playing = true; };
+      const land = el.querySelector('#ptLand');
+      if (land) land.onclick = () => { delete p.typing.at; save(); rows(); inspector(); };
       const snd = el.querySelector('#ptSound');
       if (snd) snd.onchange = () => { if (snd.checked) delete p.typing.sound; else p.typing.sound = false; save(); };
     }

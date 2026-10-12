@@ -58,6 +58,10 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- The editor warns about a part that will spoil the beat (one its screen
+  no longer has, or one inside another lifted part, which then shows
+  twice) and removes it in one click; and about typing that starts while
+  its part is still rising, out of focus.
 - The editor's frame picker and safe-zone tick sit beside the frame (or
   above it when the frame fills the width), so the toolbar keeps to one
   row.
