@@ -159,6 +159,13 @@ person provides instead.
 `drift`, `zoom`, `spin` or `pop`. A ground picture breathes slowly on its
 own. Use motion sparingly: one moving thing at a time reads better.
 
+**Use a real image or video model.** If your environment has no generation
+tool (or it fails), say so and offer to use the person's own pictures; don't
+draw pictures with code and pass them off as generated, as they read as
+crude next to real screens. After making a hand, find its fingertip by
+looking at the picture (fractions from the top-left), not from memory: a
+wrong `tip` puts the hand's wrist on the button.
+
 **Rules:** no text inside generated pictures (the reel sets its own words);
 no real people's faces or other companies' logos; keep the app's screens
 the hero. Save everything in `app_reels/media/` so it is versioned with the
