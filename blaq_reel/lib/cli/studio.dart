@@ -6,6 +6,7 @@ import 'ai.dart';
 import 'claude_run.dart';
 import 'project.dart';
 import 'studio_page.dart';
+import 'worker.dart';
 
 /// The formats a rendered file's name can end in.
 const _formats = ['vertical', 'wide', 'square', 'portrait'];
@@ -53,6 +54,9 @@ class Studio {
   DateTime? _renderedAt;
   Future<void> _queue = Future.value();
   var _previewQueued = false;
+
+  /// The renderer, kept running so renders skip compiling the app.
+  late final RenderWorker _worker = RenderWorker(project);
 
   /// The last beat rendered on its own: which, in what frame, and whether it
   /// is rendering, rendered or failed.
@@ -227,6 +231,8 @@ class Studio {
     onReady?.call(uri);
     if (watch) _watch();
     unawaited(_describe());
+    // Compiled while the page loads, ready for the first render.
+    unawaited(_worker.start());
     if (!File('$_dir/catalogue/map.json').existsSync()) unawaited(catalogue());
     // A preview from an earlier session is shown as it is; saving a file
     // renders a fresh one.
@@ -251,25 +257,56 @@ class Studio {
     return next;
   }
 
-  Future<int> _run(Map<String, String> defines, {bool log = true}) =>
-      project.renderTest(
-        defines,
-        quiet: true,
-        onLine: (line) {
-          // `blaq_reel: promo frame 120/309`: how far the render is.
-          final m = RegExp(r'frame (\d+)/(\d+)').firstMatch(line);
-          if (m != null) {
-            _progress = int.parse(m[1]!) / int.parse(m[2]!);
-          }
-          if (!log) return;
-          if (line.contains('blaq_reel:') ||
-              line.contains('EXCEPTION') ||
-              line.contains('Error')) {
-            _log.add(line.trim());
-            if (_log.length > 40) _log.removeAt(0);
-          }
-        },
-      );
+  Future<int> _run(Map<String, String> defines, {bool log = true}) async {
+    void onLine(String line) {
+      // `blaq_reel: promo frame 120/309`: how far the render is.
+      final m = RegExp(r'frame (\d+)/(\d+)').firstMatch(line);
+      if (m != null) {
+        _progress = int.parse(m[1]!) / int.parse(m[2]!);
+      }
+      if (!log) return;
+      if (line.contains('blaq_reel:') ||
+          line.contains('EXCEPTION') ||
+          line.contains('Error')) {
+        _log.add(line.trim());
+        if (_log.length > 40) _log.removeAt(0);
+      }
+    }
+
+    // Renders go to the worker, which has the app compiled already; the rest
+    // (and anything it cannot take) run on their own.
+    const tasks = {'preview', 'video', 'stills'};
+    final task = defines['BLAQ_REEL_TASK'];
+    if (tasks.contains(task)) {
+      List<String> list(String? v) => [
+        for (final x in (v ?? '').split(','))
+          if (x.trim().isNotEmpty) x.trim(),
+      ];
+      var code = 0;
+      var taken = true;
+      for (final name in list(defines['BLAQ_REEL_NAME'])) {
+        final c = await _worker.run({
+          'task': task,
+          'name': name,
+          'formats': list(defines['BLAQ_REEL_FORMATS']),
+          'quick': defines['BLAQ_REEL_QUICK'] == 'true',
+          'audio': defines['BLAQ_REEL_AUDIO'] != 'off',
+          'at': [
+            for (final a in list(defines['BLAQ_REEL_AT'])) double.parse(a),
+          ],
+          if (defines['BLAQ_REEL_FPS'] != null)
+            'fps': int.parse(defines['BLAQ_REEL_FPS']!),
+        }, onLine: onLine);
+        if (c == null) {
+          taken = false;
+          break;
+        }
+        if (c != 0) code = c;
+      }
+      if (taken) return code;
+    }
+    return project.renderTest(defines, quiet: true, onLine: onLine);
+  }
 
   /// Reads every reel's timeline in every format, for the library.
   Future<void> _describe() => _serial('Reading the reels', () async {
@@ -397,6 +434,8 @@ class Studio {
       debounce?.cancel();
       debounce = Timer(const Duration(milliseconds: 700), () {
         stdout.writeln('studio: ${path.split('/').last} changed');
+        // The worker runs the code it was compiled with.
+        if (path.endsWith('.dart')) unawaited(_worker.restart());
         unawaited(_describe());
         unawaited(preview());
       });

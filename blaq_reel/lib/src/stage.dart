@@ -364,16 +364,23 @@ class ReelStageState extends State<ReelStage> {
           _lifted[key] = _Lifted(
             rect,
             full,
-            match,
-            // Built from the screen's widget as it is now, so a copy shows
-            // what the screen does after it was found: text typed, a figure
-            // that changed.
-            (w) => MediaQuery(
+            // Wrapped once: the host's wrap holds the app's scopes, which
+            // must not be made again every frame. Inside it the copy follows
+            // the screen's widget as it is now, so it shows what the screen
+            // does after it was found: text typed, a figure that changed.
+            MediaQuery(
               data: media,
               child: widget.host.wrap(
                 _CopyProbe(
                   onBuilt: (e) => _copies[key] = e,
-                  child: SizedBox.fromSize(size: full.size, child: w),
+                  child: SizedBox.fromSize(
+                    size: full.size,
+                    child: _LiveCopy(
+                      source: match,
+                      first: match.widget,
+                      time: widget.time,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1431,20 +1438,30 @@ class _Lifted {
   /// All of it, laid out as on the screen.
   final Rect full;
 
-  /// Where it was found in the screen.
+  /// The copy.
+  final Widget content;
+
+  const _Lifted(this.rect, this.full, this.content);
+}
+
+/// A lifted copy of [source]'s widget as the screen has it at each moment of
+/// [time]; [first] once the screen no longer has it.
+class _LiveCopy extends StatelessWidget {
   final Element source;
-
-  /// The copy, around a widget.
-  final Widget Function(Widget) build;
-
-  /// The widget as the screen first had it, for when it has gone.
   final Widget first;
+  final ValueListenable<Duration> time;
 
-  _Lifted(this.rect, this.full, this.source, this.build)
-    : first = source.widget;
+  const _LiveCopy({
+    required this.source,
+    required this.first,
+    required this.time,
+  });
 
-  /// The copy of the widget as the screen has it now.
-  Widget get content => build(source.mounted ? source.widget : first);
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<Duration>(
+    valueListenable: time,
+    builder: (_, _, _) => source.mounted ? source.widget : first,
+  );
 }
 
 /// Hands its element to [onBuilt] whenever it builds: how the stage finds a

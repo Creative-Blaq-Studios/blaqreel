@@ -80,6 +80,32 @@ class Project {
     return doc is YamlMap ? '${doc['name']}' : 'app';
   }
 
+  /// Whether the packages were resolved after every pubspec above [root]
+  /// last changed (a workspace keeps them at its own root).
+  bool get _resolved {
+    for (
+      Directory? d = root;
+      d != null;
+      d = d.parent.path == d.path ? null : d.parent
+    ) {
+      final config = File('${d.path}/.dart_tool/package_config.json');
+      if (!config.existsSync()) continue;
+      final at = config.lastModifiedSync();
+      for (
+        Directory? e = root;
+        e != null;
+        e = e.path == d.path ? null : e.parent
+      ) {
+        for (final name in ['pubspec.yaml', 'pubspec.lock']) {
+          final f = File('${e.path}/$name');
+          if (f.existsSync() && f.lastModifiedSync().isAfter(at)) return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
   String _abs(String path) =>
       path.startsWith('/') ? path : '${root.path}/$path';
 
@@ -95,6 +121,9 @@ class Project {
     final args = [
       'test',
       'app_reels/render_test.dart',
+      // Resolving packages is a third of a short render; skipped while
+      // nothing has changed since they were last resolved.
+      if (_resolved) '--no-pub',
       '--timeout',
       'none',
       '--reporter',
@@ -143,6 +172,23 @@ class Project {
       stderr.writeln('Render failed. Full log: $out/last.log');
     }
     return code;
+  }
+
+  /// Starts `render_test.dart` with [defines] and leaves it running: the
+  /// studio's render worker.
+  Future<Process> startRenderTest(Map<String, String> defines) {
+    Directory(out).createSync(recursive: true);
+    return Process.start(Platform.environment['FLUTTER'] ?? 'flutter', [
+      'test',
+      'app_reels/render_test.dart',
+      if (_resolved) '--no-pub',
+      '--timeout',
+      'none',
+      '--reporter',
+      'expanded',
+      for (final MapEntry(:key, :value) in defines.entries)
+        '--dart-define=$key=$value',
+    ], workingDirectory: root.path);
   }
 }
 

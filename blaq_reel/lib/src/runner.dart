@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show debugPrintSynchronously;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +45,7 @@ void blaqReelMain({
   ReelKit? kit,
   String specs = 'app_reels/specs',
 }) {
+  final inDart = reels;
   // Reels the studio's builder wrote, as data, beside the ones in Dart.
   if (kit != null) {
     reels = {
@@ -63,6 +65,29 @@ void blaqReelMain({
   // one.
   const quick = bool.fromEnvironment('BLAQ_REEL_QUICK');
   const long = Timeout(Duration(minutes: 60));
+
+  if (task == 'serve') {
+    // The studio's renderer: compiled once, rendering job after job.
+    testWidgets('serve', (tester) async {
+      await _serve(
+        tester,
+        config: config,
+        host: host,
+        reels: () => {
+          ...inDart,
+          if (kit != null)
+            for (final MapEntry(:key, :value) in ReelSpec.all(specs).entries)
+              key: (format) => value.build(
+                name: key,
+                kit: kit,
+                config: config,
+                format: format,
+              ),
+        },
+      );
+    }, timeout: Timeout.none);
+    return;
+  }
 
   if (task == 'catalogue') {
     if (kit == null) throw StateError('The catalogue needs a ReelKit.');
@@ -158,6 +183,126 @@ void blaqReelMain({
         });
       }
     }
+  }
+}
+
+/// Renders the jobs the studio leaves in `<out>/studio/jobs/` one after
+/// another, in this one compiled test, so only the first pays for building
+/// the app: `<id>.job` holds `{"task": "preview" | "video" | "stills",
+/// "name", "formats": [...], "quick", "audio", "at": [...], "fps"}`.
+/// Answers each with `<id>.done` (its exit code) and the line
+/// `blaq_reel: job <id> done <code>`. Stops when the studio stops touching
+/// `alive`, or after a few dozen jobs, for a fresh start.
+Future<void> _serve(
+  WidgetTester tester, {
+  required ReelConfig config,
+  required ReelHost host,
+  required Map<String, ReelBuilder> Function() reels,
+}) async {
+  final dir = Directory('${config.out}/studio/jobs')
+    ..createSync(recursive: true);
+  final alive = File('${dir.path}/alive');
+  debugPrintSynchronously('blaq_reel: serving');
+  for (var served = 0; served < 40;) {
+    final next = await tester.runAsync(() async {
+      final jobs =
+          dir
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.job'))
+              .toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
+      if (jobs.isNotEmpty) return jobs.first;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      return null;
+    });
+    if (next == null) {
+      final stale =
+          !alive.existsSync() ||
+          DateTime.now().difference(alive.lastModifiedSync()) >
+              const Duration(seconds: 20);
+      if (stale) break;
+      continue;
+    }
+    final id = next.uri.pathSegments.last.replaceAll('.job', '');
+    final job = jsonDecode(next.readAsStringSync()) as Map<String, Object?>;
+    next.deleteSync();
+    var code = 0;
+    try {
+      await _job(tester, job, config: config, host: host, reels: reels());
+    } catch (e, stack) {
+      // Synchronously: a throttled print waits on a timer this test's clock
+      // never runs, and the lines after it with it.
+      debugPrintSynchronously('blaq_reel: job $id failed: $e\n$stack');
+      code = 1;
+    }
+    // A widget that threw while drawing fails this job, not the ones after.
+    final thrown = tester.takeException();
+    if (thrown != null) {
+      debugPrintSynchronously('blaq_reel: job $id: EXCEPTION $thrown');
+      code = 1;
+    }
+    File('${dir.path}/$id.done').writeAsStringSync('$code');
+    debugPrintSynchronously('blaq_reel: job $id done $code');
+    served++;
+  }
+}
+
+/// One of the studio's jobs, as `_serve` reads it.
+Future<void> _job(
+  WidgetTester tester,
+  Map<String, Object?> job, {
+  required ReelConfig config,
+  required ReelHost host,
+  required Map<String, ReelBuilder> reels,
+}) async {
+  final task = '${job['task']}', n = '${job['name']}';
+  final build =
+      reels[n] ?? (throw ArgumentError.value(n, 'name', 'no such reel'));
+  final formats = [
+    for (final f in (job['formats'] as List? ?? const []))
+      if ('$f' == 'all') ...Format.all else Format.named('$f'),
+  ];
+  final fps = (job['fps'] as num?)?.toInt();
+  for (final f in formats.isEmpty ? [config.format] : formats) {
+    final reel = build(f);
+    final r = ReelRenderer(
+      tester,
+      reel,
+      host: host,
+      fps: fps,
+      ffmpeg: config.ffmpeg,
+      sfxDir: config.sound,
+    );
+    await r.mount();
+    final stem = f == config.format ? n : '$n-${f.name}';
+    switch (task) {
+      case 'preview':
+        final dir = '${config.out}/studio';
+        await r.preview('$dir/$n-${f.name}.mp4');
+        _writeJson('$dir/$n-${f.name}.json', {
+          ...describeReel(reel, fps: r.fps),
+          'video': '$n-${f.name}.mp4',
+          'rendered': DateTime.now().toIso8601String(),
+        });
+      case 'video':
+        if (job['quick'] == true) {
+          await r.preview('${config.out}/$stem.mp4');
+        } else {
+          await r.video(
+            '${config.out}/$stem.mp4',
+            audio: job['audio'] != false,
+          );
+        }
+      case 'stills':
+        for (final s in (job['at'] as List? ?? const [0.5])) {
+          final at = (s as num).toDouble();
+          await r.still(at.s, '${config.out}/stills/$stem-${at}s.png');
+        }
+      default:
+        throw ArgumentError.value(task, 'task');
+    }
+    await r.close();
   }
 }
 

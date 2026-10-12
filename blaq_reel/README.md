@@ -82,6 +82,10 @@ widget tests already has this.
    **Export**: tick the formats, choose Full or Quick, and **Render N
    finals**; they land in the Library under Rendered videos.
 
+The studio keeps a render worker running: the app is compiled once, when
+the studio starts and again when its code changes, and every render after
+that skips it. A beat renders in about five seconds.
+
 Whenever the studio asks Claude Code for something (drafting, the
 inventory, staging screens) it runs a headless session (`claude -p`) in the
 app's folder, on the person's own Claude Code. A **Claude Code** panel shows

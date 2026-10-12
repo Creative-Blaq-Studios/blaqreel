@@ -58,6 +58,16 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- Faster renders in the studio: a render worker (`render_test.dart` run
+  once with the task `serve`) keeps the app compiled and renders job after
+  job from `<out>/studio/jobs/`, restarting when the app's code changes;
+  a render it cannot take runs on its own as before. Renders skip
+  `pub get` while the packages are up to date. A beat renders in about
+  5 s (was 25 s); the 72 s housemates preview in 50 s (was 90–107 s).
+- Fixed: live lifted copies wrapped themselves in the host again every
+  frame (the app's scopes, its MaterialApp), which slowed long renders to
+  a crawl; the wrap is built once and only the copy inside follows the
+  screen.
 - Layers: `Lift.layer` and `PartMove.layer` (spec `"layer"` on a part)
   stack a beat's lifted parts in an order of their own, whatever their
   heights, so a lower part can sit in front. They swap only among the
