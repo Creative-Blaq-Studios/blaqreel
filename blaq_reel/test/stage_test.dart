@@ -456,6 +456,24 @@ void main() {
     await r.close();
   });
 
+  test('Given a reel at a pace, then it plays shorter, its moments come '
+      'sooner in the video, and its description is on the video\'s clock', () {
+    final reel = Reel.single(
+      name: 'paced',
+      length: 4.s,
+      backdrop: backdrop,
+      camera: Camera.still(const CameraPose()),
+      cues: [Cue(2.s, 'tap')],
+    ).withPace(1.25);
+    expect(reel.playedLength, 3200.ms);
+    expect(reel.played(2.s), 1600.ms);
+    expect(reel.atVideo(1600.ms), 2.s);
+    final described = describeReel(reel);
+    expect(described['length'], closeTo(3.2, 1e-9));
+    expect((described['cues']! as List).single, {'at': 1.6, 'sound': 'tap'});
+    expect(described['pace'], 1.25);
+  });
+
   test('Given a spec part with its own move, when read, then every setting '
       'comes through and the rest is left to the beat\'s move', () {
     final own = PartMove.fromJson({

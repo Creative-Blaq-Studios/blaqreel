@@ -92,6 +92,11 @@ textarea.input { min-height: 80px; resize: vertical; }
 .canvas.fixed > button { align-self: flex-start; }
 /* The Preview step's theatre. */
 .th-top { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.th-top .primary { white-space: nowrap; }
+.pace { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pace .seg button { padding: 5px 9px; font: 600 11px var(--mono); }
+.pace .pace-n { width: 58px; padding: 5px 8px; text-align: right; font: 600 12px var(--mono); }
+.pace .pace-len { color: var(--text2); }
 .th { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .th-stage { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
 .th-player { position: relative; height: 100%; max-width: 100%; background: #000; border: 1px solid var(--line2); display: grid; place-items: center; }
@@ -517,6 +522,37 @@ function save() {
 }
 function change(fn) { fn(); save(); draw(); }
 
+// The reel's pace: how fast all of it plays. Every timing scales with it,
+// so the beats keep their shape; the video gets shorter or longer.
+const PACES = [0.8, 1, 1.15, 1.25, 1.5];
+const paceOf = () => spec.pace || 1;
+// How long the reel runs at 1×, from its last preview.
+function designedLength() {
+  const p = typeof state !== 'undefined' && state && state.preview;
+  return p && state.reel === spec.name && p.length ? p.length * (p.pace || 1) : null;
+}
+function paceControl() {
+  const el = B(`<div class="pace" title="How fast the whole reel plays: every beat, move, word, typing and transition scales with it. Music and voice keep their speed."><span class="lbl2">Pace</span>
+    <div class="seg">${PACES.map((p) => `<button data-pace="${p}" class="${paceOf() === p ? 'on' : ''}">${p}×</button>`).join('')}</div>
+    <input class="input pace-n" value="${paceOf().toFixed(2)}" aria-label="Pace"><span class="mono2 pace-len"></span></div>`);
+  const n = el.querySelector('.pace-n');
+  const len = () => { const d = designedLength(); el.querySelector('.pace-len').textContent = d ? `${d.toFixed(1)} s → ${(d / paceOf()).toFixed(1)} s` : ''; };
+  const set = (v) => {
+    v = Math.round(Math.max(0.5, Math.min(2, v)) * 100) / 100;
+    if (v === 1) delete spec.pace; else spec.pace = v;
+    save();
+    el.querySelectorAll('[data-pace]').forEach((b) => b.classList.toggle('on', +b.dataset.pace === v));
+    if (document.activeElement !== n) n.value = v.toFixed(2);
+    len();
+  };
+  el.querySelectorAll('[data-pace]').forEach((b) => (b.onclick = () => set(+b.dataset.pace)));
+  n.onchange = () => { const v = parseFloat(n.value); if (!isNaN(v)) set(v); n.value = paceOf().toFixed(2); };
+  n.oninput = () => { const v = parseFloat(n.value); if (!isNaN(v)) set(v); };
+  scrubbable(n, 0.01, el.querySelector('.lbl2'));
+  len();
+  return el;
+}
+
 // ── Steps ───────────────────────────────────────────────────────────
 function done(id) {
   if (!spec) return false;
@@ -646,6 +682,10 @@ function drawBrief(c, side) {
   const fmt = B('<div class="field"><span>Frame</span><div class="seg"></div></div>');
   FORMATS.forEach((f) => { const b = B(`<button class="${spec.format === f ? 'on' : ''}">${f}</button>`); b.onclick = () => change(() => (spec.format = f)); fmt.querySelector('.seg').appendChild(b); });
   c.appendChild(fmt);
+  const pace = B('<div class="field"><span>Pace</span></div>');
+  pace.appendChild(paceControl());
+  pace.appendChild(B('<span class="hint" style="margin:0">Plays the whole reel faster or slower; every timing you set scales with it.</span>'));
+  c.appendChild(pace);
   const brief = B(`<div class="field"><label for="bBrief">What should it get across, and to whom?</label><textarea class="input" id="bBrief" placeholder="e.g. For couples who share bills: Khumio makes shared money easy, without the awkward chats.">${escB(spec.brief)}</textarea></div>`);
   brief.querySelector('textarea').oninput = (e) => { spec.brief = e.target.value; save(); };
   c.appendChild(brief);
@@ -1032,7 +1072,8 @@ function drawPreview(c, side) {
   pvKey = null;
   c.classList.add('fixed');
   const missing = spec.beats.filter((b) => !b.parts.length && !isComp(b.screen)).length;
-  c.appendChild(B(`<div class="th-top"><div><h1 style="font-size:24px;margin:0">Preview</h1><span class="hint" style="margin:0">${spec.beats.length} beats · ${escB(PACKS.find((p) => p.id === spec.pack).name)} · ${spec.format}${missing ? ` · ${missing} beat${missing === 1 ? '' : 's'} with nothing lifting` : ''}</span></div><span style="flex:1"></span><button class="primary" id="pvGo">Render the preview</button></div>`));
+  c.appendChild(B(`<div class="th-top"><div><h1 style="font-size:24px;margin:0">Preview</h1><span class="hint" style="margin:0">${spec.beats.length} beats · ${escB(PACKS.find((p) => p.id === spec.pack).name)} · ${spec.format}${missing ? ` · ${missing} beat${missing === 1 ? '' : 's'} with nothing lifting` : ''}</span></div><span style="flex:1"></span><span id="pvPace"></span><button class="primary" id="pvGo">Render the preview</button></div>`));
+  c.querySelector('#pvPace').replaceWith(paceControl());
   c.appendChild(B(`<div class="th grow"><div class="th-stage"><div class="th-player" id="pvArea"></div></div>
     <div class="th-scrub" id="pvScrub"></div><div class="th-chips" id="pvChips"></div>
     <span class="hint" style="margin:0;text-align:center">Click a beat to jump to it · double-click to edit it</span></div>`));

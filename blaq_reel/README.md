@@ -37,7 +37,8 @@ widget tests already has this.
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
-2. **Brief**: name, style pack, frame, what it should get across, sound,
+2. **Brief**: name, style pack, frame, pace (how fast the whole reel
+   plays; every timing scales with it), what it should get across, sound,
    and who writes the story: the AI, you then the AI, or you.
 3. **Ground**: the reel's ground and any beat's own; render them on the
    reel's own frames to compare. A ground can be a look, or move: one of

@@ -323,6 +323,12 @@ class Reel {
   /// Frames blended into each output frame, for motion blur. 1 is none.
   final int motionBlur;
 
+  /// How fast it plays: 1.25 runs every timing a quarter faster (beats,
+  /// moves, typing, words, transitions, the ground), so the video is shorter;
+  /// 0.8 slower. Music and voice-over keep their own speed; cues and lines
+  /// move with the moments they belong to.
+  final double pace;
+
   /// A reel.
   Reel({
     required this.name,
@@ -333,7 +339,32 @@ class Reel {
     this.transitions = const [],
     this.soundtrack = const Soundtrack(),
     this.motionBlur = 1,
-  });
+    this.pace = 1,
+  }) : assert(pace > 0);
+
+  /// This reel at [pace].
+  Reel withPace(double pace) => Reel(
+    name: name,
+    backdrop: backdrop,
+    scenes: scenes,
+    format: format,
+    fps: fps,
+    transitions: transitions,
+    soundtrack: soundtrack,
+    motionBlur: motionBlur,
+    pace: pace,
+  );
+
+  /// When a moment on the reel's clock comes in the video, at its [pace].
+  Duration played(Duration reelTime) =>
+      Duration(microseconds: (reelTime.inMicroseconds / pace).round());
+
+  /// The moment on the reel's clock shown at [videoTime].
+  Duration atVideo(Duration videoTime) =>
+      Duration(microseconds: (videoTime.inMicroseconds * pace).round());
+
+  /// How long the video runs, at its [pace].
+  Duration get playedLength => played(length);
 
   /// A reel of one scene.
   factory Reel.single({

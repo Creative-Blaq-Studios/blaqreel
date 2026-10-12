@@ -697,7 +697,7 @@ function timelineEditor(beat, s, index, side, lead) {
     if (ow) { ow.hidden = !hits.length; ow.querySelector('span').textContent = hits.length ? `The words cover part ${hits.join(', ')}. Move them, give them a plate, or put them behind.` : ''; }
     // The timeline.
     root.querySelector('.tl-ph').style.left = (t / TL) * 100 + '%';
-    root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's';
+    root.querySelector('.tl-tm').textContent = (t / 1000).toFixed(2) + 's' + (paceOf() !== 1 ? ` · ${paceOf()}×` : '');
     const rv = realVideo();
     root.querySelector('.tl-play').textContent = (rv ? !rv.paused : ed.playing) ? '❚❚' : '▶';
     root.querySelectorAll('.tl-bar2[data-k]').forEach((b) => {
@@ -1064,7 +1064,7 @@ function timelineEditor(beat, s, index, side, lead) {
   if (lead) root.querySelector('.tl-bar').prepend(...lead);
   root.querySelector('#tlFrame').onchange = (e) => { ed.frame = e.target.value; draw(); };
   root.querySelector('[data-safe]').onchange = (e) => { ed.safe = e.target.checked; };
-  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); const rv = realVideo(); if (rv) rv.currentTime = ed.t / 1000; };
+  root.querySelector('.tl-ruler').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); ed.playing = false; ed.t = clamp(((e.clientX - r.left) / r.width) * TL, 0, l); const rv = realVideo(); if (rv) rv.currentTime = ed.t / 1000 / paceOf(); };
 
   // The beat rendered for real, over the frame: progress while it renders,
   // then the clip, until put away. It belongs to this beat in this frame,
@@ -1113,8 +1113,9 @@ function timelineEditor(beat, s, index, side, lead) {
     if (!alive) return;
     if (!root.isConnected) { alive = false; return; }
     const rv = realVideo();
-    if (rv) ed.t = rv.currentTime * 1000;
-    else if (ed.playing) { ed.t += now - last; if (ed.t > l) ed.t = 0; }
+    if (rv) ed.t = rv.currentTime * 1000 * paceOf();
+    // At the reel's pace, as the render plays it.
+    else if (ed.playing) { ed.t += (now - last) * paceOf(); if (ed.t > l) ed.t = 0; }
     last = now; render();
     raf = requestAnimationFrame(tick);
   }

@@ -100,6 +100,9 @@ Pick.key(ValueKey('x'))
 //   into the field in a lifted part once it lands (or at `at`, from the
 //   beat's start), through the field's own formatters, so "186" in a money
 //   field shows R186.00; the lifted copy shows it.
+// Reel.pace / reel.withPace(1.25): the whole reel plays faster (or slower,
+//   below 1); every timing scales, music and voice keep their speed. Specs:
+//   "pace" at the top. reel.played(t) and reel.atVideo(t) convert clocks.
 // PartMove(layer: 2) / Lift(layer:): stacking among the beat's lifted
 //   parts, lowest drawn first, whatever their heights. Specs: "layer". Specs: on the part,
 //   "typing": {"text", "at" (ms), "every" (ms), "sound": false}.

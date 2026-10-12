@@ -385,7 +385,7 @@ class ReelSpec {
             length: _num(end['length'], 4.7).s,
           );
 
-    return switch (_pack) {
+    final reel = switch (_pack) {
       'glass' => GlassLayers(
         ground: reelGround,
         brand: brand,
@@ -482,5 +482,10 @@ class ReelSpec {
       ).build(name),
       _ => throw FormatException('Unknown pack "$_pack"'),
     };
+    // How fast the whole reel plays: every timing scales with it.
+    final pace = json['pace'];
+    return pace is num && pace > 0 && pace != 1
+        ? reel.withPace(pace.toDouble())
+        : reel;
   }
 }

@@ -58,6 +58,15 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
+- Pace: `Reel.pace` (spec `"pace"`) plays the whole reel faster or
+  slower. Every timing scales with it, beat lengths, moves, typing, words,
+  transitions and the moving ground, so the beats keep their shape and the
+  video gets shorter: housemates at 1.25× runs 54.1 s instead of 67.6 s.
+  Cues and voice lines move with their moments; music and voice keep their
+  speed. Stills and the studio's timeline read the video's clock. The
+  builder sets it in Brief & style and in Preview (0.8× to 1.5×, or any
+  value from 0.5× to 2×, with the length it gives), and the editor plays at
+  it.
 - Faster renders in the studio: a render worker (`render_test.dart` run
   once with the task `serve`) keeps the app compiled and renders job after
   job from `<out>/studio/jobs/`, restarting when the app's code changes;

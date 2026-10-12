@@ -129,9 +129,10 @@ class ReelRenderer {
     return image!;
   }
 
-  /// Saves the frame at [t] as a PNG at [path].
+  /// Saves the frame at [t] in the video (at the reel's pace) as a PNG at
+  /// [path].
   Future<void> still(Duration t, String path) async {
-    await seek(t);
+    await seek(reel.atVideo(t));
     final image = await capture();
     await tester.runAsync(() async {
       final png = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -166,8 +167,10 @@ class ReelRenderer {
     // Even sizes: H.264 in 4:2:0 needs them.
     final w = (reel.format.pixels.width * scale / 2).round() * 2;
     final h = (reel.format.pixels.height * scale / 2).round() * 2;
-    final frames = clock.frames(reel.length) * blur;
+    // At a pace, each frame moves the reel's clock that much further.
+    final frames = clock.frames(reel.playedLength) * blur;
     final step = Duration(microseconds: (1e6 / (fps * blur)).round());
+    final reelStep = reel.atVideo(step);
     File(path).parent.createSync(recursive: true);
     final silent = audio ? '$path.silent.mp4' : path;
 
@@ -209,7 +212,7 @@ class ReelRenderer {
 
     final watch = Stopwatch()..start();
     for (var n = 0; n < frames; n++) {
-      await seek(step * n, step: step);
+      await seek(reel.atVideo(step * n), step: reelStep);
       final image = await capture(scale: w / reel.format.pixels.width);
       await tester.runAsync(() async {
         final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -242,10 +245,11 @@ class ReelRenderer {
   void _mix(String silent, String out) {
     var soundtrack = reel.soundtrack;
     final music = soundtrack.music;
+    final length = reel.playedLength;
     if (music != null && music.path == Music.pad) {
-      final seconds = secondsOf(reel.length).ceil();
+      final seconds = secondsOf(length).ceil();
       final pad = '$sfxDir/pad-${seconds}s.m4a';
-      if (!File(pad).existsSync()) Sfx.pad(pad, reel.length, ffmpeg);
+      if (!File(pad).existsSync()) Sfx.pad(pad, length, ffmpeg);
       soundtrack = Soundtrack(
         music: Music(
           pad,
@@ -259,12 +263,25 @@ class ReelRenderer {
         duck: soundtrack.duck,
       );
     }
+    // Lines and cues at their moments in the video; music as it is.
+    if (reel.pace != 1) {
+      soundtrack = Soundtrack(
+        music: soundtrack.music,
+        voice: [
+          for (final v in soundtrack.voice)
+            VoiceLine(reel.played(v.at), v.path, v.text, gain: v.gain),
+        ],
+        cues: soundtrack.cues,
+        cueGain: soundtrack.cueGain,
+        duck: soundtrack.duck,
+      );
+    }
     final args = mixArgs(
       video: silent,
       out: out,
-      length: reel.length,
+      length: length,
       soundtrack: soundtrack,
-      cues: reel.cues,
+      cues: [for (final c in reel.cues) c.copyAt(reel.played(c.at))],
       resolve: (s) => Sfx.resolve(s, sfxDir, ffmpeg),
     );
     if (args == null) {
@@ -280,11 +297,13 @@ class ReelRenderer {
 }
 
 /// [reel]'s timeline as JSON-ready data, for the studio and for editors:
-/// scenes, words, cues and voice-over, all on the reel's clock.
+/// scenes, words, cues and voice-over, all on the video's clock (the reel's,
+/// at its pace).
 Map<String, Object?> describeReel(Reel reel, {int? fps}) {
-  double sec(Duration d) => secondsOf(d);
+  double sec(Duration d) => secondsOf(reel.played(d));
   return {
     'name': reel.name,
+    'pace': reel.pace,
     'format': reel.format.name,
     'width': reel.format.pixels.width,
     'height': reel.format.pixels.height,
