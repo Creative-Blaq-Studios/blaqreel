@@ -515,8 +515,12 @@ class ReelSpec {
       ).build(name),
       _ => throw FormatException('Unknown pack "$_pack"'),
     };
-    // How fast the whole reel plays: every timing scales with it.
-    final pace = json['pace'];
+    // How long it should run: every beat stays, every timing scales to fit
+    // ("length", in seconds). Or a pace of its own ("pace").
+    final target = json['length'], pace = json['pace'];
+    if (target is num && target > 0) {
+      return reel.withPace(secondsOf(reel.length) / target);
+    }
     return pace is num && pace > 0 && pace != 1
         ? reel.withPace(pace.toDouble())
         : reel;

@@ -58,13 +58,11 @@
   real screens (about half a minute), and plays it over the frame; the
   playhead follows it, and it says when the beat has changed since.
   `POST /api/beat` takes the spec as it stands, the beat and the frame.
-- Fit to a length: say how long the reel should be (Preview, or Brief &
-  style) and the studio plans it as an editor would: beats trimmed toward
-  what their moves need (their parts land, typing finishes, the words read),
-  the intro and outro shortened, a gentle pace of at most 1.2×, and when not
-  every beat fits, the ones to keep, spread through the reel, ticked for you
-  to change. The rest are skipped, not deleted. Housemates fitted to 30 s
-  rendered at 30.0 s.
+- Length: say how long the reel should run (`"length"` in seconds, in
+  Brief & style and Preview) and every beat stays while everything plays
+  faster or slower to fit; the renderer works out the pace from the reel
+  itself, so housemates at 30 renders at 30.0 s. The builder shows the
+  beats and about how long each runs, and As made goes back.
 - The intro and the outro are in the editor, either side of the beats:
   on or off, the logo, the length, and for the outro its line, its address
   (the app's, its own, or none) and the screens fanned behind it. Sketched
@@ -72,8 +70,7 @@
   in ink and paper, and the app's address); Render renders just that one.
 - Specs: `"open": {"logo", "length", "off"}` (or the logo's name, or
   `false`); `"end"` takes `"fan"`, `"off"` and `"url": false`; a beat's
-  `"skip": true` leaves it out of the video; `"target"` is the length last
-  fitted to. `GlassLayers.openLength`. `ReelRenderer.preview(scene:)`
+  `"skip": true` leaves it out of the video (the editor's Skip). `GlassLayers.openLength`. `ReelRenderer.preview(scene:)`
   renders one scene of a reel, silent.
 - Pace: `Reel.pace` (spec `"pace"`) plays the whole reel faster or
   slower. Every timing scales with it, beat lengths, moves, typing, words,
@@ -82,8 +79,8 @@
   Cues and voice lines move with their moments; music and voice keep their
   speed. Stills and the studio's timeline read the video's clock. The
   builder sets it in Brief & style and in Preview (0.8× to 1.5×, or any
-  value from 0.5× to 2×, with the length it gives), and the editor plays at
-  it.
+  value from 0.5× to 2×), and the editor plays at it. Superseded in the
+  builder by Length, below.
 - Faster renders in the studio: a render worker (`render_test.dart` run
   once with the task `serve`) keeps the app compiled and renders job after
   job from `<out>/studio/jobs/`, restarting when the app's code changes;

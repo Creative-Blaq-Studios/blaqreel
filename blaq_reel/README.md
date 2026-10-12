@@ -37,8 +37,8 @@ widget tests already has this.
    their own; each one you add is a beat. **Add from the app** lists every
    screen, sheet, dialog and component the AI found, and stages the ones
    you pick.
-2. **Brief**: name, style pack, frame, pace (how fast the whole reel
-   plays; every timing scales with it), what it should get across, sound,
+2. **Brief**: name, style pack, frame, length (how long it runs; every
+   timing scales to fit), what it should get across, sound,
    and who writes the story: the AI, you then the AI, or you.
 3. **Ground**: the reel's ground and any beat's own; render them on the
    reel's own frames to compare. A ground can be a look, or move: one of
@@ -79,10 +79,8 @@ widget tests already has this.
    problem and proof. **Draft with the AI** asks Claude Code (`claude -p`)
    using the brief, the parts and the app's own copy (`app_reels/copy.md`).
    **Let the AI build it** does the screens, parts and words from the brief alone.
-6. **Preview**: **Fit to a length…** takes a length (30 s, say) and
-   plans it: beats trimmed toward what their moves need, a shorter intro and
-   outro, at most a 1.2× pace, and which beats to keep when not all fit.
-   Then a theatre. The reel plays centred at its own shape, with
+6. **Preview**: **Length** at the top: say 30 s and every beat stays while
+   the whole reel plays faster to fit. Then a theatre. The reel plays centred at its own shape, with
    a card over it while it renders (the frames drawn, the time left, then
    the sound); any render in the Library shows the same card over the
    player. Under it, a scrub bar marked at each beat and a chip per beat:
