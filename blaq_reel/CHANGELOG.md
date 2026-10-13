@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The repository is public under the MIT licence; the README, INSTALL.md
+  and AGENTS.md no longer ask for access to a private repository.
+
 ## 0.5.0 — 2026-10-11
 
 ### Added

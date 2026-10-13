@@ -21,9 +21,6 @@ git --version
 
 - No FFmpeg: on macOS `brew install ffmpeg`; on Linux the package manager;
   on Windows `winget install ffmpeg`. Ask the person before installing.
-- The repository may be private. If cloning fails with a 404 or an
-  authentication error, the person needs access to it and to be signed in
-  (`gh auth login`). Tell them; don't work around it.
 
 ## 2. Get BlaqReel's skill
 

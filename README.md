@@ -12,8 +12,8 @@ FFmpeg. Change the app, render again, and the video follows.
 It is a dev dependency. Nothing ships in your app, and `lib/` is never
 touched: everything lives in the app's own `app_reels/` folder.
 
-> Status: 0.5, in use on Khumio, Creative Blaq Studios' finance app. Private
-> repository; no licence chosen yet. BlaqReel is a working name.
+> Status: 0.5, early. In use on Khumio, Creative Blaq Studios' finance app.
+> MIT licensed. Expect the spec format to change before 1.0.
 
 ---
 
@@ -35,8 +35,7 @@ To update later:
 
 > Update BlaqReel: pull ~/.blaqreel and run flutter pub upgrade blaq_reel.
 
-While the repository is private, the machine needs access to it (signed
-in with `gh auth login`). [`INSTALL.md`](INSTALL.md) is the step-by-step
+[`INSTALL.md`](INSTALL.md) is the step-by-step
 the agent follows; the rest of this README is for people.
 
 ## Contents
@@ -59,6 +58,8 @@ the agent follows; the rest of this README is for people.
 - [Things to know](#things-to-know)
 - [Troubleshooting](#troubleshooting)
 - [Developing BlaqReel](#developing-blaqreel)
+- [Contributing](#contributing)
+- [Licence](#licence)
 
 ---
 
@@ -99,8 +100,10 @@ goes stale when the design changes.
 | --- | --- | --- |
 | Flutter 3.44 or newer (Dart 3.12+) | everything | flutter.dev |
 | FFmpeg with libx264 | encoding, sound | `brew install ffmpeg` |
-| Claude Code (`claude`), signed in | the AI features: drafting, writing an intro, finding and staging screens | claude.com/claude-code |
+| Claude Code (`claude`), signed in (optional) | the AI features: drafting, writing an intro, finding and staging screens | claude.com/claude-code |
 | macOS speech voices | placeholder voice-over only | built in |
+
+Everything but the placeholder voice-over works wherever Flutter and FFmpeg do; it is built and used on macOS, so other platforms are less tried. Without Claude Code, reels are made by hand in the studio, as specs or as Dart.
 
 `dart run blaq_reel doctor` checks all of it.
 
@@ -110,8 +113,7 @@ These steps assume a Flutter app at `my_app/`.
 
 ### 1. Add the dependency
 
-From the repository (it is private, so the machine needs access, e.g.
-`gh auth login`):
+From the repository:
 
 ```yaml
 # my_app/pubspec.yaml
@@ -692,5 +694,16 @@ dart format lib test bin
 | `skill/blaq-reel/` | the agent skill: `SKILL.md` (the workflow) and `reference.md` (the facts) |
 | `AGENTS.md` | the rules for AI agents working on BlaqReel, above all: the skill and this README change with the code |
 
-The first app is Khumio: `Khumio/khumio/app_reels/` shows a full host,
-kit, Dart reels and builder specs.
+The first app to use it is Khumio, whose `app_reels/` folder (a full host,
+kit, Dart reels and builder specs) the examples here are drawn from.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a pull request, run
+`dart analyze`, `flutter test` and `dart format` in `blaq_reel/`, and read
+[`AGENTS.md`](AGENTS.md): the README and the skill change in the same
+commit as the code they describe.
+
+## Licence
+
+MIT, © 2026 Creative Blaq Studios (Pty) Ltd. See [LICENSE](LICENSE).

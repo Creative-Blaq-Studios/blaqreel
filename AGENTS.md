@@ -133,6 +133,7 @@ From an app that uses BlaqReel: `dart run blaq_reel <command>`; see
   invented claims.
 - Commits: plain, imperative subject; a body that says why. **No AI
   attribution or co-author trailers.**
-- The repository is private: `Creative-Blaq-Studios/blaqreel`. Ordinary
-  pushes to `main` are fine; ask before anything that changes its
-  visibility, creates releases, or publishes the package.
+- The repository is public, MIT licensed: `Creative-Blaq-Studios/blaqreel`.
+  Ordinary pushes to `main` are fine; ask before anything that changes its
+  visibility, creates releases, or publishes the package. Nothing private
+  goes in: no keys, no machine paths, no client app's code or screens.
