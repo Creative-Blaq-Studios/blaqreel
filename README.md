@@ -2,6 +2,16 @@
 
 **Promo videos made from a Flutter app's real screens.**
 
+<p align="center">
+  <img src="docs/media/demo.webp" width="100%" alt="The opening of a BlaqReel promo: the Khumio mark, then the app's Home screen tilting in while its shared-wallet card lifts off as a glass layer beside the word Share, then Say it and Scan">
+</p>
+
+<p align="center">
+  The first 12 seconds of a promo for <b>Khumio</b>, rendered by BlaqReel from the app's own widgets.
+  Full 30 seconds, with sound: <a href="docs/media/promo-wide.mp4">wide (16:9)</a> ·
+  <a href="docs/media/promo-vertical.mp4">vertical (9:16)</a>
+</p>
+
 BlaqReel turns the screens you already built into short videos for social
 media, YouTube and websites: real widgets floating in 3D, a moving camera,
 words that arrive on the beat, typing, taps and sound. It is not a screen
@@ -298,6 +308,10 @@ how much space it frees first.
 | C | copy the time, for notes |
 | R | render the preview again |
 | L | loop the scene |
+
+<p align="center">
+  <img src="docs/media/studio-builder.jpg" width="100%" alt="The BlaqReel studio's builder: the app's screens as cards to pick from, a panel of beats down the right, and steps across the top from Screens to Preview">
+</p>
 
 **Build** is the builder, below. Whenever the studio asks Claude Code for
 something, it runs a headless session on your own Claude Code in the app's
@@ -612,6 +626,19 @@ transitions and layout for each format.
 | `KineticLaunch` | Lines arrive word by word with the key part in the accent; devices sweep in beside them. |
 | `DarkGlow` | One unbroken camera past glowing screens on a dark ground, a title and line at each. |
 | `StoryAd` | Hook → problem → meet the app → Glass beats → proof → call to action, with voice-over per part and the music ducked under it. |
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/pack-glass-layers.jpg" alt="Glass Layers: the word Share beside a phone whose wallet card and bill card float off it"><br><b>GlassLayers</b></td>
+    <td width="50%"><img src="docs/media/pack-kinetic-launch.jpg" alt="Kinetic Launch: the line Spend, say it, done with say it highlighted, beside a phone sweeping in"><br><b>KineticLaunch</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/pack-dark-glow.jpg" alt="Dark Glow: a glowing phone on a dark ground with the title Shared money and a line beneath"><br><b>DarkGlow</b></td>
+    <td><img src="docs/media/pack-story-ad.jpg" alt="Story Ad: the hook Who still owes for the fibre? typed on a dark ground"><br><b>StoryAd</b></td>
+  </tr>
+</table>
+
+All four from the same Khumio screens, wide format.
 
 ## The building blocks
 
