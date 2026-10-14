@@ -57,7 +57,7 @@ class Project {
   String get format => '${_yaml['format'] ?? 'vertical'}';
 
   /// The brand as reel.yaml gives it: colours by name, and each font's
-  /// family (`packages/khumio_shared/Gabarito` is `Gabarito`), for pages
+  /// family (`packages/my_ui/Gabarito` is `Gabarito`), for pages
   /// that draw in the brand's look.
   Map<String, Object?> get brand {
     final b = _yaml['brand'];

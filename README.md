@@ -243,7 +243,7 @@ void main() {
 `init` does not write `kit.dart` yet. Ask Claude Code to "set BlaqReel up
 in this app" (the skill writes it), or write it by hand. Once it exists,
 the studio's **Screens → Add from the app** finds more screens and stages
-them for you. Khumio's `app_reels/kit.dart` is a full example.
+them for you.
 
 ### 5. Tell the AI what the app does
 
@@ -720,9 +720,6 @@ dart format lib test bin
 | `blaq_reel/CHANGELOG.md` | what changed, release by release |
 | `skill/blaq-reel/` | the agent skill: `SKILL.md` (the workflow) and `reference.md` (the facts) |
 | `AGENTS.md` | the rules for AI agents working on BlaqReel, above all: the skill and this README change with the code |
-
-The first app to use it is Khumio, whose `app_reels/` folder (a full host,
-kit, Dart reels and builder specs) the examples here are drawn from.
 
 ## Contributing
 

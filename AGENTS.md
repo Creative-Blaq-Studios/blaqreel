@@ -15,8 +15,8 @@ two parts:
 | `skill/blaq-reel/` | An agent skill: `SKILL.md` (how to make a reel with a person, step by step) and `reference.md` (the spec format, the Dart API, every command). Agents in *other* repositories read it to use BlaqReel. |
 
 Apps use BlaqReel as a dev dependency; their reels live in their own
-`app_reels/` folder. The first app is Khumio (`../Khumio/khumio/app_reels/`),
-a full working example of a host, a kit, Dart reels and specs.
+`app_reels/` folder. `INSTALL.md` sets one up, and `reference.md` shows a
+host, a kit, a spec and a Dart reel in full.
 
 `README.md` is the guide for people. `blaq_reel/CHANGELOG.md` records what
 changed.

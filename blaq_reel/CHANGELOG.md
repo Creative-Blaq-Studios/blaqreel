@@ -9,6 +9,8 @@
 - The README opens on a demo (the first 12 seconds of Khumio's promo, with
   the full 30 seconds in wide and vertical beside it), shows each style
   pack and the studio's builder. The media lives in `docs/media/`.
+- AGENTS.md and the README no longer point at Khumio's own `app_reels/`
+  folder, which readers of this repository can't see.
 
 ## 0.5.0 — 2026-10-11
 
